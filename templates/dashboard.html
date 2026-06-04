@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard - BotVip{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2 class="h3 fw-bold mb-1 text-slate-800">Panel de Control</h2>
+        <p class="text-muted mb-0">Gestión de tickets y automatización de notificaciones FTTH.</p>
+    </div>
+</div>
+
+<!-- Metrics Grid -->
+<div class="row g-3 mb-5">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div>
+                <div class="metric-value">{{ stats.totales }}</div>
+                <div class="metric-label">Casos Totales</div>
+            </div>
+            <div class="metric-icon bg-metric-blue">
+                <i class="bi bi-folder-fill"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div>
+                <div class="metric-value text-secondary">{{ stats.pendientes }}</div>
+                <div class="metric-label">Pendientes</div>
+            </div>
+            <div class="metric-icon bg-metric-orange">
+                <i class="bi bi-hourglass-split"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div>
+                <div class="metric-value text-primary">{{ stats.asignados }}</div>
+                <div class="metric-label">Pendiente Asignación</div>
+            </div>
+            <div class="metric-icon bg-metric-purple">
+                <i class="bi bi-people-fill"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div>
+                <div class="metric-value text-success">{{ stats.cerrados }}</div>
+                <div class="metric-label">Casos Cerrados</div>
+            </div>
+            <div class="metric-icon bg-metric-green">
+                <i class="bi bi-check-circle-fill"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Form -->
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card-premium">
+            <div class="p-4 bg-light border-bottom d-flex align-items-center gap-2">
+                <i class="bi bi-plus-circle-fill text-primary fs-5"></i>
+                <h4 class="mb-0 fw-semibold fs-5">Registrar Nuevo Caso FTTH</h4>
+            </div>
+            
+            <div class="card-body p-4">
+                {% if mensaje %}
+                <div class="alert alert-success border-0 rounded-3 mb-4 shadow-sm d-flex align-items-center gap-2">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <div>{{ mensaje }}</div>
+                </div>
+                {% endif %}
+
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-medium text-secondary" style="font-size: 0.875rem;">Código Cliente</label>
+                            <input type="text" class="form-control form-control-custom" name="codigo_cliente" placeholder="Ej: 07_gftth_juan12" required>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-medium text-secondary" style="font-size: 0.875rem;">Teléfono Cliente (WhatsApp)</label>
+                            <input type="text" class="form-control form-control-custom" name="telefono" placeholder="Ej: 51900111222" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium text-secondary" style="font-size: 0.875rem;">Tipo de Caso</label>
+                        <select class="form-select form-select-custom" name="tipo" required>
+                            <option value="INSTALACION">Instalación FTTH</option>
+                            <option value="AVERIA">Avería Técnica</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-medium text-secondary" style="font-size: 0.875rem;">Teléfono del Técnico Asignado (Opcional)</label>
+                        <input type="text" class="form-control form-control-custom" name="tecnico_telefono" placeholder="Ej: 51999888777">
+                    </div>
+
+                    <button type="submit" class="btn btn-premium-primary w-100 py-2.5">
+                        <i class="bi bi-send-fill me-2"></i>Crear Caso y Enviar WhatsApp
+                    </button>
+                </form>
+
+                <div class="mt-4 pt-3 border-top text-center text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <small>
+                        El bot iniciará el flujo automatizado: solicitará Nombre &rarr; Número Referencia &rarr; Dirección &rarr; Referencia &rarr; Disponibilidad.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+
+{% block title %}Operadores - BotVip{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4 g-3">
+    <div class="col-md-6">
+        <h2 class="h3 fw-bold mb-1">Listado de Operadores y Técnicos</h2>
+        <p class="text-muted mb-0">Total registrados: <strong class="text-primary">{{ operadores|length }}</strong></p>
+    </div>
+</div>
+
+<!-- Table Container -->
+<div class="card-premium">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col" class="ps-4">ID</th>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">DNI</th>
+                    <th scope="col">Correo Electrónico</th>
+                    <th scope="col">Rol</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col" class="pe-4">Fecha Registro</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for op in operadores %}
+                <tr>
+                    <td class="ps-4 font-semibold text-primary">#{{ op.id }}</td>
+                    <td>
+                        <span class="fw-medium text-dark">{{ op.nombre }}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border px-2.5 py-1.5" style="font-family: monospace;">{{ op.dni }}</span>
+                    </td>
+                    <td>{{ op.correo }}</td>
+                    <td>
+                        {% if op.rol == 'admin' %}
+                        <span class="badge bg-primary text-white px-2 py-1">
+                            <i class="bi bi-shield-fill-check me-1"></i> Administrador
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary text-white px-2 py-1">
+                            <i class="bi bi-person me-1"></i> Operador
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if op.activo %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                            Activo
+                        </span>
+                        {% else %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                            Inactivo
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="pe-4 text-muted" style="font-size: 0.85rem;">
+                        {% if op.fecha_creacion %}
+                        {{ op.fecha_creacion.strftime("%Y-%m-%d %H:%M") }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <i class="bi bi-people fs-1 d-block mb-2 text-slate-400"></i>
+                        No hay operadores registrados en la base de datos.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
