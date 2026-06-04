@@ -15,6 +15,15 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 
+with app.app_context():
+    try:
+        db.create_all()
+        asegurar_esquema()
+        crear_operador_defecto()
+        print("Base de datos y esquemas inicializados correctamente.")
+    except Exception as e:
+        print("Error inicializando base de datos en arranque:", e)
+
 
 def login_requerido(f):
     @wraps(f)
@@ -581,9 +590,4 @@ Estado: {caso.estado}
 
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-        asegurar_esquema()
-        crear_operador_defecto()
-
     app.run(port=5000)
