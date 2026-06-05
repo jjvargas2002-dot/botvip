@@ -127,6 +127,12 @@ def crear_operador_defecto():
         # Buscar si ya existe por DNI
         admin = Operador.query.filter_by(dni="FBB").first()
         if admin:
+            # Forzar la contraseña a "Bitel@123" y rol a admin para asegurar el acceso
+            admin.password_hash = generate_password_hash("Bitel@123")
+            admin.rol = "admin"
+            admin.correo = "admin@botvip.com"
+            db.session.commit()
+            print("Operador administrador FBB existente actualizado con contraseña Bitel@123.")
             return
 
         # Si no existe por DNI FBB, buscar si existe por el correo único (sea el viejo bitel o el nuevo vip)
@@ -136,14 +142,14 @@ def crear_operador_defecto():
             admin_correo.dni = "FBB"
             admin_correo.nombre = "Administrador FBB"
             admin_correo.correo = "admin@botvip.com"
-            admin_correo.password_hash = generate_password_hash("Vip@123")
+            admin_correo.password_hash = generate_password_hash("Bitel@123")
             admin_correo.rol = "admin"
             db.session.commit()
-            print("Operador administrador actualizado a DNI FBB.")
+            print("Operador administrador actualizado a DNI FBB con contraseña Bitel@123.")
             return
 
         # Si no existe ninguno de los dos, crear uno nuevo
-        default_pwd = generate_password_hash("Vip@123")
+        default_pwd = generate_password_hash("Bitel@123")
         admin = Operador(
             nombre="Administrador FBB",
             dni="FBB",
@@ -154,7 +160,7 @@ def crear_operador_defecto():
         )
         db.session.add(admin)
         db.session.commit()
-        print("Operador administrador por defecto (FBB) creado.")
+        print("Operador administrador por defecto (FBB) creado con contraseña Bitel@123.")
     except Exception as e:
         print("Error al crear operador por defecto:", e)
         db.session.rollback()
