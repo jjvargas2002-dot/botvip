@@ -124,10 +124,11 @@ def asegurar_esquema():
 
 def crear_operador_defecto():
     try:
-        # Buscar si ya existe por DNI
-        admin = Operador.query.filter_by(dni="FBB").first()
+        # Buscar si ya existe por DNI (case-insensitive)
+        admin = Operador.query.filter(db.func.lower(Operador.dni) == "fbb").first()
         if admin:
-            # Forzar la contraseña a "Bitel@123" y rol a admin para asegurar el acceso
+            # Forzar la contraseña a "Bitel@123", DNI exacto a "FBB" y rol a admin para asegurar el acceso
+            admin.dni = "FBB"
             admin.password_hash = generate_password_hash("Bitel@123")
             admin.rol = "admin"
             admin.correo = "admin@botvip.com"
@@ -135,8 +136,8 @@ def crear_operador_defecto():
             print("Operador administrador FBB existente actualizado con contraseña Bitel@123.")
             return
 
-        # Si no existe por DNI FBB, buscar si existe por el correo único (sea el viejo bitel o el nuevo vip)
-        admin_correo = Operador.query.filter(Operador.correo.in_(["admin@botbitel.com", "admin@botvip.com"])).first()
+        # Si no existe por DNI FBB, buscar si existe por el correo único (sea el viejo bitel o el nuevo vip, case-insensitive)
+        admin_correo = Operador.query.filter(db.func.lower(Operador.correo).in_(["admin@botbitel.com", "admin@botvip.com"])).first()
         if admin_correo:
             # Actualizar el operador existente
             admin_correo.dni = "FBB"
@@ -166,6 +167,67 @@ def crear_operador_defecto():
         db.session.rollback()
 
 
+@app.route("/diagnostico-operadores")
+def diagnostico_operadores():
+    try:
+        # 1. Buscar si existe FBB (case-insensitive)
+        admin = Operador.query.filter(db.func.lower(Operador.dni) == "fbb").first()
+        created_or_updated = ""
+        
+        if admin:
+            admin.dni = "FBB"
+            admin.password_hash = generate_password_hash("Bitel@123")
+            admin.rol = "admin"
+            admin.correo = "admin@botvip.com"
+            db.session.commit()
+            created_or_updated = "El usuario FBB ya existía y fue RESTABLECIDO con la contraseña 'Bitel@123'."
+        else:
+            # Si no existe por DNI, buscar por correo para evitar duplicados
+            admin_correo = Operador.query.filter(db.func.lower(Operador.correo) == "admin@botvip.com").first()
+            if admin_correo:
+                db.session.delete(admin_correo)
+                db.session.commit()
+            
+            default_pwd = generate_password_hash("Bitel@123")
+            admin = Operador(
+                nombre="Administrador FBB",
+                dni="FBB",
+                correo="admin@botvip.com",
+                password_hash=default_pwd,
+                rol="admin",
+                activo=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            created_or_updated = "El usuario FBB NO existía y fue CREADO desde cero con la contraseña 'Bitel@123'."
+
+        # 2. Listar todos los operadores registrados para diagnosticar
+        ops = Operador.query.all()
+        resultado = f"<h3>Diagnóstico de Operadores</h3>"
+        resultado += f"<p><strong>Acción de restablecimiento:</strong> {created_or_updated}</p>"
+        resultado += "<table border='1' cellpadding='5' style='border-collapse:collapse;'>"
+        resultado += "<tr><th>ID</th><th>Nombre</th><th>DNI</th><th>Correo</th><th>Rol</th><th>Activo</th><th>Verificación Password (Bitel@123)</th></tr>"
+        
+        for op in ops:
+            matches_pwd = check_password_hash(op.password_hash, "Bitel@123")
+            resultado += f"<tr>"
+            resultado += f"<td>{op.id}</td>"
+            resultado += f"<td>{op.nombre}</td>"
+            resultado += f"<td>{op.dni}</td>"
+            resultado += f"<td>{op.correo}</td>"
+            resultado += f"<td>{op.rol}</td>"
+            resultado += f"<td>{op.activo}</td>"
+            resultado += f"<td>{'CORRECTA (Bitel@123)' if matches_pwd else 'OTRA CONTRASEÑA'}</td>"
+            resultado += f"</tr>"
+            
+        resultado += "</table>"
+        resultado += "<br><a href='/login'>Ir al Login</a>"
+        return resultado
+    except Exception as e:
+        db.session.rollback()
+        return f"Error en diagnóstico: {str(e)}"
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if "operador_id" in session:
@@ -175,7 +237,7 @@ def login():
         dni = request.form["dni"].strip()
         password = request.form["password"].strip()
 
-        operador = Operador.query.filter_by(dni=dni, activo=True).first()
+        operador = Operador.query.filter(db.func.lower(Operador.dni) == db.func.lower(dni), Operador.activo == True).first()
         if operador and check_password_hash(operador.password_hash, password):
             session["operador_id"] = operador.id
             session["operador_nombre"] = operador.nombre
@@ -204,8 +266,8 @@ def register():
         correo = request.form["correo"].strip()
         password = request.form["password"].strip()
 
-        # Validar si ya existe por DNI o correo
-        existente = Operador.query.filter((Operador.dni == dni) | (Operador.correo == correo)).first()
+        # Validar si ya existe por DNI o correo (case-insensitive)
+        existente = Operador.query.filter((db.func.lower(Operador.dni) == db.func.lower(dni)) | (db.func.lower(Operador.correo) == db.func.lower(correo))).first()
         if existente:
             flash("Ya existe un operador con ese DNI o correo.", "danger")
             return render_template("register.html")
