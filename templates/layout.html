@@ -215,25 +215,25 @@
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4 gap-1">
                     <li class="nav-item">
                         <a class="nav-link-custom {% if request.path == '/' %}active{% endif %}" href="{{ url_for('dashboard') }}">
-                            <i class="bi bi-plus-circle"></i> Nuevo Caso
+                            <i class="bi bi-map-fill"></i> Mapa y Control
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link-custom {% if request.path == '/casos' %}active{% endif %}" href="{{ url_for('listar_casos') }}">
-                            <i class="bi bi-ticket-detailed"></i> Lista de Casos
+                        <a class="nav-link-custom {% if request.path == '/averias' %}active{% endif %}" href="{{ url_for('listar_averias') }}">
+                            <i class="bi bi-file-earmark-bar-graph-fill"></i> Historial y Reportes
                         </a>
                     </li>
                     {% if session.get('operador_rol') == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link-custom {% if request.path == '/operadores' %}active{% endif %}" href="{{ url_for('listar_operadores') }}">
-                            <i class="bi bi-people-fill"></i> Ver Operadores
+                            <i class="bi bi-people-fill"></i> Gestionar Técnicos
                         </a>
                     </li>
                     {% endif %}
                 </ul>
                 <div class="d-flex align-items-center gap-3">
                     <div class="user-badge">
-                        <i class="bi bi-person-fill-check"></i> {{ session.get('operador_nombre') }}
+                        <i class="bi bi-geo-alt-fill"></i> Sede: {{ session.get('operador_branch') }} | {{ session.get('operador_nombre') }}
                     </div>
                     
                     <div class="dropdown">

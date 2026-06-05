@@ -1,58 +1,78 @@
 {% extends "layout.html" %}
 
-{% block title %}Dashboard - BotVip{% endblock %}
+{% block title %}Mapa y Control - BotVip{% endblock %}
+
+{% block extra_head %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+    .map-container {
+        height: 520px;
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        margin-bottom: 2rem;
+    }
+    .leaflet-popup-content-value {
+        font-family: monospace;
+        background: #f1f5f9;
+        padding: 0.15rem 0.35rem;
+        border-radius: 0.25rem;
+        font-size: 0.825rem;
+    }
+    .badge-status-caja {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col">
-        <h2 class="h3 fw-bold mb-1 text-slate-800">Panel de Control</h2>
-        <p class="text-muted mb-0">Gestión de tickets y automatización de notificaciones FTTH.</p>
+<div class="row align-items-center mb-4">
+    <div class="col-md-8">
+        <h2 class="h3 fw-bold mb-1">Mapa y Control de Averías</h2>
+        <p class="text-muted mb-0">Visualiza puntos de avería en tiempo real y gestiona las reparaciones de campo de tu sede.</p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        {% if session.get('operador_branch') in ['LI1', 'LI2', 'LI3', 'LI4', 'LI7', 'ALL'] or session.get('operador_rol') == 'admin' %}
+        <a href="{{ url_for('sync_sheets') }}" class="btn btn-premium-primary">
+            <i class="bi bi-arrow-repeat me-1.5"></i> Sincronizar Google Sheets
+        </a>
+        {% endif %}
     </div>
 </div>
 
-<!-- Metrics Grid -->
-<div class="row g-3 mb-5">
-    <div class="col-12 col-sm-6 col-lg-3">
+<!-- Metrics Row -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
         <div class="metric-card">
             <div>
-                <div class="metric-value">{{ stats.totales }}</div>
-                <div class="metric-label">Casos Totales</div>
+                <div class="metric-value text-primary">{{ stats.totales }}</div>
+                <div class="metric-label">Averías Registradas (Total)</div>
             </div>
             <div class="metric-icon bg-metric-blue">
                 <i class="bi bi-folder-fill"></i>
             </div>
         </div>
     </div>
-    
-    <div class="col-12 col-sm-6 col-lg-3">
+    <div class="col-12 col-md-4">
         <div class="metric-card">
             <div>
-                <div class="metric-value text-secondary">{{ stats.pendientes }}</div>
-                <div class="metric-label">Pendientes</div>
+                <div class="metric-value text-warning">{{ stats.pendientes }}</div>
+                <div class="metric-label">Averías Pendientes</div>
             </div>
             <div class="metric-icon bg-metric-orange">
-                <i class="bi bi-hourglass-split"></i>
+                <i class="bi bi-tools"></i>
             </div>
         </div>
     </div>
-    
-    <div class="col-12 col-sm-6 col-lg-3">
+    <div class="col-12 col-md-4">
         <div class="metric-card">
             <div>
-                <div class="metric-value text-primary">{{ stats.asignados }}</div>
-                <div class="metric-label">Pendiente Asignación</div>
-            </div>
-            <div class="metric-icon bg-metric-purple">
-                <i class="bi bi-people-fill"></i>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-12 col-sm-6 col-lg-3">
-        <div class="metric-card">
-            <div>
-                <div class="metric-value text-success">{{ stats.cerrados }}</div>
-                <div class="metric-label">Casos Cerrados</div>
+                <div class="metric-value text-success">{{ stats.reparados }}</div>
+                <div class="metric-label">Averías Reparadas</div>
             </div>
             <div class="metric-icon bg-metric-green">
                 <i class="bi bi-check-circle-fill"></i>
@@ -61,62 +81,325 @@
     </div>
 </div>
 
-<!-- Main Form -->
-<div class="row justify-content-center">
+<!-- Main Section: Map & Forms -->
+<div class="row g-4">
+    <!-- Left Column: Map and Pending List -->
     <div class="col-lg-8">
-        <div class="card-premium">
-            <div class="p-4 bg-light border-bottom d-flex align-items-center gap-2">
-                <i class="bi bi-plus-circle-fill text-primary fs-5"></i>
-                <h4 class="mb-0 fw-semibold fs-5">Registrar Nuevo Caso FTTH</h4>
+        <div class="card card-premium p-3">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="fw-bold mb-0"><i class="bi bi-map me-2 text-primary"></i>Ubicación Geográfica de Averías</h5>
+                <span class="text-muted" style="font-size: 0.85rem;">Clic en marcador para ver detalles y resolver</span>
             </div>
-            
-            <div class="card-body p-4">
-                {% if mensaje %}
-                <div class="alert alert-success border-0 rounded-3 mb-4 shadow-sm d-flex align-items-center gap-2">
-                    <i class="bi bi-check-circle-fill"></i>
-                    <div>{{ mensaje }}</div>
+            <div id="map" class="map-container"></div>
+        </div>
+
+        <div class="card card-premium">
+            <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between">
+                <h5 class="fw-bold mb-0 text-slate-800"><i class="bi bi-list-task me-2 text-primary"></i>Lista de Pendientes en {{ session.get('operador_branch') }}</h5>
+                <span class="badge bg-primary rounded-pill">{{ averias_list|length }} casos</span>
+            </div>
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                {% if not averias_list %}
+                <div class="p-4 text-center text-muted">
+                    <i class="bi bi-check2-circle fs-1 mb-2 text-success"></i>
+                    <p class="mb-0">No hay averías pendientes activas en esta sede.</p>
+                </div>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Cuenta</th>
+                                <th>Caja</th>
+                                <th>WO / Contrata</th>
+                                <th>Días</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for av in averias_list %}
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">{{ av.cuenta }}</div>
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">{{ av.detalles|truncate(40) }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</span>
+                                </td>
+                                <td>
+                                    <div class="fw-medium text-slate-700">{{ av.codigo_wo or 'N/A' }}</div>
+                                    <small class="text-muted">{{ av.contrata }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">{{ av.dias_pendientes or 0 }} d</span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-1.5">
+                                        {% if av.coordenadas %}
+                                        <a href="https://www.google.com/maps/search/?api=1&query={{ av.coordenadas }}" target="_blank" class="btn btn-sm btn-outline-secondary py-1" title="Ver en Google Maps">
+                                            <i class="bi bi-geo-alt-fill text-danger"></i>
+                                        </a>
+                                        {% endif %}
+                                        <button class="btn btn-sm btn-success py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
+                                            <i class="bi bi-check-circle"></i> Resolver
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
                 {% endif %}
-
-                <form method="POST">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-medium text-secondary" style="font-size: 0.875rem;">Código Cliente</label>
-                            <input type="text" class="form-control form-control-custom" name="codigo_cliente" placeholder="Ej: 07_gftth_juan12" required>
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-medium text-secondary" style="font-size: 0.875rem;">Teléfono Cliente (WhatsApp)</label>
-                            <input type="text" class="form-control form-control-custom" name="telefono" placeholder="Ej: 51900111222" required>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-medium text-secondary" style="font-size: 0.875rem;">Tipo de Caso</label>
-                        <select class="form-select form-select-custom" name="tipo" required>
-                            <option value="INSTALACION">Instalación FTTH</option>
-                            <option value="AVERIA">Avería Técnica</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label fw-medium text-secondary" style="font-size: 0.875rem;">Teléfono del Técnico Asignado (Opcional)</label>
-                        <input type="text" class="form-control form-control-custom" name="tecnico_telefono" placeholder="Ej: 51999888777">
-                    </div>
-
-                    <button type="submit" class="btn btn-premium-primary w-100 py-2.5">
-                        <i class="bi bi-send-fill me-2"></i>Crear Caso y Enviar WhatsApp
-                    </button>
-                </form>
-
-                <div class="mt-4 pt-3 border-top text-center text-muted">
-                    <i class="bi bi-info-circle me-1"></i>
-                    <small>
-                        El bot iniciará el flujo automatizado: solicitará Nombre &rarr; Número Referencia &rarr; Dirección &rarr; Referencia &rarr; Disponibilidad.
-                    </small>
-                </div>
             </div>
         </div>
     </div>
+
+    <!-- Right Column: Manual Entry Form -->
+    <div class="col-lg-4">
+        {% if es_provincia or session.get('operador_rol') == 'admin' %}
+        <div class="card card-premium">
+            <div class="p-3 bg-light border-bottom d-flex align-items-center gap-2">
+                <i class="bi bi-plus-circle-fill text-primary fs-5"></i>
+                <h5 class="mb-0 fw-semibold">Reportar Avería Manual</h5>
+            </div>
+            <div class="card-body p-3">
+                <p class="text-muted small mb-3">Utiliza este formulario para registrar una avería manualmente en tu sede. <strong>Tip: Haz clic en cualquier lugar del mapa para capturar sus coordenadas.</strong></p>
+                <form action="{{ url_for('crear_averia_manual') }}" method="POST">
+                    {% if session.get('operador_rol') == 'admin' %}
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Sede (Branch)</label>
+                        <select class="form-select form-select-custom py-1.5 fs-7" name="branch" required>
+                            <option value="ARE">Arequipa (ARE)</option>
+                            <option value="PIU">Piura (PIU)</option>
+                            <option value="SAN">San Martín (SAN)</option>
+                            <option value="CAJ">Cajamarca (CAJ)</option>
+                            <option value="LAL">La Libertad (LAL)</option>
+                            <option value="HUN">Huánuco (HUN)</option>
+                            <option value="CUS">Cusco (CUS)</option>
+                            <option value="JUN">Junín (JUN)</option>
+                        </select>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Cuenta del Cliente</label>
+                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="cuenta" placeholder="Ej: 15_gftth_juan" required>
+                    </div>
+                    
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-medium text-secondary">Site</label>
+                            <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="site" placeholder="Ej: ARE0071" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-medium text-secondary">XBOX</label>
+                            <select class="form-select form-select-custom py-1.5 fs-7" name="xbox" required>
+                                <option value="XB01">XB01</option>
+                                <option value="XB02">XB02</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Caja (Splitter/EB)</label>
+                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="caja" placeholder="Ej: SB111 o EB214" required>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Coordenadas</label>
+                        <input type="text" id="coordenadas_input" class="form-control form-control-custom py-1.5 fs-7" name="coordenadas" placeholder="Ej: -16.3988,-71.5369" required>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Detalles del Reporte</label>
+                        <textarea class="form-control form-control-custom py-1.5 fs-7" name="detalles" rows="2" placeholder="Ej: Caja atenuada, corte de fibra..." required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium text-secondary">Contrata Asignada</label>
+                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="contrata" placeholder="Ej: LUZMILA o Propia">
+                    </div>
+
+                    <button type="submit" class="btn btn-premium-primary w-100 py-2 fs-7">
+                        <i class="bi bi-save me-1.5"></i>Registrar Avería
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="card card-premium bg-light-subtle">
+            <div class="p-3 bg-light border-bottom d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle-fill text-primary"></i>
+                <h5 class="mb-0 fw-semibold">Información de Sede</h5>
+            </div>
+            <div class="card-body p-3">
+                <p class="mb-0 text-muted small">Tu sede (<strong>{{ session.get('operador_branch') }}</strong>) está configurada en modo **Sincronización Automática**. Todos los tickets son importados directamente desde la base de datos de Tableau / Google Sheets compartida.</p>
+                <div class="alert alert-info border-0 rounded-3 mt-3 mb-0 py-2 px-3 small">
+                    Para reportar una nueva avería, agrégala en la pestaña <strong>PENDIENTES ODN</strong> del Excel Drive.
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
 </div>
+
+<!-- Modal para resolver avería y reportar materiales -->
+<div class="modal fade" id="resolverAveriaModal" tabindex="-1" aria-labelledby="resolverAveriaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold" id="resolverAveriaModalLabel"><i class="bi bi-tools text-success me-2"></i>Reportar Solución y Materiales</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formResolverAveria" method="POST" action="">
+                <div class="modal-body py-3">
+                    <p class="text-muted small">Reporta los materiales que utilizaste en campo para resolver la avería de la cuenta <strong id="modal_cuenta_label"></strong>.</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium text-secondary">Metros de Cable Drop</label>
+                        <input type="number" class="form-control form-control-custom" name="cable_m" value="0" min="0" required>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-medium text-secondary">Conectores Mecánicos</label>
+                            <input type="number" class="form-control form-control-custom" name="conectores" value="0" min="0" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-medium text-secondary">Rosetas Ópticas</label>
+                            <input type="number" class="form-control form-control-custom" name="rosetas" value="0" min="0" required>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-medium text-secondary">Mangas de Empalme</label>
+                            <input type="number" class="form-control form-control-custom" name="mangas" value="0" min="0" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-medium text-secondary">Acopladores Ópticos</label>
+                            <input type="number" class="form-control form-control-custom" name="acopladores" value="0" min="0" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label small fw-medium text-secondary">Comentarios/Observaciones</label>
+                        <textarea class="form-control form-control-custom" name="comentarios" rows="3" placeholder="Ej: Se empalmó acometida en poste, se solucionó problema de potencia..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success btn-sm px-3">Cerrar Ticket y Registrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+    // Variables y datos dinámicos inyectados desde Flask
+    const averias = {{ map_json | safe }};
+    
+    // Inicializar mapa Leaflet centrado por defecto en Lima/Perú o en Arequipa si es el caso
+    const defaultCenter = [-11.8878227, -77.058086]; // Lima por defecto
+    const map = L.map('map').setView(defaultCenter, 11);
+    
+    // Agregar capa de mapa de OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    // Iconos personalizados para los marcadores
+    const markerIcon = L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+
+    const bounds = [];
+    
+    // Renderizar marcadores
+    averias.forEach(function(av) {
+        const popupContent = `
+            <div style="font-family: 'Inter', sans-serif; min-width: 220px;">
+                <h6 style="font-weight: 700; margin-bottom: 0.5rem; color: #1e3a8a;">Sede: ${av.branch}</h6>
+                <div style="margin-bottom: 0.25rem;"><strong>Cuenta:</strong> <span class="leaflet-popup-content-value">${av.cuenta}</span></div>
+                <div style="margin-bottom: 0.25rem;"><strong>WO:</strong> <span class="leaflet-popup-content-value">${av.codigo_wo}</span></div>
+                <div style="margin-bottom: 0.25rem;"><strong>Caja:</strong> <span class="leaflet-popup-content-value">${av.caja}</span></div>
+                <div style="margin-bottom: 0.25rem;"><strong>Contrata:</strong> <span class="leaflet-popup-content-value">${av.contrata}</span></div>
+                <div style="margin-bottom: 0.5rem;"><strong>Días Pendientes:</strong> <span class="badge bg-warning text-dark">${av.dias} días</span></div>
+                <div style="margin-bottom: 0.5rem; font-size: 0.8rem; color: #475569;"><strong>Detalle:</strong> ${av.detalles}</div>
+                <div class="d-grid gap-1 mt-2">
+                    <a href="https://www.google.com/maps/search/?api=1&query=${av.lat},${av.lng}" target="_blank" class="btn btn-outline-danger btn-sm text-start py-1" style="font-size: 0.75rem;">
+                        <i class="bi bi-geo-alt-fill"></i> Abrir en Google Maps
+                    </a>
+                    <button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
+                        <i class="bi bi-check-circle-fill"></i> Resolver Avería
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        const marker = L.marker([av.lat, av.lng], { icon: markerIcon }).addTo(map);
+        marker.bindPopup(popupContent);
+        bounds.push([av.lat, av.lng]);
+    });
+    
+    // Auto-ajustar mapa a los marcadores si existen
+    if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+    }
+    
+    // Captura de coordenadas al hacer clic en el mapa
+    map.on('click', function(e) {
+        const lat = e.latlng.lat.toFixed(7);
+        const lng = e.latlng.lng.toFixed(7);
+        const coordenadasInput = document.getElementById('coordenadas_input');
+        if (coordenadasInput) {
+            coordenadasInput.value = `${lat},${lng}`;
+            // Crear o mover un marcador temporal
+            if (window.tempMarker) {
+                window.tempMarker.setLatLng(e.latlng);
+            } else {
+                window.tempMarker = L.marker(e.latlng, {
+                    draggable: true
+                }).addTo(map);
+                window.tempMarker.bindPopup("Ubicación capturada para registro").openPopup();
+                
+                window.tempMarker.on('dragend', function(e) {
+                    const newLatLng = e.target.getLatLng();
+                    coordenadasInput.value = `${newLatLng.lat.toFixed(7)},${newLatLng.lng.toFixed(7)}`;
+                });
+            }
+        }
+    });
+
+    // Control del Modal de Resolución
+    const resolverModal = new bootstrap.Modal(document.getElementById('resolverAveriaModal'));
+    
+    function abrirModalResolver(id, cuenta) {
+        document.getElementById('modal_cuenta_label').innerText = cuenta;
+        // Cambiar dinámicamente el action del form con el id
+        document.getElementById('formResolverAveria').action = `/averias/resolver/${id}`;
+        // Limpiar campos
+        document.getElementsByName('cable_m')[0].value = 0;
+        document.getElementsByName('conectores')[0].value = 0;
+        document.getElementsByName('rosetas')[0].value = 0;
+        document.getElementsByName('mangas')[0].value = 0;
+        document.getElementsByName('acopladores')[0].value = 0;
+        document.getElementsByName('comentarios')[0].value = "";
+        
+        resolverModal.show();
+    }
+</script>
 {% endblock %}

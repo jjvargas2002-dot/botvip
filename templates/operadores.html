@@ -1,12 +1,12 @@
 {% extends "layout.html" %}
 
-{% block title %}Operadores - BotVip{% endblock %}
+{% block title %}Técnicos - BotVip{% endblock %}
 
 {% block content %}
 <div class="row align-items-center mb-4 g-3">
     <div class="col-md-6">
-        <h2 class="h3 fw-bold mb-1">Listado de Operadores y Técnicos</h2>
-        <p class="text-muted mb-0">Total registrados: <strong class="text-primary">{{ operadores|length }}</strong></p>
+        <h2 class="h3 fw-bold mb-1">Listado de Técnicos y Personal</h2>
+        <p class="text-muted mb-0">Sedes activas y autorizaciones de WhatsApp. Total registrados: <strong class="text-primary">{{ operadores|length }}</strong></p>
     </div>
 </div>
 
@@ -18,11 +18,12 @@
                 <tr>
                     <th scope="col" class="ps-4">ID</th>
                     <th scope="col">Nombre</th>
-                    <th scope="col">DNI</th>
-                    <th scope="col">Correo Electrónico</th>
+                    <th scope="col">DNI / Usuario</th>
+                    <th scope="col">Sede (Branch)</th>
+                    <th scope="col">Teléfono (WhatsApp)</th>
                     <th scope="col">Rol</th>
                     <th scope="col">Estado</th>
-                    <th scope="col" class="pe-4">Fecha Registro</th>
+                    <th scope="col" class="pe-4">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -31,11 +32,21 @@
                     <td class="ps-4 font-semibold text-primary">#{{ op.id }}</td>
                     <td>
                         <span class="fw-medium text-dark">{{ op.nombre }}</span>
+                        <small class="text-muted d-block" style="font-size: 0.75rem;">{{ op.correo }}</small>
                     </td>
                     <td>
                         <span class="badge bg-light text-dark border px-2.5 py-1.5" style="font-family: monospace;">{{ op.dni }}</span>
                     </td>
-                    <td>{{ op.correo }}</td>
+                    <td>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ op.branch }}</span>
+                    </td>
+                    <td>
+                        {% if op.telefono %}
+                        <span class="text-success fw-semibold"><i class="bi bi-whatsapp me-1"></i>{{ op.telefono }}</span>
+                        {% else %}
+                        <span class="text-muted small"><em>No registrado (Sin bot)</em></span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if op.rol == 'admin' %}
                         <span class="badge bg-primary text-white px-2 py-1">
@@ -43,7 +54,7 @@
                         </span>
                         {% else %}
                         <span class="badge bg-secondary text-white px-2 py-1">
-                            <i class="bi bi-person me-1"></i> Operador
+                            <i class="bi bi-person me-1"></i> Técnico
                         </span>
                         {% endif %}
                     </td>
@@ -58,17 +69,15 @@
                         </span>
                         {% endif %}
                     </td>
-                    <td class="pe-4 text-muted" style="font-size: 0.85rem;">
-                        {% if op.fecha_creacion %}
-                        {{ op.fecha_creacion.strftime("%Y-%m-%d %H:%M") }}
-                        {% else %}
-                        -
-                        {% endif %}
+                    <td class="pe-4">
+                        <button class="btn btn-sm btn-outline-primary" onclick="abrirModalTelefono({{ op.id }}, '{{ op.nombre }}', '{{ op.telefono or '' }}')">
+                            <i class="bi bi-pencil-square"></i> Teléfono
+                        </button>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-5">
+                    <td colspan="8" class="text-center text-muted py-5">
                         <i class="bi bi-people fs-1 d-block mb-2 text-slate-400"></i>
                         No hay operadores registrados en la base de datos.
                     </td>
@@ -78,4 +87,48 @@
         </table>
     </div>
 </div>
+
+<!-- Modal para editar teléfono -->
+<div class="modal fade" id="editarTelefonoModal" tabindex="-1" aria-labelledby="editarTelefonoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold" id="editarTelefonoModalLabel"><i class="bi bi-whatsapp text-primary me-2"></i>Asociar Celular (WhatsApp)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('editar_telefono') }}" method="POST">
+                <div class="modal-body py-3">
+                    <p class="text-muted small">Asocia el número de teléfono móvil del técnico para que pueda realizar consultas de caja e ingresar reportes de materiales directamente desde WhatsApp en campo.</p>
+                    <input type="hidden" name="operador_id" id="edit_op_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium text-secondary">Nombre del Técnico</label>
+                        <input type="text" class="form-control form-control-custom bg-light" id="edit_op_nombre" readonly>
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label small fw-medium text-secondary">Número de Celular (con código de país, ej: 51900111222)</label>
+                        <input type="text" class="form-control form-control-custom" name="telefono" id="edit_op_telefono" placeholder="Ej: 51999888777" required>
+                        <small class="text-muted" style="font-size: 0.75rem;">Para Perú, escribe 51 seguido de los 9 dígitos de celular.</small>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-3">Guardar Autorización</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const editModal = new bootstrap.Modal(document.getElementById('editarTelefonoModal'));
+    
+    function abrirModalTelefono(id, nombre, telefono) {
+        document.getElementById('edit_op_id').value = id;
+        document.getElementById('edit_op_nombre').value = nombre;
+        document.getElementById('edit_op_telefono').value = telefono;
+        editModal.show();
+    }
+</script>
 {% endblock %}

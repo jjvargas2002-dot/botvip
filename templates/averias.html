@@ -1,0 +1,239 @@
+{% extends "layout.html" %}
+
+{% block title %}Historial y Reportes - BotVip{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4 g-3">
+    <div class="col-md-6">
+        <h2 class="h3 fw-bold mb-1">Historial y Reporte de Averías</h2>
+        <p class="text-muted mb-0">Listado histórico de tickets y consumos de material de tu sede. Total registrados: <strong class="text-primary">{{ averias|length }}</strong></p>
+    </div>
+    <div class="col-md-6 text-md-end d-flex gap-2 justify-content-md-end">
+        <a href="{{ url_for('exportar_averias') }}" class="btn btn-success d-flex align-items-center gap-1.5 py-2 px-3 shadow-sm">
+            <i class="bi bi-file-earmark-excel-fill"></i> Exportar Reporte Excel
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary d-flex align-items-center gap-1.5 py-2 px-3 shadow-sm">
+            <i class="bi bi-map-fill"></i> Ver en Mapa
+        </a>
+    </div>
+</div>
+
+<!-- Filter controls -->
+<div class="card-premium mb-4">
+    <div class="card-body p-3">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchInput" class="form-control form-control-custom border-start-0" placeholder="Buscar por cuenta, caja, WO, técnico...">
+                </div>
+            </div>
+            {% if session.get('operador_rol') == 'admin' %}
+            <div class="col-md-2">
+                <select id="branchFilter" class="form-select form-select-custom">
+                    <option value="">Todas las Sedes</option>
+                    <option value="LI1">LI1</option>
+                    <option value="LI2">LI2</option>
+                    <option value="LI3">LI3</option>
+                    <option value="LI4">LI4</option>
+                    <option value="LI7">LI7</option>
+                    <option value="ARE">ARE</option>
+                    <option value="PIU">PIU</option>
+                    <option value="SAN">SAN</option>
+                    <option value="CAJ">CAJ</option>
+                    <option value="LAL">LAL</option>
+                    <option value="HUN">HUN</option>
+                    <option value="CUS">CUS</option>
+                    <option value="JUN">JUN</option>
+                </select>
+            </div>
+            {% else %}
+            <input type="hidden" id="branchFilter" value="">
+            {% endif %}
+            <div class="col-md-3">
+                <select id="statusFilter" class="form-select form-select-custom">
+                    <option value="">Todos los Estados</option>
+                    <option value="PENDIE">Pendiente</option>
+                    <option value="REPARA">Reparado</option>
+                </select>
+            </div>
+            <div class="col-md-2 col-6">
+                <select id="originFilter" class="form-select form-select-custom">
+                    <option value="">Orígenes</option>
+                    <option value="SHEETS">Sheets (Drive)</option>
+                    <option value="MANUAL">Manual</option>
+                </select>
+            </div>
+            <div class="col-md-1 col-6">
+                <button id="resetFilters" class="btn btn-outline-secondary w-100 h-100" style="border-radius: 0.5rem;" title="Limpiar Filtros">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table Container -->
+<div class="card-premium">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="averiasTable">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col" class="ps-4">ID</th>
+                    <th scope="col">Sede</th>
+                    <th scope="col">Cuenta</th>
+                    <th scope="col">Caja</th>
+                    <th scope="col">WO / Detalles</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Materiales Consumidos</th>
+                    <th scope="col">Técnico / Cierre</th>
+                    <th scope="col" class="pe-4">Fecha Creación</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for av in averias %}
+                <tr class="averia-row" 
+                    data-search="{{ av.cuenta }} {{ av.caja }} {{ av.codigo_wo or '' }} {{ av.detalles or '' }} {{ av.tecnico.nombre if av.tecnico else '' }}"
+                    data-status="{{ av.estado }}"
+                    data-branch="{{ av.branch }}"
+                    data-origin="{{ av.origen }}">
+                    
+                    <td class="ps-4 font-semibold text-primary">#{{ av.id }}</td>
+                    <td>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ av.branch }}</span>
+                    </td>
+                    <td>
+                        <div class="fw-semibold text-dark">{{ av.cuenta }}</div>
+                        <small class="text-muted d-block" style="font-size: 0.725rem;">Origen: {{ av.origen }}</small>
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</span>
+                    </td>
+                    <td>
+                        <div class="fw-medium text-slate-800">{{ av.codigo_wo or 'N/A' }}</div>
+                        <small class="text-muted d-block text-truncate" style="max-width: 180px;" title="{{ av.detalles or '' }}">{{ av.detalles or 'Sin descripción' }}</small>
+                    </td>
+                    <td>
+                        {% if av.estado == 'REPARADO' %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-2 px-2.5 py-1">
+                            <i class="bi bi-check-circle-fill me-1"></i> Reparado
+                        </span>
+                        {% else %}
+                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-2 px-2.5 py-1">
+                            <i class="bi bi-tools me-1"></i> Pendiente
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if av.estado == 'REPARADO' %}
+                        <div style="font-size: 0.825rem; line-height: 1.35;">
+                            {% if av.material_cable_m > 0 %}<div>⚡ Cable: <strong class="text-slate-800">{{ av.material_cable_m }}m</strong></div>{% endif %}
+                            {% if av.material_conectores > 0 %}<div>🔌 Conectores: <strong class="text-slate-800">{{ av.material_conectores }} und</strong></div>{% endif %}
+                            {% if av.material_rosetas > 0 %}<div>🏠 Rosetas: <strong class="text-slate-800">{{ av.material_rosetas }} und</strong></div>{% endif %}
+                            {% if av.material_mangas > 0 %}<div>📦 Mangas: <strong class="text-slate-800">{{ av.material_mangas }} und</strong></div>{% endif %}
+                            {% if av.material_acopladores > 0 %}<div>📡 Acopladores: <strong class="text-slate-800">{{ av.material_acopladores }} und</strong></div>{% endif %}
+                            {% if av.material_cable_m == 0 and av.material_conectores == 0 and av.material_rosetas == 0 and av.material_mangas == 0 and av.material_acopladores == 0 %}
+                            <span class="text-muted small"><em>Solo mano de obra</em></span>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <span class="text-muted small">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if av.tecnico %}
+                        <div class="fw-semibold text-slate-800" style="font-size: 0.85rem;">{{ av.tecnico.nombre }}</div>
+                        <small class="text-muted d-block" style="font-size: 0.75rem;">
+                            {{ av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else '-' }}
+                        </small>
+                        {% else %}
+                        <span class="text-muted small">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="pe-4 text-muted" style="font-size: 0.825rem;">
+                        {{ av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else '-' }}
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptyRow">
+                    <td colspan="9" class="text-center text-muted py-5">
+                        <i class="bi bi-folder-x fs-1 d-block mb-2 text-slate-400"></i>
+                        No hay averías registradas en el sistema para esta sede.
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr id="noResultsRow" style="display: none;">
+                    <td colspan="9" class="text-center text-muted py-5">
+                        <i class="bi bi-search fs-1 d-block mb-2 text-slate-400"></i>
+                        No se encontraron registros con los filtros seleccionados.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const searchInput = document.getElementById("searchInput");
+        const branchFilter = document.getElementById("branchFilter");
+        const statusFilter = document.getElementById("statusFilter");
+        const originFilter = document.getElementById("originFilter");
+        const resetFilters = document.getElementById("resetFilters");
+        
+        const rows = document.querySelectorAll(".averia-row");
+        const noResultsRow = document.getElementById("noResultsRow");
+
+        function filterTable() {
+            const query = searchInput.value.toLowerCase().trim();
+            const branch = branchFilter.value;
+            const status = statusFilter.value;
+            const origin = originFilter.value;
+            
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                const searchData = row.getAttribute("data-search").toLowerCase();
+                const rowStatus = row.getAttribute("data-status");
+                const rowBranch = row.getAttribute("data-branch");
+                const rowOrigin = row.getAttribute("data-origin");
+                
+                const matchesSearch = query === "" || searchData.includes(query);
+                const matchesBranch = branch === "" || rowBranch === branch;
+                const matchesStatus = status === "" || rowStatus.includes(status);
+                const matchesOrigin = origin === "" || rowOrigin === origin;
+                
+                if (matchesSearch && matchesBranch && matchesStatus && matchesOrigin) {
+                    row.style.display = "";
+                    visibleCount++;
+                } else {
+                    row.style.display = "none";
+                }
+            });
+            
+            if (rows.length > 0) {
+                if (visibleCount === 0) {
+                    noResultsRow.style.display = "";
+                } else {
+                    noResultsRow.style.display = "none";
+                }
+            }
+        }
+        
+        searchInput.addEventListener("input", filterTable);
+        if (branchFilter) branchFilter.addEventListener("change", filterTable);
+        statusFilter.addEventListener("change", filterTable);
+        originFilter.addEventListener("change", filterTable);
+        
+        resetFilters.addEventListener("click", function() {
+            searchInput.value = "";
+            if (branchFilter && branchFilter.type !== "hidden") branchFilter.value = "";
+            statusFilter.value = "";
+            originFilter.value = "";
+            filterTable();
+        });
+    });
+</script>
+{% endblock %}

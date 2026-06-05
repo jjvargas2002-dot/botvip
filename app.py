@@ -1,5 +1,9 @@
 from functools import wraps
 from io import BytesIO
+import csv
+import io
+import requests
+from datetime import datetime
 
 from flask import Flask, render_template, request, send_file, redirect, url_for, session, flash
 from openpyxl import Workbook
@@ -8,21 +12,12 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import Config
-from models import db, Cliente, Caso, Conversacion, EstadoConversacion, Operador
+from models import db, Cliente, Caso, Conversacion, EstadoConversacion, Operador, Averia
 from whatsapp import enviar_mensaje
 
 app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
-
-with app.app_context():
-    try:
-        db.create_all()
-        asegurar_esquema()
-        crear_operador_defecto()
-        print("Base de datos y esquemas inicializados correctamente.")
-    except Exception as e:
-        print("Error inicializando base de datos en arranque:", e)
 
 
 def login_requerido(f):
@@ -35,159 +30,73 @@ def login_requerido(f):
     return decorated_function
 
 
-def obtener_estadisticas(operador_id=None, es_admin=False):
+def obtener_estadisticas(branch=None, es_admin=False):
     try:
-        query_total = Caso.query
-        query_pendientes = Caso.query.filter_by(estado="PENDIENTE")
-        query_asignados = Caso.query.filter_by(estado="PENDIENTE_ASIGNACION")
-        query_cerrados = Caso.query.filter_by(estado="CERRADO")
+        query_total = Averia.query
+        query_pendientes = Averia.query.filter_by(estado="PENDIENTE")
+        query_reparados = Averia.query.filter_by(estado="REPARADO")
 
-        if not es_admin and operador_id:
-            query_total = query_total.filter_by(operador_id=operador_id)
-            query_pendientes = query_pendientes.filter_by(operador_id=operador_id)
-            query_asignados = query_asignados.filter_by(operador_id=operador_id)
-            query_cerrados = query_cerrados.filter_by(operador_id=operador_id)
+        if not es_admin and branch and branch != "ALL":
+            query_total = query_total.filter_by(branch=branch)
+            query_pendientes = query_pendientes.filter_by(branch=branch)
+            query_reparados = query_reparados.filter_by(branch=branch)
 
         return {
             "totales": query_total.count(),
             "pendientes": query_pendientes.count(),
-            "asignados": query_asignados.count(),
-            "cerrados": query_cerrados.count(),
+            "reparados": query_reparados.count(),
         }
     except Exception as e:
         print("Error obteniendo estadísticas:", e)
         return {
             "totales": 0,
             "pendientes": 0,
-            "asignados": 0,
-            "cerrados": 0,
+            "reparados": 0,
         }
 
 
-def registrar_conversacion(caso_id, remitente, mensaje):
+def registrar_conversacion(averia_id, remitente, mensaje):
     conversacion = Conversacion(
-        caso_id=caso_id,
+        averia_id=averia_id,
         remitente=remitente,
         mensaje=mensaje,
     )
     db.session.add(conversacion)
 
 
-def mensaje_inicio(caso):
-    if caso.tipo == "INSTALACION":
-        return (
-            "👋 ¡Hola! Te saludamos de *FTTH VIP*.\n\n"
-            "Hemos recibido tu solicitud de instalación. Para ayudarte más rápido, por favor indícanos tu nombre completo."
-        )
-
-    return (
-        "👋 ¡Hola! Te saludamos de *FTTH VIP*.\n\n"
-        "Hemos recibido tu reporte de avería. Lamentamos el inconveniente. Para ayudarte más rápido, por favor indícanos tu nombre completo."
-    )
-
-
 def asegurar_esquema():
-    ajustes = [
-        "ALTER TABLE clientes DROP CONSTRAINT IF EXISTS clientes_telefono_key",
-    ]
-
+    # Asegurar que las columnas existan dinámicamente si las tablas ya existen en el DB
     columnas = [
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS dni VARCHAR(20) UNIQUE",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS rol VARCHAR(20) DEFAULT 'operador'",
+        "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS branch VARCHAR(30) DEFAULT 'ALL'",
+        "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS telefono VARCHAR(20)",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS numero_referencia VARCHAR(100)",
-        "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        "ALTER TABLE casos ADD COLUMN IF NOT EXISTS problema TEXT",
-        "ALTER TABLE casos ADD COLUMN IF NOT EXISTS fecha_disponible DATE",
-        "ALTER TABLE casos ADD COLUMN IF NOT EXISTS hora_disponible VARCHAR(100)",
-        "ALTER TABLE casos ADD COLUMN IF NOT EXISTS tecnico_nombre VARCHAR(100)",
-        "ALTER TABLE casos ADD COLUMN IF NOT EXISTS tecnico_telefono VARCHAR(20)",
-        "ALTER TABLE casos ADD COLUMN IF NOT EXISTS tecnico_estado VARCHAR(30) DEFAULT 'PENDIENTE'",
-        "ALTER TABLE casos ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        "ALTER TABLE casos ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMP",
-        "ALTER TABLE estados_conversacion ADD COLUMN IF NOT EXISTS fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE conversaciones ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)",
+        "ALTER TABLE estados_conversacion ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)"
     ]
-
-    for consulta in ajustes:
-        db.session.execute(text(consulta))
 
     for consulta in columnas:
         try:
             db.session.execute(text(consulta))
         except Exception as e:
-            print(f"Error ejecutando columna {consulta}: {e}")
+            print(f"Error ejecutando consulta de esquema {consulta}: {e}")
             db.session.rollback()
-
     db.session.commit()
 
 
 def crear_operador_defecto():
     try:
-        # Buscar si ya existe por DNI (case-insensitive)
+        # 1. Crear/restablecer Administrador general FBB
         admin = Operador.query.filter(db.func.lower(Operador.dni) == "fbb").first()
-        if admin:
-            # Forzar la contraseña a "Bitel@123", DNI exacto a "FBB" y rol a admin para asegurar el acceso
-            admin.dni = "FBB"
-            admin.password_hash = generate_password_hash("Bitel@123")
-            admin.rol = "admin"
-            admin.correo = "admin@botvip.com"
-            db.session.commit()
-            print("Operador administrador FBB existente actualizado con contraseña Bitel@123.")
-            return
-
-        # Si no existe por DNI FBB, buscar si existe por el correo único (sea el viejo bitel o el nuevo vip, case-insensitive)
-        admin_correo = Operador.query.filter(db.func.lower(Operador.correo).in_(["admin@botbitel.com", "admin@botvip.com"])).first()
-        if admin_correo:
-            # Actualizar el operador existente
-            admin_correo.dni = "FBB"
-            admin_correo.nombre = "Administrador FBB"
-            admin_correo.correo = "admin@botvip.com"
-            admin_correo.password_hash = generate_password_hash("Bitel@123")
-            admin_correo.rol = "admin"
-            db.session.commit()
-            print("Operador administrador actualizado a DNI FBB con contraseña Bitel@123.")
-            return
-
-        # Si no existe ninguno de los dos, crear uno nuevo
-        default_pwd = generate_password_hash("Bitel@123")
-        admin = Operador(
-            nombre="Administrador FBB",
-            dni="FBB",
-            correo="admin@botvip.com",
-            password_hash=default_pwd,
-            rol="admin",
-            activo=True
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("Operador administrador por defecto (FBB) creado con contraseña Bitel@123.")
-    except Exception as e:
-        print("Error al crear operador por defecto:", e)
-        db.session.rollback()
-
-
-@app.route("/diagnostico-operadores")
-def diagnostico_operadores():
-    try:
-        # 1. Buscar si existe FBB (case-insensitive)
-        admin = Operador.query.filter(db.func.lower(Operador.dni) == "fbb").first()
-        created_or_updated = ""
-        
         if admin:
             admin.dni = "FBB"
             admin.password_hash = generate_password_hash("Bitel@123")
             admin.rol = "admin"
+            admin.branch = "ALL"
             admin.correo = "admin@botvip.com"
-            db.session.commit()
-            created_or_updated = "El usuario FBB ya existía y fue RESTABLECIDO con la contraseña 'Bitel@123'."
         else:
-            # Si no existe por DNI, buscar por correo para evitar duplicados
-            admin_correo = Operador.query.filter(db.func.lower(Operador.correo) == "admin@botvip.com").first()
-            if admin_correo:
-                db.session.delete(admin_correo)
-                db.session.commit()
-            
             default_pwd = generate_password_hash("Bitel@123")
             admin = Operador(
                 nombre="Administrador FBB",
@@ -195,29 +104,176 @@ def diagnostico_operadores():
                 correo="admin@botvip.com",
                 password_hash=default_pwd,
                 rol="admin",
+                branch="ALL",
                 activo=True
             )
             db.session.add(admin)
-            db.session.commit()
-            created_or_updated = "El usuario FBB NO existía y fue CREADO desde cero con la contraseña 'Bitel@123'."
+        
+        # 2. Crear operadores para cada Branch
+        sedes = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
+        for sede in sedes:
+            op_sede = Operador.query.filter(db.func.lower(Operador.dni) == sede.lower()).first()
+            if not op_sede:
+                pwd_sede = generate_password_hash("Vip@123")
+                nuevo_op = Operador(
+                    nombre=f"Operador Sede {sede}",
+                    dni=sede.upper(),
+                    correo=f"{sede.lower()}@botvip.com",
+                    password_hash=pwd_sede,
+                    rol="operador",
+                    branch=sede.upper(),
+                    activo=True
+                )
+                db.session.add(nuevo_op)
+                print(f"Semilla creada para sede {sede}")
+        
+        db.session.commit()
+        print("Sedes y Administrador sembrados correctamente.")
+    except Exception as e:
+        print("Error al crear operadores por defecto:", e)
+        db.session.rollback()
 
-        # 2. Listar todos los operadores registrados para diagnosticar
+
+def sincronizar_drive():
+    url = "https://docs.google.com/spreadsheets/d/1eaNxCpm8JF1JcZS3_ldwMRINGYFaW6RsQQWybvRi_P8/export?format=csv&gid=1775459558"
+    try:
+        response = requests.get(url, timeout=15)
+        if response.status_code != 200:
+            return False, f"Error de conexión con Google Sheets (Status: {response.status_code})"
+        
+        content = response.content.decode('utf-8')
+        f = io.StringIO(content)
+        reader = csv.reader(f)
+        
+        # Leer cabecera
+        header = next(reader, None)
+        if not header:
+            return False, "El archivo de Google Sheets está vacío."
+        
+        # Mapeo de columnas por índice
+        indices = {}
+        for i, col in enumerate(header):
+            col_name = col.strip().upper().replace("Ó", "O").replace("Í", "I")
+            indices[col_name] = i
+        
+        # Verificar columnas críticas
+        columnas_requeridas = ["BRANCH", "CUENTA", "COORDENADAS"]
+        for col in columnas_requeridas:
+            if col not in indices:
+                return False, f"Falta la columna requerida: {col}"
+        
+        cuentas_drive = set()
+        nuevos = 0
+        actualizados = 0
+        
+        for row in reader:
+            if not row or len(row) <= max(indices.values()):
+                continue
+            
+            branch = row[indices["BRANCH"]].strip()
+            cuenta = row[indices["CUENTA"]].strip()
+            
+            # Saltar si no hay cuenta o branch
+            if not cuenta or not branch:
+                continue
+            
+            cuentas_drive.add(cuenta)
+            
+            # Extraer campos
+            codigo_wo = row[indices.get("CODIGO DE WO")].strip() if "CODIGO DE WO" in indices else ""
+            detalles = row[indices.get("DETALLES")].strip() if "DETALLES" in indices else ""
+            
+            dias_str = row[indices.get("DIAS PENDIENTES")].strip() if "DIAS PENDIENTES" in indices else ""
+            try:
+                dias_pendientes = float(dias_str) if dias_str else 0.0
+            except ValueError:
+                dias_pendientes = 0.0
+                
+            status_ont = row[indices.get("ESTADO")].strip() if "ESTADO" in indices else ""
+            status_caja = row[indices.get("STATUS DE LA CAJA")].strip() if "STATUS DE LA CAJA" in indices else ""
+            contrata = row[indices.get("CONTRATA")].strip() if "CONTRATA" in indices else ""
+            periodo_pendiente = row[indices.get("PERIODO PENDIENTE")].strip() if "PERIODO PENDIENTE" in indices else ""
+            site = row[indices.get("SITE")].strip() if "SITE" in indices else ""
+            caja = row[indices.get("CAJA")].strip() if "CAJA" in indices else ""
+            coordenadas = row[indices.get("COORDENADAS")].strip() if "COORDENADAS" in indices else ""
+            
+            # Buscar en BD
+            averia = Averia.query.filter_by(cuenta=cuenta).first()
+            if averia:
+                # Si ya existe, actualizar datos del drive solo si está pendiente localmente
+                if averia.estado == "PENDIENTE":
+                    averia.branch = branch
+                    averia.codigo_wo = codigo_wo
+                    averia.detalles = detalles
+                    averia.dias_pendientes = dias_pendientes
+                    averia.status_caja = status_caja if status_caja else status_ont
+                    averia.contrata = contrata
+                    averia.periodo_pendiente = periodo_pendiente
+                    averia.site = site
+                    averia.caja = caja
+                    averia.coordenadas = coordenadas
+                    actualizados += 1
+            else:
+                # Crear nueva avería
+                nueva = Averia(
+                    branch=branch,
+                    codigo_wo=codigo_wo,
+                    cuenta=cuenta,
+                    detalles=detalles,
+                    dias_pendientes=dias_pendientes,
+                    estado="PENDIENTE",
+                    status_caja=status_caja if status_caja else status_ont,
+                    contrata=contrata,
+                    periodo_pendiente=periodo_pendiente,
+                    site=site,
+                    caja=caja,
+                    coordenadas=coordenadas,
+                    origen="SHEETS"
+                )
+                db.session.add(nueva)
+                nuevos += 1
+                
+        # Cerrar averías de tipo 'SHEETS' que ya no están en el Drive (fueron solucionadas externamente)
+        cerrados_ext = Averia.query.filter(
+            Averia.origen == "SHEETS",
+            Averia.estado == "PENDIENTE",
+            ~Averia.cuenta.in_(list(cuentas_drive))
+        ).all()
+        
+        for av in cerrados_ext:
+            av.estado = "REPARADO"
+            av.fecha_resolucion = datetime.now()
+            av.material_comentarios = "Cerrado automáticamente al no figurar en la lista del Drive."
+        
+        db.session.commit()
+        total_cerrados = len(cerrados_ext)
+        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} cerrados externamente."
+    except Exception as e:
+        db.session.rollback()
+        print("Error en sincronización de drive:", e)
+        return False, f"Error en sincronización: {str(e)}"
+
+
+@app.route("/diagnostico-operadores")
+def diagnostico_operadores():
+    try:
+        crear_operador_defecto()
         ops = Operador.query.all()
-        resultado = f"<h3>Diagnóstico de Operadores</h3>"
-        resultado += f"<p><strong>Acción de restablecimiento:</strong> {created_or_updated}</p>"
+        resultado = f"<h3>Diagnóstico de Operadores y Sedes</h3>"
         resultado += "<table border='1' cellpadding='5' style='border-collapse:collapse;'>"
-        resultado += "<tr><th>ID</th><th>Nombre</th><th>DNI</th><th>Correo</th><th>Rol</th><th>Activo</th><th>Verificación Password (Bitel@123)</th></tr>"
+        resultado += "<tr><th>ID</th><th>Nombre</th><th>DNI</th><th>Sede</th><th>Teléfono</th><th>Rol</th><th>Activo</th><th>Verificación Password (Bitel@123 / Vip@123)</th></tr>"
         
         for op in ops:
-            matches_pwd = check_password_hash(op.password_hash, "Bitel@123")
+            matches_pwd = check_password_hash(op.password_hash, "Bitel@123") or check_password_hash(op.password_hash, "Vip@123")
             resultado += f"<tr>"
             resultado += f"<td>{op.id}</td>"
             resultado += f"<td>{op.nombre}</td>"
             resultado += f"<td>{op.dni}</td>"
-            resultado += f"<td>{op.correo}</td>"
+            resultado += f"<td>{op.branch}</td>"
+            resultado += f"<td>{op.telefono or 'No registrado'}</td>"
             resultado += f"<td>{op.rol}</td>"
             resultado += f"<td>{op.activo}</td>"
-            resultado += f"<td>{'CORRECTA (Bitel@123)' if matches_pwd else 'OTRA CONTRASEÑA'}</td>"
+            resultado += f"<td>{'CORRECTA' if matches_pwd else 'OTRA CONTRASEÑA'}</td>"
             resultado += f"</tr>"
             
         resultado += "</table>"
@@ -243,14 +299,12 @@ def login():
             session["operador_nombre"] = operador.nombre
             session["operador_dni"] = operador.dni
             session["operador_rol"] = operador.rol
+            session["operador_branch"] = operador.branch
             
-            if password == dni:
-                flash("Por seguridad, te sugerimos cambiar tu contraseña actual (que es igual a tu DNI).", "warning")
-            else:
-                flash(f"¡Bienvenido de nuevo, {operador.nombre}!", "success")
+            flash(f"¡Bienvenido de nuevo, {operador.nombre} ({operador.branch})!", "success")
             return redirect(url_for("dashboard"))
         else:
-            flash("DNI o contraseña incorrectos.", "danger")
+            flash("DNI/Usuario o contraseña incorrectos.", "danger")
 
     return render_template("login.html")
 
@@ -265,8 +319,9 @@ def register():
         nombre = request.form["nombre"].strip()
         correo = request.form["correo"].strip()
         password = request.form["password"].strip()
+        branch = request.form["branch"].strip().upper()
+        telefono = request.form.get("telefono", "").strip()
 
-        # Validar si ya existe por DNI o correo (case-insensitive)
         existente = Operador.query.filter((db.func.lower(Operador.dni) == db.func.lower(dni)) | (db.func.lower(Operador.correo) == db.func.lower(correo))).first()
         if existente:
             flash("Ya existe un operador con ese DNI o correo.", "danger")
@@ -280,6 +335,8 @@ def register():
             correo=correo,
             password_hash=pwd_hash,
             rol="operador",
+            branch=branch,
+            telefono=telefono or None,
             activo=True
         )
         db.session.add(nuevo)
@@ -294,12 +351,33 @@ def register():
 @login_requerido
 def listar_operadores():
     if session.get("operador_rol") != "admin":
-        flash("Acceso denegado: Se requieren permisos de administrador para ver esta sección.", "danger")
+        flash("Acceso denegado: Se requieren permisos de administrador.", "danger")
         return redirect(url_for("dashboard"))
 
     operadores = Operador.query.order_by(Operador.id.desc()).all()
-    stats = obtener_estadisticas(operador_id=session.get("operador_id"), es_admin=True)
+    stats = obtener_estadisticas(branch=session.get("operador_branch"), es_admin=True)
     return render_template("operadores.html", operadores=operadores, stats=stats)
+
+
+@app.route("/operadores/editar-telefono", methods=["POST"])
+@login_requerido
+def editar_telefono():
+    if session.get("operador_rol") != "admin":
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for("dashboard"))
+
+    op_id = request.form.get("operador_id")
+    telefono = request.form.get("telefono", "").strip()
+    
+    operador = db.session.get(Operador, op_id)
+    if operador:
+        operador.telefono = telefono or None
+        db.session.commit()
+        flash(f"Teléfono de {operador.nombre} actualizado a {telefono or 'Vacío'}.", "success")
+    else:
+        flash("Operador no encontrado.", "danger")
+        
+    return redirect(url_for("listar_operadores"))
 
 
 @app.route("/logout")
@@ -331,124 +409,273 @@ def cambiar_password():
     return redirect(request.referrer or url_for("dashboard"))
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET"])
 @login_requerido
 def dashboard():
     es_admin = session.get("operador_rol") == "admin"
-    stats = obtener_estadisticas(operador_id=session.get("operador_id"), es_admin=es_admin)
-    if request.method == "POST":
-        telefono = request.form["telefono"].strip()
-        codigo = request.form["codigo_cliente"].strip()
-        tipo = request.form["tipo"].strip()
-        tecnico_telefono = request.form.get("tecnico_telefono", "").strip()
+    branch = session.get("operador_branch")
+    
+    stats = obtener_estadisticas(branch=branch, es_admin=es_admin)
+    
+    # Obtener las averías pendientes correspondientes a la sede
+    query = Averia.query.filter_by(estado="PENDIENTE")
+    if not es_admin and branch != "ALL":
+        query = query.filter_by(branch=branch)
+        
+    averias_pendientes = query.order_by(Averia.dias_pendientes.desc().nullslast()).all()
+    
+    # Serializar datos para Leaflet map
+    map_data = []
+    for av in averias_pendientes:
+        if av.coordenadas:
+            coords = av.coordenadas.split(",")
+            if len(coords) == 2:
+                try:
+                    lat = float(coords[0].strip())
+                    lng = float(coords[1].strip())
+                    map_data.append({
+                        "id": av.id,
+                        "branch": av.branch,
+                        "cuenta": av.cuenta,
+                        "codigo_wo": av.codigo_wo or "N/A",
+                        "detalles": av.detalles or "Sin descripción",
+                        "contrata": av.contrata or "Sin contrata",
+                        "site": av.site or "N/A",
+                        "caja": av.caja or "N/A",
+                        "dias": av.dias_pendientes or 0,
+                        "lat": lat,
+                        "lng": lng
+                    })
+                except ValueError:
+                    continue
+                    
+    # Verificar si es una sede de provincias que requiere añadir averías manualmente
+    es_provincia = branch not in ["LI1", "LI2", "LI3", "LI4", "LI7", "ALL"]
+    
+    import json
+    return render_template(
+        "dashboard.html", 
+        stats=stats, 
+        map_json=json.dumps(map_data),
+        averias_list=averias_pendientes,
+        es_provincia=es_provincia
+    )
 
-        cliente = Cliente.query.filter_by(codigo_cliente=codigo).first()
 
-        if not cliente:
-            cliente = Cliente(
-                codigo_cliente=codigo,
-                telefono=telefono,
-            )
-            db.session.add(cliente)
-            db.session.commit()
-        else:
-            cliente.telefono = telefono
+@app.route("/averias/sync", methods=["POST", "GET"])
+@login_requerido
+def sync_sheets():
+    # Solo permitir sincronizar a Lima y Administradores
+    branch = session.get("operador_branch")
+    if branch not in ["LI1", "LI2", "LI3", "LI4", "LI7", "ALL"] and session.get("operador_rol") != "admin":
+        flash("Tu sede no tiene habilitada la sincronización automática.", "warning")
+        return redirect(url_for("dashboard"))
+        
+    success, message = sincronizar_drive()
+    if success:
+        flash(message, "success")
+    else:
+        flash(message, "danger")
+    return redirect(url_for("dashboard"))
 
-        caso = Caso(
-            cliente_id=cliente.id,
-            operador_id=session["operador_id"],
-            tipo=tipo,
+
+@app.route("/averias/resolver/<int:id>", methods=["POST"])
+@login_requerido
+def resolver_averia(id):
+    averia = db.session.get(Averia, id)
+    if not averia:
+        flash("La avería no existe.", "danger")
+        return redirect(url_for("dashboard"))
+        
+    # Verificar pertenencia a la sede
+    branch = session.get("operador_branch")
+    if session.get("operador_rol") != "admin" and branch != "ALL" and averia.branch != branch:
+        flash("No tienes permisos para resolver averías de otra sede.", "danger")
+        return redirect(url_for("dashboard"))
+        
+    try:
+        cable_m = int(request.form.get("cable_m", 0) or 0)
+        conectores = int(request.form.get("conectores", 0) or 0)
+        rosetas = int(request.form.get("rosetas", 0) or 0)
+        mangas = int(request.form.get("mangas", 0) or 0)
+        acopladores = int(request.form.get("acopladores", 0) or 0)
+        comentarios = request.form.get("comentarios", "").strip()
+        
+        averia.estado = "REPARADO"
+        averia.fecha_resolucion = datetime.now()
+        averia.tecnico_id = session.get("operador_id")
+        averia.material_cable_m = cable_m
+        averia.material_conectores = conectores
+        averia.material_rosetas = rosetas
+        averia.material_mangas = mangas
+        averia.material_acopladores = acopladores
+        averia.material_comentarios = comentarios or "Reparado desde el portal"
+        
+        db.session.commit()
+        flash(f"Avería de cuenta {averia.cuenta} resuelta y materiales registrados.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error al resolver avería: {str(e)}", "danger")
+        
+    return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/averias/crear", methods=["POST"])
+@login_requerido
+def crear_averia_manual():
+    branch = session.get("operador_branch")
+    es_admin = session.get("operador_rol") == "admin"
+    
+    # Provincias y Admin pueden crear manual
+    if not es_admin and branch in ["LI1", "LI2", "LI3", "LI4", "LI7"]:
+        flash("Tu sede no permite agregar averías manualmente (se sincronizan desde el drive).", "danger")
+        return redirect(url_for("dashboard"))
+        
+    try:
+        cuenta = request.form["cuenta"].strip()
+        site = request.form["site"].strip().upper()
+        xbox = request.form["xbox"].strip().upper()
+        caja_input = request.form["caja"].strip().upper()
+        coordenadas = request.form["coordenadas"].strip()
+        detalles = request.form["detalles"].strip()
+        contrata = request.form.get("contrata", "").strip()
+        
+        # Sede de registro
+        target_branch = branch if not es_admin else request.form.get("branch", "ARE").strip().upper()
+        
+        # Validar XBOX
+        if xbox not in ["XB01", "XB02"]:
+            flash("La XBOX debe ser XB01 o XB02.", "danger")
+            return redirect(url_for("dashboard"))
+            
+        # Componer código de caja: SITE-XBOX-caja
+        caja_compuesta = f"{site}-{xbox}-{caja_input}"
+        
+        # Validar si ya existe la cuenta
+        existente = Averia.query.filter_by(cuenta=cuenta).first()
+        if existente:
+            if existente.estado == "PENDIENTE":
+                flash(f"La cuenta {cuenta} ya tiene una avería pendiente activa.", "warning")
+                return redirect(url_for("dashboard"))
+            else:
+                # Si ya existía pero estaba reparada, la reactivamos o creamos una nueva
+                # Para evitar duplicados de cuenta unique, eliminamos la anterior o la editamos.
+                # Lo mejor es reactivar la existente poniéndola PENDIENTE
+                existente.estado = "PENDIENTE"
+                existente.branch = target_branch
+                existente.caja = caja_compuesta
+                existente.site = site
+                existente.coordenadas = coordenadas
+                existente.detalles = detalles
+                existente.contrata = contrata
+                existente.dias_pendientes = 0.0
+                existente.origen = "MANUAL"
+                db.session.commit()
+                flash(f"Se reactivó la avería para la cuenta {cuenta}.", "success")
+                return redirect(url_for("dashboard"))
+        
+        nueva = Averia(
+            branch=target_branch,
+            cuenta=cuenta,
+            site=site,
+            caja=caja_compuesta,
+            coordenadas=coordenadas,
+            detalles=detalles,
+            contrata=contrata or "Propia",
             estado="PENDIENTE",
-            tecnico_telefono=tecnico_telefono or None,
+            dias_pendientes=0.0,
+            origen="MANUAL"
         )
-
-        db.session.add(caso)
+        db.session.add(nueva)
         db.session.commit()
-
-        estado = EstadoConversacion.query.filter_by(telefono=telefono).first()
-
-        if estado:
-            estado.caso_id = caso.id
-            estado.paso_actual = "esperando_nombre"
-        else:
-            estado = EstadoConversacion(
-                telefono=telefono,
-                caso_id=caso.id,
-                paso_actual="esperando_nombre",
-            )
-            db.session.add(estado)
-
-        msg = mensaje_inicio(caso)
-        registrar_conversacion(caso.id, "bot", msg)
-        db.session.commit()
-
-        enviar_mensaje(telefono, msg)
-
-        stats = obtener_estadisticas(operador_id=session.get("operador_id"), es_admin=es_admin)
-        return render_template("dashboard.html", mensaje="Caso creado y notificado", stats=stats)
-
-    return render_template("dashboard.html", stats=stats)
-
-
-@app.route("/casos")
-@login_requerido
-def listar_casos():
-    es_admin = session.get("operador_rol") == "admin"
-    query = db.session.query(Caso, Cliente).join(Cliente, Caso.cliente_id == Cliente.id)
-    
-    if not es_admin:
-        query = query.filter(Caso.operador_id == session["operador_id"])
+        flash(f"Avería manual para cuenta {cuenta} creada con éxito.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error al crear avería: {str(e)}", "danger")
         
-    casos = query.order_by(Caso.id.desc()).all()
-    stats = obtener_estadisticas(operador_id=session.get("operador_id"), es_admin=es_admin)
-    return render_template("casos.html", casos=casos, stats=stats)
+    return redirect(url_for("dashboard"))
 
 
-@app.route("/casos/exportar")
+@app.route("/averias", methods=["GET"])
 @login_requerido
-def exportar_casos():
+def listar_averias():
     es_admin = session.get("operador_rol") == "admin"
-    query = db.session.query(Caso, Cliente).join(Cliente, Caso.cliente_id == Cliente.id)
+    branch = session.get("operador_branch")
     
-    if not es_admin:
-        query = query.filter(Caso.operador_id == session["operador_id"])
+    query = Averia.query
+    if not es_admin and branch != "ALL":
+        query = query.filter_by(branch=branch)
         
-    casos = query.order_by(Caso.id.desc()).all()
+    averias = query.order_by(Averia.id.desc()).all()
+    stats = obtener_estadisticas(branch=branch, es_admin=es_admin)
+    return render_template("averias.html", averias=averias, stats=stats)
+
+
+@app.route("/averias/exportar", methods=["GET"])
+@login_requerido
+def exportar_averias():
+    es_admin = session.get("operador_rol") == "admin"
+    branch = session.get("operador_branch")
+    
+    query = Averia.query
+    if not es_admin and branch != "ALL":
+        query = query.filter_by(branch=branch)
+        
+    averias = query.order_by(Averia.id.desc()).all()
 
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = "Casos FTTH"
+    sheet.title = "Reporte Averias ODN"
 
     headers = [
         "ID",
-        "Codigo cliente",
-        "Telefono cliente",
-        "Nombre",
-        "Numero de referencia",
-        "Tipo",
-        "Estado",
-        "Telefono tecnico",
-        "Disponibilidad",
-        "Direccion",
-        "Referencia",
-        "Fecha creacion",
+        "Sede (Branch)",
+        "Código de WO",
+        "Cuenta",
+        "Detalles",
+        "Días Pendientes",
+        "Estado del Ticket",
+        "Contrata",
+        "Site",
+        "Caja",
+        "Coordenadas",
+        "Origen",
+        "Fecha Creación",
+        "Fecha Resolución",
+        "Técnico que Resolvió",
+        "Cable Drop (m)",
+        "Conectores Mecánicos",
+        "Rosetas Ópticas",
+        "Mangas/Bandejas",
+        "Acopladores",
+        "Comentarios Solución"
     ]
     sheet.append(headers)
 
-    for caso, cliente in casos:
+    for av in averias:
+        tecnico_nombre = av.tecnico.nombre if av.tecnico else ""
         sheet.append([
-            caso.id,
-            cliente.codigo_cliente,
-            cliente.telefono,
-            cliente.nombre,
-            cliente.numero_referencia,
-            caso.tipo,
-            caso.estado,
-            caso.tecnico_telefono,
-            caso.hora_disponible,
-            cliente.direccion,
-            cliente.referencia,
-            caso.fecha_creacion.strftime("%Y-%m-%d %H:%M") if caso.fecha_creacion else "",
+            av.id,
+            av.branch,
+            av.codigo_wo or "",
+            av.cuenta,
+            av.detalles or "",
+            av.dias_pendientes or 0.0,
+            av.estado,
+            av.contrata or "",
+            av.site or "",
+            av.caja or "",
+            av.coordenadas or "",
+            av.origen,
+            av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else "",
+            av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else "Pendiente",
+            tecnico_nombre,
+            av.material_cable_m,
+            av.material_conectores,
+            av.material_rosetas,
+            av.material_mangas,
+            av.material_acopladores,
+            av.material_comentarios or ""
         ])
 
     header_fill = PatternFill("solid", fgColor="1D4ED8")
@@ -478,7 +705,7 @@ def exportar_casos():
     return send_file(
         output,
         as_attachment=True,
-        download_name="casos_ftth.xlsx",
+        download_name=f"reporte_averias_{branch.lower() if branch != 'ALL' else 'global'}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
@@ -487,17 +714,14 @@ def exportar_casos():
 def webhook():
     if request.method == "GET":
         verify_token = "botvip_token"
-
         if (
             request.args.get("hub.mode") == "subscribe"
             and request.args.get("hub.verify_token") == verify_token
         ):
             return request.args.get("hub.challenge"), 200
-
         return "Verification failed", 403
 
     data = request.get_json()
-
     try:
         value = data["entry"][0]["changes"][0]["value"]
         messages = value.get("messages")
@@ -512,7 +736,7 @@ def webhook():
         if not telefono or not texto:
             return "OK", 200
 
-        procesar_mensaje(telefono, texto)
+        procesar_mensaje_tecnico(telefono, texto)
 
     except Exception as e:
         print("Webhook error:", e)
@@ -520,141 +744,229 @@ def webhook():
     return "OK", 200
 
 
-def procesar_mensaje(telefono, texto):
+def procesar_mensaje_tecnico(telefono, texto):
     texto_original = texto.strip()
     texto_normalizado = texto_original.lower()
 
+    # Buscar operador por su número de teléfono (removiendo el prefijo 51 de país si existe)
+    tel_normalizado = telefono
+    if tel_normalizado.startswith("51") and len(tel_normalizado) > 9:
+        tel_normalizado = tel_normalizado[2:]
+        
+    operador = Operador.query.filter(
+        (Operador.telefono == telefono) | 
+        (Operador.telefono == tel_normalizado) |
+        (db.func.right(Operador.telefono, 9) == db.func.right(telefono, 9)),
+        Operador.activo == True
+    ).first()
+
+    if not operador:
+        # Enviar mensaje indicando número no autorizado
+        msg_no_auth = (
+            f"❌ *Número no autorizado*\n\n"
+            f"Tu número de WhatsApp ({telefono}) no se encuentra registrado en el sistema de técnicos de BotVip.\n\n"
+            f"Por favor solicita al Administrador que registre tu número en el panel."
+        )
+        enviar_mensaje(telefono, msg_no_auth)
+        return
+
+    # Si el operador existe, procesamos su conversación
     estado = EstadoConversacion.query.filter_by(telefono=telefono).first()
-    caso = db.session.get(Caso, estado.caso_id) if estado else None
-    cliente = db.session.get(Cliente, caso.cliente_id) if caso else None
-
-    # COMANDOS GLOBALES
-    if estado and caso:
-        if texto_normalizado in ["menu", "reiniciar", "/menu", "/reiniciar"]:
-            estado.paso_actual = "esperando_nombre"
-            respuesta = "🔄 Entendido, vamos a reiniciar los datos de tu ticket.\n\n" + mensaje_inicio(caso)
-            registrar_conversacion(caso.id, "cliente", texto_original)
-            registrar_conversacion(caso.id, "bot", respuesta)
+    
+    if estado:
+        # Flujo guiado en progreso
+        averia = db.session.get(Averia, estado.averia_id)
+        if not averia or averia.estado == "REPARADO":
+            # Cancelar flujo si la avería no existe o ya está reparada
+            db.session.delete(estado)
             db.session.commit()
-            enviar_mensaje(telefono, respuesta)
+            enviar_mensaje(telefono, "❌ La avería que estabas editando ya no está disponible o ya fue solucionada.")
             return
 
-        if texto_normalizado in ["asesor", "humano", "operador"]:
-            estado.paso_actual = "operador"
-            respuesta = "📞 De acuerdo, he pausado el bot. En breve un asesor se pondrá en contacto contigo."
-            registrar_conversacion(caso.id, "cliente", texto_original)
-            registrar_conversacion(caso.id, "bot", respuesta)
+        registrar_conversacion(averia.id, "tecnico", texto_original)
+
+        if estado.paso_actual == "esperando_cable":
+            try:
+                cable_m = int(texto_original)
+                if cable_m < 0: raise ValueError
+            except ValueError:
+                enviar_mensaje(telefono, "❌ *Valor inválido*. Por favor responde solo con un número entero positivo (ej: `120` o `0`):")
+                return
+            
+            averia.material_cable_m = cable_m
+            estado.paso_actual = "esperando_conectores"
             db.session.commit()
-            enviar_mensaje(telefono, respuesta)
-            return
-
-        if estado.paso_actual == "operador":
-            # Si está pausado para operador humano, solo registramos el mensaje y no respondemos automáticamente
-            registrar_conversacion(caso.id, "cliente", texto_original)
+            
+            msg = "🔧 *Paso 2/5*: ¿Cuántos conectores mecánicos utilizaste? (Responde con número entero, ej. `2`, o `0`)."
+            registrar_conversacion(averia.id, "bot", msg)
+            enviar_mensaje(telefono, msg)
+            
+        elif estado.paso_actual == "esperando_conectores":
+            try:
+                conectores = int(texto_original)
+                if conectores < 0: raise ValueError
+            except ValueError:
+                enviar_mensaje(telefono, "❌ *Valor inválido*. Por favor responde solo con un número entero positivo (ej: `2` o `0`):")
+                return
+            
+            averia.material_conectores = conectores
+            estado.paso_actual = "esperando_rosetas"
             db.session.commit()
-            return
-
-    if not estado:
-        cliente = (
-            Cliente.query.filter_by(telefono=telefono)
-            .order_by(Cliente.id.desc())
-            .first()
-        )
-
-        if not cliente:
-            cliente = Cliente(codigo_cliente=f"AUTO_{telefono}", telefono=telefono)
-            db.session.add(cliente)
+            
+            msg = "🏠 *Paso 3/5*: ¿Cuántas rosetas ópticas utilizaste? (Responde con número entero, ej. `1`, o `0`)."
+            registrar_conversacion(averia.id, "bot", msg)
+            enviar_mensaje(telefono, msg)
+            
+        elif estado.paso_actual == "esperando_rosetas":
+            try:
+                rosetas = int(texto_original)
+                if rosetas < 0: raise ValueError
+            except ValueError:
+                enviar_mensaje(telefono, "❌ *Valor inválido*. Por favor responde solo con un número entero positivo (ej: `1` o `0`):")
+                return
+            
+            averia.material_rosetas = rosetas
+            estado.paso_actual = "esperando_mangas"
             db.session.commit()
-
-        tipo = (
-            "AVERIA"
-            if any(x in texto_normalizado for x in ["internet", "sin", "caido", "lento"])
-            else "INSTALACION"
-        )
-
-        caso = Caso(
-            cliente_id=cliente.id,
-            tipo=tipo,
-            estado="PENDIENTE",
-        )
-
-        db.session.add(caso)
-        db.session.commit()
-
-        estado = EstadoConversacion(
-            telefono=telefono,
-            caso_id=caso.id,
-            paso_actual="esperando_nombre",
-        )
-
-        respuesta = mensaje_inicio(caso)
-        registrar_conversacion(caso.id, "cliente", texto_original)
-        registrar_conversacion(caso.id, "bot", respuesta)
-        db.session.add(estado)
-        db.session.commit()
-
-        enviar_mensaje(telefono, respuesta)
-        return
-
-    if not caso or not cliente:
-        respuesta = "No encontramos un caso activo de *FTTH VIP* para este número. Por favor espera a que un operador registre tu solicitud."
-        enviar_mensaje(telefono, respuesta)
-        return
-
-    registrar_conversacion(caso.id, "cliente", texto_original)
-
-    if estado.paso_actual == "esperando_nombre":
-        cliente.nombre = texto_original
-        estado.paso_actual = "esperando_numero_referencia"
-        respuesta = "✅ Gracias. Ahora indícanos tu número de referencia (código de cliente de *FTTH VIP*)."
-
-    elif estado.paso_actual == "esperando_numero_referencia":
-        cliente.numero_referencia = texto_original
-        estado.paso_actual = "esperando_direccion"
-        respuesta = "📍 Perfecto. Indícanos tu dirección completa."
-
-    elif estado.paso_actual == "esperando_direccion":
-        cliente.direccion = texto_original
-        estado.paso_actual = "esperando_referencia"
-        respuesta = "📌 Gracias. Ahora indícanos una referencia de ubicación."
-
-    elif estado.paso_actual == "esperando_referencia":
-        cliente.referencia = texto_original
-        estado.paso_actual = "esperando_disponibilidad"
-        respuesta = "🕒 ¿Qué día y hora tienes disponibilidad para la atención presencial?"
-
-    elif estado.paso_actual == "esperando_disponibilidad":
-        caso.hora_disponible = texto_original
-        caso.estado = "PENDIENTE_ASIGNACION"
-        estado.paso_actual = "cerrado"
-        respuesta = "✅ Listo. Tu ticket de *FTTH VIP* fue registrado correctamente y un técnico será asignado."
-
-        if caso.tecnico_telefono:
-            mensaje_tecnico = f"""
-*NUEVO TICKET FTTH VIP*
-
-Tipo: {caso.tipo}
-Cliente: {cliente.codigo_cliente}
-Numero de referencia: {cliente.numero_referencia}
-Tel: {cliente.telefono}
-
-Direccion: {cliente.direccion}
-Referencia: {cliente.referencia}
-Disponibilidad: {caso.hora_disponible}
-
-Estado: {caso.estado}
-""".strip()
-
-            registrar_conversacion(caso.id, "bot", mensaje_tecnico)
-            enviar_mensaje(caso.tecnico_telefono, mensaje_tecnico)
-
+            
+            msg = "📦 *Paso 4/5*: ¿Cuántas mangas/bandejas de empalme utilizaste? (Responde con número entero, ej. `1`, o `0`)."
+            registrar_conversacion(averia.id, "bot", msg)
+            enviar_mensaje(telefono, msg)
+            
+        elif estado.paso_actual == "esperando_mangas":
+            try:
+                mangas = int(texto_original)
+                if mangas < 0: raise ValueError
+            except ValueError:
+                enviar_mensaje(telefono, "❌ *Valor inválido*. Por favor responde solo con un número entero positivo (ej: `1` o `0`):")
+                return
+            
+            averia.material_mangas = mangas
+            estado.paso_actual = "esperando_comentarios"
+            db.session.commit()
+            
+            msg = "💬 *Paso 5/5*: Escribe un breve comentario u observación sobre la solución (o responde `ninguno`):"
+            registrar_conversacion(averia.id, "bot", msg)
+            enviar_mensaje(telefono, msg)
+            
+        elif estado.paso_actual == "esperando_comentarios":
+            averia.material_comentarios = texto_original if texto_normalizado != "ninguno" else "Reparado sin comentarios."
+            averia.estado = "REPARADO"
+            averia.fecha_resolucion = datetime.now()
+            averia.tecnico_id = operador.id
+            
+            # Borrar estado
+            db.session.delete(estado)
+            db.session.commit()
+            
+            msg = f"✅ *¡Reparación registrada con éxito!*\n\nLa avería de la cuenta *{averia.cuenta}* ha sido cerrada y los materiales se registraron para la sede *{operador.branch}*."
+            registrar_conversacion(averia.id, "bot", msg)
+            enviar_mensaje(telefono, msg)
+            
     else:
-        respuesta = "Tu ticket de *FTTH VIP* ya se encuentra registrado y en proceso. Estamos dando seguimiento a tu caso."
+        # Menú de comandos o comandos directos
+        if texto_normalizado.startswith("/buscar") or texto_normalizado.startswith("buscar"):
+            parts = texto_original.split(None, 1)
+            q = parts[1].strip() if len(parts) > 1 else ""
+            if not q:
+                enviar_mensaje(telefono, "💡 *Uso*: `/buscar <caja_o_cuenta>` (ej: `/buscar SB111` o `/buscar albertj10`)")
+                return
+                
+            query = Averia.query.filter_by(estado="PENDIENTE")
+            if operador.branch != "ALL":
+                query = query.filter_by(branch=operador.branch)
+                
+            query = query.filter(
+                (db.func.lower(Averia.caja).like(f"%{q.lower()}%")) |
+                (db.func.lower(Averia.cuenta).like(f"%{q.lower()}%")) |
+                (db.func.lower(Averia.codigo_wo).like(f"%{q.lower()}%"))
+            )
+            
+            resultados = query.limit(5).all()
+            if not resultados:
+                enviar_mensaje(telefono, f"🔍 No se encontraron averías pendientes para '{q}' en tu sede ({operador.branch}).")
+                return
+                
+            msg = f"🔍 *Averías encontradas en '{q}':*\n\n"
+            for av in resultados:
+                maps_link = f"https://www.google.com/maps/search/?api=1&query={av.coordenadas}" if av.coordenadas else "Sin coordenadas"
+                msg += f"• *Cuenta*: {av.cuenta}\n"
+                msg += f"  *Caja*: {av.caja}\n"
+                msg += f"  *Detalles*: {av.detalles or 'Sin descripción'}\n"
+                msg += f"  *Mapa*: {maps_link}\n\n"
+            enviar_mensaje(telefono, msg.strip())
+            
+        elif texto_normalizado == "/mis_averias" or texto_normalizado == "mis averias" or texto_normalizado == "mis_averias":
+            query = Averia.query.filter_by(estado="PENDIENTE")
+            if operador.branch != "ALL":
+                query = query.filter_by(branch=operador.branch)
+                
+            resultados = query.order_by(Averia.dias_pendientes.desc().nullslast()).limit(5).all()
+            if not resultados:
+                enviar_mensaje(telefono, f"📋 No tienes averías pendientes registradas en tu sede ({operador.branch}).")
+                return
+                
+            msg = f"📋 *Averías pendientes ({operador.branch}):*\n\n"
+            for av in resultados:
+                maps_link = f"https://www.google.com/maps/search/?api=1&query={av.coordenadas}" if av.coordenadas else "Sin coordenadas"
+                msg += f"• *Cuenta*: {av.cuenta} | *Caja*: {av.caja}\n"
+                msg += f"  *Detalles*: {av.detalles or 'Sin detalles'}\n"
+                msg += f"  *Mapa*: {maps_link}\n\n"
+            msg += "💡 Para cerrar una avería envía:\n`/reparar <cuenta>`"
+            enviar_mensaje(telefono, msg.strip())
+            
+        elif texto_normalizado.startswith("/reparar") or texto_normalizado.startswith("reparar"):
+            parts = texto_original.split(None, 1)
+            cuenta_req = parts[1].strip() if len(parts) > 1 else ""
+            if not cuenta_req:
+                enviar_mensaje(telefono, "💡 *Uso*: `/reparar <cuenta>` (ej: `/reparar 15_gftth_albertj10`)")
+                return
+                
+            query = Averia.query.filter_by(cuenta=cuenta_req, estado="PENDIENTE")
+            if operador.branch != "ALL":
+                query = query.filter_by(branch=operador.branch)
+                
+            averia = query.first()
+            if not averia:
+                enviar_mensaje(telefono, f"❌ No se encontró ninguna avería pendiente para la cuenta '{cuenta_req}' en tu sede ({operador.branch}).")
+                return
+                
+            # Crear estado conversacion
+            nuevo_estado = EstadoConversacion(
+                telefono=telefono,
+                averia_id=averia.id,
+                paso_actual="esperando_cable"
+            )
+            db.session.add(nuevo_estado)
+            db.session.commit()
+            
+            registrar_conversacion(averia.id, "bot", "Iniciando flujo de reparación")
+            
+            msg = f"🛠️ *Flujo de Reparación iniciado* para la cuenta `{averia.cuenta}`.\n\n🔌 *Paso 1/5*: ¿Cuántos metros de cable drop utilizaste? (Responde con número entero, ej. `100`, o `0` si ninguno)."
+            enviar_mensaje(telefono, msg)
+            
+        else:
+            # Menu de ayuda
+            menu_help = (
+                f"👋 ¡Hola, *{operador.nombre}*!\n"
+                f"Sede: *{operador.branch}*\n\n"
+                f"⚙️ *Comandos disponibles*:\n"
+                f"🔍 `/buscar <caja_o_cuenta>` - Buscar averías\n"
+                f"📋 `/mis_averias` - Ver averías pendientes de tu sede\n"
+                f"🔧 `/reparar <cuenta>` - Registrar solución y materiales consumidos\n\n"
+                f"🌐 Portal Web: https://botvip-iz55.onrender.com"
+            )
+            enviar_mensaje(telefono, menu_help)
 
-    registrar_conversacion(caso.id, "bot", respuesta)
-    db.session.commit()
 
-    enviar_mensaje(telefono, respuesta)
+with app.app_context():
+    try:
+        db.create_all()
+        asegurar_esquema()
+        crear_operador_defecto()
+        print("Base de datos y esquemas inicializados correctamente.")
+    except Exception as e:
+        print("Error inicializando base de datos en arranque:", e)
 
 
 if __name__ == "__main__":
