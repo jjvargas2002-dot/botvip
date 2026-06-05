@@ -73,8 +73,34 @@ def asegurar_esquema():
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS telefono VARCHAR(20)",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        
         "ALTER TABLE conversaciones ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)",
         "ALTER TABLE estados_conversacion ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)",
+        
+        # Columnas de averias
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS branch VARCHAR(50)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS codigo_wo VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS cuenta VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS detalles TEXT",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS dias_pendientes DOUBLE PRECISION",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS estado VARCHAR(50) DEFAULT 'PENDIENTE'",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS status_caja VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS contrata VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS periodo_pendiente VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS site VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS caja VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS coordenadas VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS origen VARCHAR(20) DEFAULT 'SHEETS'",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS fecha_resolucion TIMESTAMP",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS tecnico_id INTEGER REFERENCES operadores(id)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_cable_m INTEGER DEFAULT 0",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_conectores INTEGER DEFAULT 0",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_rosetas INTEGER DEFAULT 0",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_mangas INTEGER DEFAULT 0",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_acopladores INTEGER DEFAULT 0",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_comentarios TEXT",
+        
         "ALTER TABLE averias DROP CONSTRAINT IF EXISTS averias_cuenta_key",
         "ALTER TABLE averias ALTER COLUMN cuenta DROP NOT NULL"
     ]
@@ -167,6 +193,7 @@ def sincronizar_drive():
         cuentas_drive = set()
         nuevos = 0
         actualizados = 0
+        nuevos_por_branch = {}
         
         for row in reader:
             if not row or len(row) <= max(indices.values()):
@@ -234,6 +261,9 @@ def sincronizar_drive():
                 )
                 db.session.add(nueva)
                 nuevos += 1
+                if branch not in nuevos_por_branch:
+                    nuevos_por_branch[branch] = []
+                nuevos_por_branch[branch].append(nueva)
                 
         # Cerrar averías de tipo 'SHEETS' que ya no están en el Drive (fueron solucionadas externamente)
         cerrados_ext = Averia.query.filter(
@@ -248,6 +278,40 @@ def sincronizar_drive():
             av.material_comentarios = "Cerrado automáticamente al no figurar en la lista del Drive."
         
         db.session.commit()
+        
+        # Notificar por WhatsApp de las nuevas averías importadas
+        for br, lista_av in nuevos_por_branch.items():
+            total_nuevos = len(lista_av)
+            if total_nuevos == 0:
+                continue
+            
+            # Buscar operadores activos de esta sede con teléfono
+            operadores = Operador.query.filter_by(branch=br, activo=True).all()
+            for op in operadores:
+                if op.telefono:
+                    num = op.telefono.strip()
+                    if num:
+                        try:
+                            if total_nuevos <= 3:
+                                for av in lista_av:
+                                    msg = (
+                                        f"🔔 *Nueva avería asignada ({br})*:\n\n"
+                                        f"• *Cuenta*: {av.cuenta}\n"
+                                        f"• *Caja*: {av.caja}\n"
+                                        f"• *Obs*: {av.detalles or 'Sin detalles'}\n\n"
+                                        f"💡 Escribe `reparar {av.cuenta}` cuando la soluciones."
+                                    )
+                                    enviar_mensaje(num, msg)
+                            else:
+                                msg = (
+                                    f"🔔 *Nuevas averías asignadas ({br})*:\n\n"
+                                    f"Se han registrado *{total_nuevos}* nuevas averías para tu sede en el sistema.\n\n"
+                                    f"📋 Escribe `todos` para ver la lista completa de pendientes."
+                                )
+                                enviar_mensaje(num, msg)
+                        except Exception as e_notif:
+                            print(f"Error enviando notificación WhatsApp a {num}: {e_notif}")
+                            
         total_cerrados = len(cerrados_ext)
         return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} cerrados externamente."
     except Exception as e:
@@ -522,6 +586,26 @@ def resolver_averia(id):
     return redirect(request.referrer or url_for("dashboard"))
 
 
+def notificar_nueva_averia_individual(averia):
+    # Buscar técnicos de la sede que tengan teléfono y estén activos
+    operadores = Operador.query.filter_by(branch=averia.branch, activo=True).all()
+    for op in operadores:
+        if op.telefono:
+            num = op.telefono.strip()
+            if num:
+                try:
+                    msg = (
+                        f"🔔 *Nueva avería asignada a tu sede ({averia.branch})*:\n\n"
+                        f"• *Cuenta*: {averia.cuenta}\n"
+                        f"• *Caja*: {averia.caja}\n"
+                        f"• *Obs*: {averia.detalles or 'Sin detalles'}\n\n"
+                        f"💡 Escribe `reparar {averia.cuenta}` cuando la soluciones."
+                    )
+                    enviar_mensaje(num, msg)
+                except Exception as e:
+                    print(f"Error notificando nueva avería individual a {num}: {e}")
+
+
 @app.route("/averias/crear", methods=["POST"])
 @login_requerido
 def crear_averia_manual():
@@ -579,6 +663,13 @@ def crear_averia_manual():
                 existente.dias_pendientes = 0.0
                 existente.origen = "MANUAL"
                 db.session.commit()
+                
+                # Notificar a los técnicos de la reactivación
+                try:
+                    notificar_nueva_averia_individual(existente)
+                except Exception as e_notif:
+                    print("Error notificando reactivación:", e_notif)
+                    
                 flash(f"Se reactivó la avería para la cuenta {cuenta}.", "success")
                 return redirect(url_for("dashboard"))
         
@@ -596,6 +687,13 @@ def crear_averia_manual():
         )
         db.session.add(nueva)
         db.session.commit()
+        
+        # Notificar a los técnicos por WhatsApp
+        try:
+            notificar_nueva_averia_individual(nueva)
+        except Exception as e_notif:
+            print("Error notificado nueva avería manual:", e_notif)
+            
         flash(f"Avería manual para cuenta {cuenta} creada con éxito.", "success")
     except Exception as e:
         db.session.rollback()
@@ -966,6 +1064,12 @@ def procesar_mensaje_tecnico(telefono, texto):
             db.session.delete(estado)
             db.session.commit()
             
+            # Notificar a los otros técnicos de la sede
+            try:
+                notificar_nueva_averia_individual(averia)
+            except Exception as e_notif:
+                print("Error notificando nueva avería desde WhatsApp:", e_notif)
+                
             msg = (
                 f"✅ *¡Avería creada con éxito!*\n\n"
                 f"• *Cuenta*: {averia.cuenta}\n"
@@ -1097,7 +1201,7 @@ def procesar_mensaje_tecnico(telefono, texto):
         elif cmd_clean in ["crear", "nuevo", "nueva", "n"] or texto_norm in ["crear averia", "crear caso", "crear_averia"]:
             # Verificar que sea de una sede manual/provincias, o admin
             if operador.branch in ["LI1", "LI2", "LI3", "LI4", "LI7"] and operador.rol != "admin":
-                enviar_mensaje(telefono, "❌ Tu sede se sincroniza automáticamente desde el drive y no permite registro manual de averías.")
+                enviar_mensaje(telefono, "❌ Tu sede no tiene habilitado el registro manual de averías.")
                 return
                 
             # Inicializar avería temporal vacía
