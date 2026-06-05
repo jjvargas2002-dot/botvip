@@ -975,14 +975,22 @@ def procesar_mensaje_tecnico(telefono, texto):
                 f"El ticket ha sido publicado en el mapa de control."
             )
             enviar_mensaje(telefono, msg)
-            
     else:
-        # Menú de comandos o comandos directos
-        if texto_normalizado.startswith("/buscar") or texto_normalizado.startswith("buscar"):
-            parts = texto_original.split(None, 1)
-            q = parts[1].strip() if len(parts) > 1 else ""
+        # Separar en palabras para extraer comando y argumentos
+        palabras = texto_original.split()
+        first_word = palabras[0].lower().strip() if palabras else ""
+        # Quitar '/' y acentos del primer término
+        cmd_clean = first_word.replace("/", "").replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+        rest_text = " ".join(palabras[1:]).strip() if len(palabras) > 1 else ""
+        
+        # Normalizar el texto completo sin acentos ni slashes
+        texto_norm = texto_normalizado.replace("/", "").replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u").strip()
+
+        # 1. BUSCAR
+        if cmd_clean in ["buscar", "bus", "find", "filtrar", "b"] or texto_norm.startswith("buscar ") or texto_norm.startswith("filtrar "):
+            q = rest_text if rest_text else (texto_original[7:].strip() if texto_normalizado.startswith("buscar ") else "")
             if not q:
-                enviar_mensaje(telefono, "💡 *Uso*: `/buscar <caja_o_cuenta>` (ej: `/buscar SB111` o `/buscar albertj10`)")
+                enviar_mensaje(telefono, "💡 *Uso*: escribe `buscar <caja o cuenta>` (ej: `buscar SB111` o `buscar albertj10`)")
                 return
                 
             query = Averia.query.filter_by(estado="PENDIENTE")
@@ -1008,8 +1016,35 @@ def procesar_mensaje_tecnico(telefono, texto):
                 msg += f"  *Detalles*: {av.detalles or 'Sin descripción'}\n"
                 msg += f"  *Mapa*: {maps_link}\n\n"
             enviar_mensaje(telefono, msg.strip())
+
+        # 2. VER TODOS LOS PENDIENTES
+        elif cmd_clean in ["todos", "todo", "pendientes", "lista", "listar", "ver"] or texto_norm in ["ver todos", "ver pendientes", "todos los pendientes", "todas", "ver todas", "lista de pendientes"]:
+            query = Averia.query.filter_by(estado="PENDIENTE")
+            if operador.branch != "ALL":
+                query = query.filter_by(branch=operador.branch)
+                
+            resultados = query.order_by(Averia.dias_pendientes.desc().nullslast(), Averia.id.desc()).limit(20).all()
+            total_pendientes = query.count()
             
-        elif texto_normalizado == "/mis_averias" or texto_normalizado == "mis averias" or texto_normalizado == "mis_averias":
+            if not resultados:
+                enviar_mensaje(telefono, f"📋 No hay averías pendientes registradas para la sede {operador.branch}.")
+                return
+                
+            msg = f"📋 *Todos los pendientes ({operador.branch})* - Total: {total_pendientes}\n\n"
+            for i, av in enumerate(resultados, 1):
+                maps_link = f"https://www.google.com/maps/search/?api=1&query={av.coordenadas}" if av.coordenadas else "Sin coordenadas"
+                msg += f"*{i}. Cuenta*: {av.cuenta}\n"
+                msg += f"   *Caja*: {av.caja}\n"
+                msg += f"   *Obs*: {av.detalles or 'Sin detalles'}\n"
+                msg += f"   *Mapa*: {maps_link}\n\n"
+                
+            if total_pendientes > 20:
+                msg += f"⚠️ *Mostrando las 20 averías más antiguas de un total de {total_pendientes} pendientes.*\n\n"
+            msg += "💡 Para cerrar una avería, envía:\n`reparar <cuenta>`"
+            enviar_mensaje(telefono, msg.strip())
+
+        # 3. MIS AVERIAS
+        elif cmd_clean == "mis" or texto_norm in ["mis averias", "mis_averias", "mis cases", "mis tickets", "mis averia"]:
             query = Averia.query.filter_by(estado="PENDIENTE")
             if operador.branch != "ALL":
                 query = query.filter_by(branch=operador.branch)
@@ -1019,20 +1054,20 @@ def procesar_mensaje_tecnico(telefono, texto):
                 enviar_mensaje(telefono, f"📋 No tienes averías pendientes registradas en tu sede ({operador.branch}).")
                 return
                 
-            msg = f"📋 *Averías pendientes ({operador.branch}):*\n\n"
+            msg = f"📋 *Averías pendientes más críticas ({operador.branch}):*\n\n"
             for av in resultados:
                 maps_link = f"https://www.google.com/maps/search/?api=1&query={av.coordenadas}" if av.coordenadas else "Sin coordenadas"
                 msg += f"• *Cuenta*: {av.cuenta} | *Caja*: {av.caja}\n"
                 msg += f"  *Detalles*: {av.detalles or 'Sin detalles'}\n"
                 msg += f"  *Mapa*: {maps_link}\n\n"
-            msg += "💡 Para cerrar una avería envía:\n`/reparar <cuenta>`"
+            msg += "💡 Para cerrar una avería, envía:\n`reparar <cuenta>`"
             enviar_mensaje(telefono, msg.strip())
-            
-        elif texto_normalizado.startswith("/reparar") or texto_normalizado.startswith("reparar"):
-            parts = texto_original.split(None, 1)
-            cuenta_req = parts[1].strip() if len(parts) > 1 else ""
+
+        # 4. REPARAR / CERRAR AVERIA
+        elif cmd_clean in ["reparar", "rep", "solucionar", "sol", "arreglar", "cerrar", "r"] or texto_norm.startswith("reparar ") or texto_norm.startswith("solucionar ") or texto_norm.startswith("rep "):
+            cuenta_req = rest_text if rest_text else (texto_original[8:].strip() if texto_normalizado.startswith("reparar ") else "")
             if not cuenta_req:
-                enviar_mensaje(telefono, "💡 *Uso*: `/reparar <cuenta>` (ej: `/reparar 15_gftth_albertj10`)")
+                enviar_mensaje(telefono, "💡 *Uso*: escribe `reparar <cuenta>` (ej: `reparar 15_gftth_albertj10`)")
                 return
                 
             query = Averia.query.filter_by(cuenta=cuenta_req, estado="PENDIENTE")
@@ -1058,7 +1093,8 @@ def procesar_mensaje_tecnico(telefono, texto):
             msg = f"🛠️ *Flujo de Reparación iniciado* para la cuenta `{averia.cuenta}`.\n\n🔌 *Paso 1/5*: ¿Cuántos metros de cable drop utilizaste? (Responde con número entero, ej. `100`, o `0` si ninguno)."
             enviar_mensaje(telefono, msg)
 
-        elif texto_normalizado in ["/crear", "crear", "/crear_averia"]:
+        # 5. CREAR AVERIA MANUAL
+        elif cmd_clean in ["crear", "nuevo", "nueva", "n"] or texto_norm in ["crear averia", "crear caso", "crear_averia"]:
             # Verificar que sea de una sede manual/provincias, o admin
             if operador.branch in ["LI1", "LI2", "LI3", "LI4", "LI7"] and operador.rol != "admin":
                 enviar_mensaje(telefono, "❌ Tu sede se sincroniza automáticamente desde el drive y no permite registro manual de averías.")
@@ -1091,21 +1127,37 @@ def procesar_mensaje_tecnico(telefono, texto):
                 "*(Escribe 'cancelar' en cualquier momento para abortar)*\n\n"
                 "🔌 *Paso 1/7 (Cuenta)*: Escribe la cuenta del cliente (ej: `15_gftth_juan`) o responde `ninguna` si no aplica:"
             )
-            
+
+        # 6. RESUMEN / METRICAS
+        elif cmd_clean in ["resumen", "res", "estado", "status", "info"]:
+            stats = obtener_estadisticas(branch=operador.branch, es_admin=(operador.branch == "ALL"))
+            msg = (
+                f"📊 *Resumen de Averías ({operador.branch})*:\n\n"
+                f"• *Pendientes*: {stats['pendientes']}\n"
+                f"• *Reparadas*: {stats['reparados']}\n"
+                f"• *Total*: {stats['totales']}\n\n"
+                f"🌐 Ver mapa interactivo:\nhttps://botvip-iz55.onrender.com"
+            )
+            enviar_mensaje(telefono, msg)
+
+        # 7. AYUDA / MENU POR DEFECTO
         else:
             # Menu de ayuda
             menu_help = (
                 f"👋 ¡Hola, *{operador.nombre}*!\n"
                 f"Sede: *{operador.branch}*\n\n"
-                f"⚙️ *Comandos disponibles*:\n"
-                f"🔍 `/buscar <caja_o_cuenta>` - Buscar averías\n"
-                f"📋 `/mis_averias` - Ver averías pendientes de tu sede\n"
-                f"🔧 `/reparar <cuenta>` - Registrar solución y materiales\n"
+                f"⚙️ *Comandos rápidos disponibles* (sin '/'):\n"
+                f"🔍 `buscar <texto>` - Buscar averías por caja o cuenta\n"
+                f"📋 `todos` - Ver todos los pendientes de tu sede\n"
+                f"📋 `mis` - Ver las 5 averías más antiguas/urgentes\n"
+                f"🔧 `reparar <cuenta>` - Registrar solución y materiales\n"
+                f"📊 `resumen` - Ver estadísticas de tu sede\n"
             )
             if operador.branch not in ["LI1", "LI2", "LI3", "LI4", "LI7"] or operador.rol == "admin":
-                menu_help += f"📝 `/crear` - Registrar nueva avería manual\n"
+                menu_help += f"📝 `crear` - Registrar nueva avería manual\n"
             
-            menu_help += f"\n🌐 Portal Web: https://botvip-iz55.onrender.com"
+            menu_help += f"\n💡 *En cualquier flujo*, escribe `cancelar` para volver aquí.\n"
+            menu_help += f"🌐 Portal Web: https://botvip-iz55.onrender.com"
             enviar_mensaje(telefono, menu_help)
 
 
