@@ -55,7 +55,7 @@ class Averia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     branch = db.Column(db.String(50), nullable=False)
     codigo_wo = db.Column(db.String(100))
-    cuenta = db.Column(db.String(100), unique=True, nullable=False)
+    cuenta = db.Column(db.String(100), nullable=True)
     detalles = db.Column(db.Text)
     dias_pendientes = db.Column(db.Float)
     estado = db.Column(db.String(50), default="PENDIENTE")  # PENDIENTE / REPARADO

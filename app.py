@@ -74,7 +74,9 @@ def asegurar_esquema():
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE conversaciones ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)",
-        "ALTER TABLE estados_conversacion ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)"
+        "ALTER TABLE estados_conversacion ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)",
+        "ALTER TABLE averias DROP CONSTRAINT IF EXISTS averias_cuenta_key",
+        "ALTER TABLE averias ALTER COLUMN cuenta DROP NOT NULL"
     ]
 
     for consulta in columnas:
@@ -532,7 +534,11 @@ def crear_averia_manual():
         return redirect(url_for("dashboard"))
         
     try:
-        cuenta = request.form["cuenta"].strip()
+        cuenta = request.form.get("cuenta", "").strip()
+        if not cuenta:
+            import uuid
+            cuenta = f"SIN_CUENTA_{uuid.uuid4().hex[:8].upper()}"
+            
         site = request.form["site"].strip().upper()
         xbox = request.form["xbox"].strip().upper()
         caja_input = request.form["caja"].strip().upper()
@@ -551,8 +557,10 @@ def crear_averia_manual():
         # Componer código de caja: SITE-XBOX-caja
         caja_compuesta = f"{site}-{xbox}-{caja_input}"
         
-        # Validar si ya existe la cuenta
-        existente = Averia.query.filter_by(cuenta=cuenta).first()
+        # Validar si ya existe la cuenta (solo si no es un placeholder autogenerado)
+        existente = None
+        if not cuenta.startswith("SIN_CUENTA_"):
+            existente = Averia.query.filter_by(cuenta=cuenta).first()
         if existente:
             if existente.estado == "PENDIENTE":
                 flash(f"La cuenta {cuenta} ya tiene una avería pendiente activa.", "warning")
@@ -770,13 +778,29 @@ def procesar_mensaje_tecnico(telefono, texto):
         enviar_mensaje(telefono, msg_no_auth)
         return
 
+    # 0. Cancelación global de flujos guiados
+    if texto_normalizado in ["/cancelar", "cancelar"]:
+        estado = EstadoConversacion.query.filter_by(telefono=telefono).first()
+        if estado:
+            # Si estábamos creando una avería manual, eliminar el registro temporal incompleto
+            if estado.paso_actual.startswith("crear_"):
+                averia_temp = db.session.get(Averia, estado.averia_id)
+                if averia_temp:
+                    db.session.delete(averia_temp)
+            db.session.delete(estado)
+            db.session.commit()
+            enviar_mensaje(telefono, "🔄 *Operación cancelada*. Volviendo al menú principal.")
+        else:
+            enviar_mensaje(telefono, "💡 No tienes ningún flujo activo para cancelar.")
+        return
+
     # Si el operador existe, procesamos su conversación
     estado = EstadoConversacion.query.filter_by(telefono=telefono).first()
     
     if estado:
         # Flujo guiado en progreso
         averia = db.session.get(Averia, estado.averia_id)
-        if not averia or averia.estado == "REPARADO":
+        if not averia or (averia.estado == "REPARADO" and not estado.paso_actual.startswith("crear_")):
             # Cancelar flujo si la avería no existe o ya está reparada
             db.session.delete(estado)
             db.session.commit()
@@ -785,6 +809,9 @@ def procesar_mensaje_tecnico(telefono, texto):
 
         registrar_conversacion(averia.id, "tecnico", texto_original)
 
+        # ----------------------------------------------------
+        # FLUJO GUIADO 1: RESOLVER AVERÍA (Reportar materiales)
+        # ----------------------------------------------------
         if estado.paso_actual == "esperando_cable":
             try:
                 cable_m = int(texto_original)
@@ -861,6 +888,92 @@ def procesar_mensaje_tecnico(telefono, texto):
             
             msg = f"✅ *¡Reparación registrada con éxito!*\n\nLa avería de la cuenta *{averia.cuenta}* ha sido cerrada y los materiales se registraron para la sede *{operador.branch}*."
             registrar_conversacion(averia.id, "bot", msg)
+            enviar_mensaje(telefono, msg)
+
+        # ----------------------------------------------------
+        # FLUJO GUIADO 2: CREAR AVERÍA MANUALMENTE
+        # ----------------------------------------------------
+        elif estado.paso_actual == "crear_esperando_cuenta":
+            cuenta_val = texto_original
+            if texto_normalizado == "ninguna":
+                import uuid
+                cuenta_val = f"SIN_CUENTA_{uuid.uuid4().hex[:8].upper()}"
+            
+            averia.cuenta = cuenta_val
+            estado.paso_actual = "crear_esperando_site"
+            db.session.commit()
+            
+            enviar_mensaje(telefono, "📍 *Paso 2/7 (Site)*: Escribe el Site (ej: `ARE0071` o `CAL0072`):")
+            
+        elif estado.paso_actual == "crear_esperando_site":
+            averia.site = texto_original.upper()
+            estado.paso_actual = "crear_esperando_xbox"
+            db.session.commit()
+            
+            enviar_mensaje(telefono, "📦 *Paso 3/7 (XBOX)*: Responde con `XB01` o `XB02`:")
+            
+        elif estado.paso_actual == "crear_esperando_xbox":
+            xbox_val = texto_original.upper()
+            if xbox_val not in ["XB01", "XB02"]:
+                enviar_mensaje(telefono, "❌ *Opción inválida*. Por favor responde solo con `XB01` o `XB02`:")
+                return
+            
+            averia.caja = xbox_val  # Guardamos temporalmente el xbox en caja
+            estado.paso_actual = "crear_esperando_caja"
+            db.session.commit()
+            
+            enviar_mensaje(telefono, "📥 *Paso 4/7 (Caja)*: Escribe la caja/splitter (ej: `SB111` o `EB214`):")
+            
+        elif estado.paso_actual == "crear_esperando_caja":
+            xbox_temp = averia.caja
+            averia.caja = f"{averia.site}-{xbox_temp}-{texto_original.upper()}"
+            estado.paso_actual = "crear_esperando_coordenadas"
+            db.session.commit()
+            
+            enviar_mensaje(telefono, "🗺️ *Paso 5/7 (Coordenadas)*: Envía las coordenadas en formato lat,lng (ej: `-16.3988,-71.5369`):")
+            
+        elif estado.paso_actual == "crear_esperando_coordenadas":
+            coords = texto_original.split(",")
+            if len(coords) != 2:
+                enviar_mensaje(telefono, "❌ *Formato inválido*. Por favor envía las coordenadas en formato lat,lng (ej: `-16.3988,-71.5369`):")
+                return
+            try:
+                float(coords[0].strip())
+                float(coords[1].strip())
+            except ValueError:
+                enviar_mensaje(telefono, "❌ *Formato inválido*. Asegúrate de ingresar números decimales separados por una coma (ej: `-16.3988,-71.5369`):")
+                return
+                
+            averia.coordenadas = texto_original
+            estado.paso_actual = "crear_esperando_detalles"
+            db.session.commit()
+            
+            enviar_mensaje(telefono, "💬 *Paso 6/7 (Detalles)*: Escribe una breve descripción de la avería:")
+            
+        elif estado.paso_actual == "crear_esperando_detalles":
+            averia.detalles = texto_original
+            estado.paso_actual = "crear_esperando_contrata"
+            db.session.commit()
+            
+            enviar_mensaje(telefono, "🚛 *Paso 7/7 (Contrata)*: Escribe el nombre de la contrata o responde `ninguna` para omitir:")
+            
+        elif estado.paso_actual == "crear_esperando_contrata":
+            averia.contrata = texto_original if texto_normalizado != "ninguna" else "Propia"
+            averia.estado = "PENDIENTE"
+            averia.dias_pendientes = 0.0
+            
+            # Limpiar estado
+            db.session.delete(estado)
+            db.session.commit()
+            
+            msg = (
+                f"✅ *¡Avería creada con éxito!*\n\n"
+                f"• *Cuenta*: {averia.cuenta}\n"
+                f"• *Caja*: {averia.caja}\n"
+                f"• *Detalles*: {averia.detalles}\n"
+                f"• *Sede*: {averia.branch}\n\n"
+                f"El ticket ha sido publicado en el mapa de control."
+            )
             enviar_mensaje(telefono, msg)
             
     else:
@@ -944,6 +1057,40 @@ def procesar_mensaje_tecnico(telefono, texto):
             
             msg = f"🛠️ *Flujo de Reparación iniciado* para la cuenta `{averia.cuenta}`.\n\n🔌 *Paso 1/5*: ¿Cuántos metros de cable drop utilizaste? (Responde con número entero, ej. `100`, o `0` si ninguno)."
             enviar_mensaje(telefono, msg)
+
+        elif texto_normalizado in ["/crear", "crear", "/crear_averia"]:
+            # Verificar que sea de una sede manual/provincias, o admin
+            if operador.branch in ["LI1", "LI2", "LI3", "LI4", "LI7"] and operador.rol != "admin":
+                enviar_mensaje(telefono, "❌ Tu sede se sincroniza automáticamente desde el drive y no permite registro manual de averías.")
+                return
+                
+            # Inicializar avería temporal vacía
+            import uuid
+            nueva = Averia(
+                branch=operador.branch if operador.branch != "ALL" else "ARE",
+                cuenta=f"SIN_CUENTA_TEMP_{uuid.uuid4().hex[:6].upper()}", # Cuenta temporal
+                estado="PENDIENTE",
+                origen="MANUAL",
+                detalles="En proceso de registro..."
+            )
+            db.session.add(nueva)
+            db.session.commit()
+            
+            # Crear estado
+            nuevo_estado = EstadoConversacion(
+                telefono=telefono,
+                averia_id=nueva.id,
+                paso_actual="crear_esperando_cuenta"
+            )
+            db.session.add(nuevo_estado)
+            db.session.commit()
+            
+            enviar_mensaje(
+                telefono,
+                "📝 *Crear Nueva Avería Manual*\n"
+                "*(Escribe 'cancelar' en cualquier momento para abortar)*\n\n"
+                "🔌 *Paso 1/7 (Cuenta)*: Escribe la cuenta del cliente (ej: `15_gftth_juan`) o responde `ninguna` si no aplica:"
+            )
             
         else:
             # Menu de ayuda
@@ -953,9 +1100,12 @@ def procesar_mensaje_tecnico(telefono, texto):
                 f"⚙️ *Comandos disponibles*:\n"
                 f"🔍 `/buscar <caja_o_cuenta>` - Buscar averías\n"
                 f"📋 `/mis_averias` - Ver averías pendientes de tu sede\n"
-                f"🔧 `/reparar <cuenta>` - Registrar solución y materiales consumidos\n\n"
-                f"🌐 Portal Web: https://botvip-iz55.onrender.com"
+                f"🔧 `/reparar <cuenta>` - Registrar solución y materiales\n"
             )
+            if operador.branch not in ["LI1", "LI2", "LI3", "LI4", "LI7"] or operador.rol == "admin":
+                menu_help += f"📝 `/crear` - Registrar nueva avería manual\n"
+            
+            menu_help += f"\n🌐 Portal Web: https://botvip-iz55.onrender.com"
             enviar_mensaje(telefono, menu_help)
 
 
