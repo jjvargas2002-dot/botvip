@@ -79,6 +79,45 @@
             </div>
         </div>
     </div>
+</div><!-- Filter Bar -->
+<div class="card card-premium mb-4">
+    <div class="card-body p-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <div class="fw-bold text-slate-800"><i class="bi bi-funnel-fill text-primary me-2"></i>Filtrar en Mapa:</div>
+            </div>
+            {% if session.get('operador_rol') == 'admin' %}
+            <div class="col-md-3">
+                <select id="branchFilter" class="form-select form-select-custom py-1.5 fs-7" onchange="applyFilters()">
+                    <option value="">Todas las Sedes</option>
+                    <option value="LI1">LI1</option>
+                    <option value="LI2">LI2</option>
+                    <option value="LI3">LI3</option>
+                    <option value="LI4">LI4</option>
+                    <option value="LI7">LI7</option>
+                    <option value="ARE">ARE</option>
+                    <option value="PIU">PIU</option>
+                    <option value="SAN">SAN</option>
+                    <option value="CAJ">CAJ</option>
+                    <option value="LAL">LAL</option>
+                    <option value="HUN">HUN</option>
+                    <option value="CUS">CUS</option>
+                    <option value="JUN">JUN</option>
+                </select>
+            </div>
+            {% endif %}
+            <div class="{% if session.get('operador_rol') == 'admin' %}col-md-4{% else %}col-md-7{% endif %}">
+                <select id="siteFilter" class="form-select form-select-custom py-1.5 fs-7" onchange="applyFilters()">
+                    <option value="">Todos los SITEs (Nodos)</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary btn-sm w-100 py-1.5 fs-7" onclick="resetDashboardFilters()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Limpiar
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Main Section: Map & Forms -->
@@ -96,63 +135,61 @@
         <div class="card card-premium">
             <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between">
                 <h5 class="fw-bold mb-0 text-slate-800"><i class="bi bi-list-task me-2 text-primary"></i>Lista de Pendientes en {{ session.get('operador_branch') }}</h5>
-                <span class="badge bg-primary rounded-pill">{{ averias_list|length }} casos</span>
+                <span class="badge bg-primary rounded-pill" id="pending-counter">{{ averias_list|length }} casos</span>
             </div>
-            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+            <div class="card-body p-0 table-responsive" style="max-height: 400px; overflow: auto;">
                 {% if not averias_list %}
                 <div class="p-4 text-center text-muted">
                     <i class="bi bi-check2-circle fs-1 mb-2 text-success"></i>
                     <p class="mb-0">No hay averías pendientes activas en esta sede.</p>
                 </div>
                 {% else %}
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Cuenta</th>
-                                <th>Detalles</th>
-                                <th>Caja</th>
-                                <th>WO / Contrata</th>
-                                <th>Días</th>
-                                <th class="text-end">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for av in averias_list %}
-                            <tr>
-                                <td>
-                                    <div class="fw-semibold">{{ av.cuenta }}</div>
-                                </td>
-                                <td>
-                                    <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
-                                </td>
-                                <td>
-                                    <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</span>
-                                </td>
-                                <td>
-                                    <div class="fw-medium text-slate-700">{{ av.codigo_wo or 'N/A' }}</div>
-                                    <small class="text-muted">{{ av.contrata }}</small>
-                                </td>
-                                <td>
-                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">{{ av.dias_pendientes or 0 }} d</span>
-                                </td>
-                                <td class="text-end">
-                                    <div class="d-inline-flex gap-1.5">
-                                        {% if av.coordenadas %}
-                                        <a href="https://www.google.com/maps/search/?api=1&query={{ av.coordenadas }}" target="_blank" class="btn btn-sm btn-outline-secondary py-1" title="Ver en Google Maps">
-                                            <i class="bi bi-geo-alt-fill text-danger"></i>
-                                        </a>
-                                        {% endif %}
-                                        <button class="btn btn-sm btn-success py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
-                                            <i class="bi bi-check-circle"></i> Resolver
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem; min-width: 750px;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Cuenta</th>
+                            <th>Detalles</th>
+                            <th>Caja</th>
+                            <th>WO / Contrata</th>
+                            <th>Días</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for av in averias_list %}
+                        <tr class="pending-row" data-site="{{ av.site }}" data-branch="{{ av.branch }}">
+                            <td>
+                                <div class="fw-semibold">{{ av.cuenta }}</div>
+                            </td>
+                            <td>
+                                <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</span>
+                            </td>
+                            <td>
+                                <div class="fw-medium text-slate-700">{{ av.codigo_wo or 'N/A' }}</div>
+                                <small class="text-muted">{{ av.contrata }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">{{ av.dias_pendientes or 0 }} d</span>
+                            </td>
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-1.5 pe-3">
+                                    {% if av.coordenadas %}
+                                    <a href="https://www.google.com/maps/search/?api=1&query={{ av.coordenadas }}" target="_blank" class="btn btn-sm btn-outline-secondary py-1" title="Ver en Google Maps">
+                                        <i class="bi bi-geo-alt-fill text-danger"></i>
+                                    </a>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-success py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
+                                        <i class="bi bi-check-circle"></i> Resolver
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
                 {% endif %}
             </div>
         </div>
@@ -351,6 +388,7 @@
     });
 
     const bounds = [];
+    window.mapMarkers = [];
     
     // Renderizar marcadores
     averias.forEach(function(av) {
@@ -386,6 +424,12 @@
         
         const marker = L.marker([av.lat, av.lng], { icon: iconToUse }).addTo(map);
         marker.bindPopup(popupContent);
+        
+        window.mapMarkers.push({
+            marker: marker,
+            data: av
+        });
+        
         bounds.push([av.lat, av.lng]);
     });
     
@@ -393,6 +437,79 @@
     if (bounds.length > 0) {
         map.fitBounds(bounds, { padding: [50, 50] });
     }
+
+    // Autopopular dinámicamente los SITEs únicos en el dropdown de filtros del mapa
+    const siteSelect = document.getElementById('siteFilter');
+    if (siteSelect) {
+        const uniqueSites = [...new Set(averias.map(av => av.site).filter(s => s && s.trim() !== ''))].sort();
+        uniqueSites.forEach(site => {
+            const option = document.createElement('option');
+            option.value = site;
+            option.innerText = site;
+            siteSelect.appendChild(option);
+        });
+    }
+
+    window.applyFilters = function() {
+        const selectedSite = document.getElementById('siteFilter').value;
+        const branchSelect = document.getElementById('branchFilter');
+        const selectedBranch = branchSelect ? branchSelect.value : '';
+        
+        let visibleBounds = [];
+        
+        // Filtrar marcadores en el mapa
+        window.mapMarkers.forEach(item => {
+            const matchesSite = selectedSite === "" || item.data.site === selectedSite;
+            const matchesBranch = selectedBranch === "" || item.data.branch === selectedBranch;
+            
+            if (matchesSite && matchesBranch) {
+                if (!map.hasLayer(item.marker)) {
+                    item.marker.addTo(map);
+                }
+                visibleBounds.push(item.marker.getLatLng());
+            } else {
+                if (map.hasLayer(item.marker)) {
+                    map.removeLayer(item.marker);
+                }
+            }
+        });
+        
+        // Recentrar mapa a pines visibles
+        if (visibleBounds.length > 0) {
+            map.fitBounds(visibleBounds, { padding: [50, 50] });
+        }
+        
+        // Filtrar filas de la lista de pendientes
+        const rows = document.querySelectorAll(".pending-row");
+        let visibleCount = 0;
+        rows.forEach(row => {
+            const rowSite = row.getAttribute("data-site");
+            const rowBranch = row.getAttribute("data-branch");
+            
+            const matchesSite = selectedSite === "" || rowSite === selectedSite;
+            const matchesBranch = selectedBranch === "" || rowBranch === selectedBranch;
+            
+            if (matchesSite && matchesBranch) {
+                row.style.display = "";
+                visibleCount++;
+            } else {
+                row.style.display = "none";
+            }
+        });
+        
+        // Actualizar contador superior
+        const counter = document.getElementById("pending-counter");
+        if (counter) {
+            counter.innerText = visibleCount + " casos";
+        }
+    };
+
+    window.resetDashboardFilters = function() {
+        document.getElementById('siteFilter').value = "";
+        const branchSelect = document.getElementById('branchFilter');
+        if (branchSelect) branchSelect.value = "";
+        window.applyFilters();
+    };
     
     // Captura de coordenadas al hacer clic en el mapa y marcador interactivo
     map.on('click', function(e) {
@@ -581,16 +698,23 @@
                                     const newMarker = L.marker([lat, lng], { icon: yellowIcon }).addTo(map);
                                     newMarker.bindPopup(popupContent);
                                     
-                                    // Guardar localmente
-                                    averias.push({
+                                    const newAvData = {
                                         id: av.id,
                                         branch: av.branch,
                                         cuenta: av.cuenta,
                                         caja: av.caja,
                                         detalles: av.detalles,
+                                        site: av.site,
                                         lat: lat,
                                         lng: lng,
                                         dias: 0
+                                    };
+                                    
+                                    // Guardar localmente
+                                    averias.push(newAvData);
+                                    window.mapMarkers.push({
+                                        marker: newMarker,
+                                        data: newAvData
                                     });
                                 }
                             }

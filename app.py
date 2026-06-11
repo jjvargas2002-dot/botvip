@@ -142,8 +142,29 @@ def crear_operador_defecto():
                 db.session.add(nuevo_op)
                 print(f"Semilla creada para sede {sede}")
         
+        # 3. Crear/restablecer usuario NOC
+        noc = Operador.query.filter(db.func.lower(Operador.dni) == "noc").first()
+        if noc:
+            noc.dni = "NOC"
+            noc.password_hash = generate_password_hash("Bitel@123")
+            noc.rol = "noc"
+            noc.branch = "ALL"
+            noc.correo = "noc@botvip.com"
+        else:
+            default_pwd = generate_password_hash("Bitel@123")
+            noc = Operador(
+                nombre="Usuario NOC",
+                dni="NOC",
+                correo="noc@botvip.com",
+                password_hash=default_pwd,
+                rol="noc",
+                branch="ALL",
+                activo=True
+            )
+            db.session.add(noc)
+        
         db.session.commit()
-        print("Sedes y Administrador sembrados correctamente.")
+        print("Sedes, Administrador y NOC sembrados correctamente.")
     except Exception as e:
         print("Error al crear operadores por defecto:", e)
         db.session.rollback()
@@ -450,6 +471,9 @@ def cambiar_password():
 @app.route("/", methods=["GET"])
 @login_requerido
 def dashboard():
+    if session.get("operador_rol") == "noc":
+        return redirect(url_for("noc_dashboard"))
+        
     es_admin = session.get("operador_rol") == "admin"
     branch = session.get("operador_branch")
     
@@ -755,6 +779,110 @@ def exportar_averias():
     )
 
 
+@app.route("/noc")
+@login_requerido
+def noc_dashboard():
+    if session.get("operador_rol") not in ["noc", "admin"]:
+        flash("Acceso denegado: Se requieren permisos de NOC o Administrador.", "danger")
+        return redirect(url_for("dashboard"))
+        
+    reparadas = Averia.query.filter_by(estado="REPARADO").order_by(Averia.fecha_resolucion.desc()).all()
+    
+    total_cable = 0
+    total_conectores = 0
+    total_rosetas = 0
+    total_mangas = 0
+    total_acopladores = 0
+    
+    MESES_ES = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+    }
+    
+    por_mes = {}
+    por_branch = {}
+    
+    for av in reparadas:
+        fecha = av.fecha_resolucion
+        if fecha:
+            mes_key = fecha.strftime("%Y-%m")
+            mes_label = f"{MESES_ES.get(fecha.month, 'Desconocido')} {fecha.year}"
+        else:
+            mes_key = "Sin Fecha"
+            mes_label = "Sin Fecha"
+            
+        br = av.branch or "Sin Sede"
+        
+        cable = av.material_cable_m or 0
+        conectores = av.material_conectores or 0
+        rosetas = av.material_rosetas or 0
+        mangas = av.material_mangas or 0
+        acopladores = av.material_acopladores or 0
+        
+        total_cable += cable
+        total_conectores += conectores
+        total_rosetas += rosetas
+        total_mangas += mangas
+        total_acopladores += acopladores
+        
+        # Agrupación por Mes
+        if mes_key not in por_mes:
+            por_mes[mes_key] = {
+                "key": mes_key,
+                "label": mes_label,
+                "cable": 0,
+                "conectores": 0,
+                "rosetas": 0,
+                "mangas": 0,
+                "acopladores": 0,
+                "total_casos": 0
+            }
+        por_mes[mes_key]["cable"] += cable
+        por_mes[mes_key]["conectores"] += conectores
+        por_mes[mes_key]["rosetas"] += rosetas
+        por_mes[mes_key]["mangas"] += mangas
+        por_mes[mes_key]["acopladores"] += acopladores
+        por_mes[mes_key]["total_casos"] += 1
+        
+        # Agrupación por Branch (Sede)
+        if br not in por_branch:
+            por_branch[br] = {
+                "branch": br,
+                "cable": 0,
+                "conectores": 0,
+                "rosetas": 0,
+                "mangas": 0,
+                "acopladores": 0,
+                "total_casos": 0
+            }
+        por_branch[br]["cable"] += cable
+        por_branch[br]["conectores"] += conectores
+        por_branch[br]["rosetas"] += rosetas
+        por_branch[br]["mangas"] += mangas
+        por_branch[br]["acopladores"] += acopladores
+        por_branch[br]["total_casos"] += 1
+
+    # Ordenar agrupaciones
+    por_mes_lista = sorted(por_mes.values(), key=lambda x: x["key"], reverse=True)
+    por_branch_lista = sorted(por_branch.values(), key=lambda x: x["branch"])
+    
+    stats_noc = {
+        "total_reparadas": len(reparadas),
+        "total_cable": total_cable,
+        "total_conectores": total_conectores,
+        "total_rosetas": total_rosetas,
+        "total_mangas": total_mangas,
+        "total_acopladores": total_acopladores
+    }
+    
+    return render_template(
+        "noc_dashboard.html",
+        reparadas=reparadas,
+        por_mes=por_mes_lista,
+        por_branch=por_branch_lista,
+        stats=stats_noc
+    )
 
 
 with app.app_context():

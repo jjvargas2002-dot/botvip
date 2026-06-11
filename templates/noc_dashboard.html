@@ -1,0 +1,489 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard Logística NOC - BotVip{% endblock %}
+
+{% block extra_head %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .chart-container {
+        position: relative;
+        height: 280px;
+        width: 100%;
+    }
+    .metric-card-noc {
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        padding: 1.25rem;
+        background-color: var(--card-bg);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .metric-card-noc:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.08);
+    }
+    .metric-icon-noc {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+        flex-shrink: 0;
+    }
+    .nav-tabs-premium {
+        border-bottom: 2px solid var(--border-color);
+    }
+    .nav-tabs-premium .nav-link {
+        border: none;
+        color: var(--text-muted);
+        font-weight: 600;
+        padding: 0.75rem 1.25rem;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+    .nav-tabs-premium .nav-link:hover {
+        color: var(--primary);
+    }
+    .nav-tabs-premium .nav-link.active {
+        color: var(--primary);
+        border-bottom: 3px solid var(--primary);
+        background: transparent;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4 g-3">
+    <div class="col-md-8">
+        <h2 class="h3 fw-bold mb-1"><i class="bi bi-bar-chart-line-fill text-primary me-2"></i>Dashboard de Logística (NOC)</h2>
+        <p class="text-muted mb-0">Control global de consumo y envío de materiales para sucursales (Branches). Total casos resueltos: <strong class="text-success">{{ stats.total_reparadas }}</strong></p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <div class="user-badge d-inline-flex">
+            <i class="bi bi-shield-fill-check"></i> Perfil: Logística NOC (ALL)
+        </div>
+    </div>
+</div>
+
+<!-- Material Totals Metric Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-2.4 col-lg-2.4" style="width: 20%; min-width: 150px;">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-metric-blue">
+                <i class="bi bi-lightning-charge-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value" style="font-size: 1.35rem;">{{ stats.total_cable }} m</div>
+                <div class="metric-label" style="font-size: 0.75rem;">Cable Drop</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2.4 col-lg-2.4" style="width: 20%; min-width: 150px;">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-metric-orange">
+                <i class="bi bi-usb-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value" style="font-size: 1.35rem;">{{ stats.total_conectores }} und</div>
+                <div class="metric-label" style="font-size: 0.75rem;">Conectores</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2.4 col-lg-2.4" style="width: 20%; min-width: 150px;">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-metric-purple">
+                <i class="bi bi-house-door-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value" style="font-size: 1.35rem;">{{ stats.total_rosetas }} und</div>
+                <div class="metric-label" style="font-size: 0.75rem;">Rosetas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2.4 col-lg-2.4" style="width: 20%; min-width: 150px;">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-metric-green">
+                <i class="bi bi-box-seam-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value" style="font-size: 1.35rem;">{{ stats.total_mangas }} und</div>
+                <div class="metric-label" style="font-size: 0.75rem;">Mangas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2.4 col-lg-2.4" style="width: 20%; min-width: 150px;">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-secondary-subtle text-secondary">
+                <i class="bi bi-hdd-network-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value" style="font-size: 1.35rem;">{{ stats.total_acopladores }} und</div>
+                <div class="metric-label" style="font-size: 0.75rem;">Acopladores</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card card-premium p-3 h-100">
+            <h5 class="fw-bold mb-3"><i class="bi bi-graph-up text-primary me-2"></i>Evolución Mensual (Cable y Conectores)</h5>
+            <div class="chart-container">
+                <canvas id="monthlyChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-premium p-3 h-100">
+            <h5 class="fw-bold mb-3"><i class="bi bi-bar-chart-fill text-success me-2"></i>Distribución de Cable Drop por Sede (m)</h5>
+            <div class="chart-container">
+                <canvas id="branchChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Tabs for Summaries -->
+<div class="card card-premium mb-4">
+    <div class="card-header bg-white border-bottom-0 pt-3">
+        <ul class="nav nav-tabs nav-tabs-premium border-0" id="summaryTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="branch-tab" data-bs-toggle="tab" data-bs-target="#branchSummary" type="button" role="tab"><i class="bi bi-geo-alt-fill me-1.5"></i>Resumen por Sede (Sucursal)</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="month-tab" data-bs-toggle="tab" data-bs-target="#monthSummary" type="button" role="tab"><i class="bi bi-calendar3 me-1.5"></i>Consumo Mensual</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="details-tab" data-bs-toggle="tab" data-bs-target="#detailsSummary" type="button" role="tab"><i class="bi bi-list-ul me-1.5"></i>Historial de Averías y Materiales</button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body p-0">
+        <div class="tab-content">
+            <!-- Branch Summary Tab -->
+            <div class="tab-pane fade show active" id="branchSummary" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Sede (Branch)</th>
+                                <th>Casos Resueltos</th>
+                                <th>Cable Drop Usado (m)</th>
+                                <th>Conectores (und)</th>
+                                <th>Rosetas (und)</th>
+                                <th>Mangas (und)</th>
+                                <th class="pe-4">Acopladores (und)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in por_branch %}
+                            <tr>
+                                <td class="ps-4 fw-semibold"><span class="badge bg-primary-subtle text-primary border px-2 py-1">{{ b.branch }}</span></td>
+                                <td><strong class="text-slate-800">{{ b.total_casos }}</strong></td>
+                                <td><strong class="text-primary">{{ b.cable }}m</strong></td>
+                                <td>{{ b.conectores }}</td>
+                                <td>{{ b.rosetas }}</td>
+                                <td>{{ b.mangas }}</td>
+                                <td class="pe-4">{{ b.acopladores }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No hay consumos registrados por sede.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Monthly Summary Tab -->
+            <div class="tab-pane fade" id="monthSummary" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Mes / Período</th>
+                                <th>Casos Resueltos</th>
+                                <th>Cable Drop Usado (m)</th>
+                                <th>Conectores (und)</th>
+                                <th>Rosetas (und)</th>
+                                <th>Mangas (und)</th>
+                                <th class="pe-4">Acopladores (und)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in por_mes %}
+                            <tr>
+                                <td class="ps-4 fw-bold"><i class="bi bi-calendar-event text-secondary me-2"></i>{{ m.label }}</td>
+                                <td><strong class="text-slate-800">{{ m.total_casos }}</strong></td>
+                                <td><strong class="text-primary">{{ m.cable }}m</strong></td>
+                                <td>{{ m.conectores }}</td>
+                                <td>{{ m.rosetas }}</td>
+                                <td>{{ m.mangas }}</td>
+                                <td class="pe-4">{{ m.acopladores }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No hay consumos registrados mensualmente.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Details Summary Tab (Log) -->
+            <div class="tab-pane fade" id="detailsSummary" role="tabpanel">
+                <div class="p-3 bg-light border-bottom">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-5">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="nocSearchInput" class="form-control form-control-custom border-start-0 py-1.5 fs-7 bg-white" placeholder="Buscar por cuenta, SITE, técnico, caja...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="nocBranchFilter" class="form-select form-select-custom py-1.5 fs-7 bg-white">
+                                <option value="">Todas las Sedes</option>
+                                <option value="LI1">LI1</option>
+                                <option value="LI2">LI2</option>
+                                <option value="LI3">LI3</option>
+                                <option value="LI4">LI4</option>
+                                <option value="LI7">LI7</option>
+                                <option value="ARE">ARE</option>
+                                <option value="PIU">PIU</option>
+                                <option value="SAN">SAN</option>
+                                <option value="CAJ">CAJ</option>
+                                <option value="LAL">LAL</option>
+                                <option value="HUN">HUN</option>
+                                <option value="CUS">CUS</option>
+                                <option value="JUN">JUN</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 text-end text-muted small">
+                            Mostrando <strong id="visibleCasesCounter" class="text-slate-800">{{ reparadas|length }}</strong> de {{ reparadas|length }} casos
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0" id="nocDetailsTable" style="font-size: 0.825rem;">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="ps-4">Sede</th>
+                                <th>Fecha Cierre</th>
+                                <th>SITE / Caja</th>
+                                <th>Cuenta / WO</th>
+                                <th>Técnico</th>
+                                <th>Materiales</th>
+                                <th class="pe-4">Comentarios de Cierre</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for av in reparadas %}
+                            <tr class="noc-row" 
+                                data-search="{{ av.branch }} {{ av.site or '' }} {{ av.caja }} {{ av.cuenta }} {{ av.codigo_wo or '' }} {{ av.tecnico.nombre if av.tecnico else '' }}"
+                                data-branch="{{ av.branch }}">
+                                <td class="ps-4"><span class="badge bg-primary-subtle text-primary border px-2 py-0.5">{{ av.branch }}</span></td>
+                                <td>{{ av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else '-' }}</td>
+                                <td>
+                                    <div><strong class="text-slate-800">{{ av.site or 'N/A' }}</strong></div>
+                                    <small class="text-muted"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</small>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">{{ av.cuenta }}</div>
+                                    <small class="text-muted">WO: {{ av.codigo_wo or 'N/A' }}</small>
+                                </td>
+                                <td>{{ av.tecnico.nombre if av.tecnico else '-' }}</td>
+                                <td>
+                                    <div style="font-size: 0.75rem; line-height: 1.3;">
+                                        {% if av.material_cable_m > 0 %}<div>⚡ Cable: <strong>{{ av.material_cable_m }}m</strong></div>{% endif %}
+                                        {% if av.material_conectores > 0 %}<div>🔌 Conectores: <strong>{{ av.material_conectores }} und</strong></div>{% endif %}
+                                        {% if av.material_rosetas > 0 %}<div>🏠 Rosetas: <strong>{{ av.material_rosetas }} und</strong></div>{% endif %}
+                                        {% if av.material_mangas > 0 %}<div>📦 Mangas: <strong>{{ av.material_mangas }} und</strong></div>{% endif %}
+                                        {% if av.material_acopladores > 0 %}<div>📡 Acopladores: <strong>{{ av.material_acopladores }} und</strong></div>{% endif %}
+                                    </div>
+                                </td>
+                                <td class="pe-4 text-wrap text-muted" style="max-width: 220px; font-size: 0.775rem;">
+                                    {{ av.material_comentarios or 'Sin comentarios' }}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr id="nocEmptyRow">
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-folder-x fs-1 d-block mb-2"></i>
+                                    No hay averías reparadas registradas en el sistema.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <tr id="nocNoResultsRow" style="display: none;">
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-search fs-1 d-block mb-2"></i>
+                                    No se encontraron averías con los criterios de búsqueda.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // --- CHARTS CONFIGURATION ---
+        
+        // 1. Monthly Chart
+        const monthsData = {{ por_mes|tojson }}.reverse(); // Reverse to keep chronological order
+        const labelsMonthly = monthsData.map(m => m.label);
+        const cableMonthly = monthsData.map(m => m.cable);
+        const connectorsMonthly = monthsData.map(m => m.conectores);
+
+        const ctxMonthly = document.getElementById('monthlyChart').getContext('2d');
+        new Chart(ctxMonthly, {
+            type: 'line',
+            data: {
+                labels: labelsMonthly,
+                datasets: [
+                    {
+                        label: 'Cable Drop (m)',
+                        data: cableMonthly,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Conectores (und)',
+                        data: connectorsMonthly,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Cable Drop (m)' },
+                        grid: { color: '#e2e8f0' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: 'Conectores (und)' },
+                        grid: { drawOnChartArea: false }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'top' }
+                }
+            }
+        });
+
+        // 2. Branch Chart
+        const branchData = {{ por_branch|tojson }};
+        const labelsBranch = branchData.map(b => b.branch);
+        const cableBranch = branchData.map(b => b.cable);
+
+        const ctxBranch = document.getElementById('branchChart').getContext('2d');
+        new Chart(ctxBranch, {
+            type: 'bar',
+            data: {
+                labels: labelsBranch,
+                datasets: [{
+                    label: 'Cable Usado (m)',
+                    data: cableBranch,
+                    backgroundColor: 'rgba(16, 185, 129, 0.75)',
+                    borderColor: '#10b981',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Metros' },
+                        grid: { color: '#e2e8f0' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // --- NOC DETAILS TABLE SEARCH & FILTER ---
+        const searchInput = document.getElementById("nocSearchInput");
+        const branchFilter = document.getElementById("nocBranchFilter");
+        const rows = document.querySelectorAll(".noc-row");
+        const noResultsRow = document.getElementById("nocNoResultsRow");
+        const counterEl = document.getElementById("visibleCasesCounter");
+
+        function filterNocTable() {
+            const query = searchInput.value.toLowerCase().trim();
+            const branch = branchFilter.value;
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const searchData = row.getAttribute("data-search").toLowerCase();
+                const rowBranch = row.getAttribute("data-branch");
+
+                const matchesSearch = query === "" || searchData.includes(query);
+                const matchesBranch = branch === "" || rowBranch === branch;
+
+                if (matchesSearch && matchesBranch) {
+                    row.style.display = "";
+                    visibleCount++;
+                } else {
+                    row.style.display = "none";
+                }
+            });
+
+            if (counterEl) {
+                counterEl.innerText = visibleCount;
+            }
+
+            if (rows.length > 0) {
+                if (visibleCount === 0) {
+                    noResultsRow.style.display = "";
+                } else {
+                    noResultsRow.style.display = "none";
+                }
+            }
+        }
+
+        searchInput.addEventListener("input", filterNocTable);
+        branchFilter.addEventListener("change", filterNocTable);
+    });
+</script>
+{% endblock %}
