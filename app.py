@@ -12,8 +12,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import Config
-from models import db, Cliente, Caso, Conversacion, EstadoConversacion, Operador, Averia
-from whatsapp import enviar_mensaje
+from models import db, Cliente, Caso, Operador, Averia
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -55,14 +54,6 @@ def obtener_estadisticas(branch=None, es_admin=False):
         }
 
 
-def registrar_conversacion(averia_id, remitente, mensaje):
-    conversacion = Conversacion(
-        averia_id=averia_id,
-        remitente=remitente,
-        mensaje=mensaje,
-    )
-    db.session.add(conversacion)
-
 
 def asegurar_esquema():
     # Asegurar que las columnas existan dinámicamente si las tablas ya existen en el DB
@@ -70,12 +61,8 @@ def asegurar_esquema():
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS dni VARCHAR(20) UNIQUE",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS rol VARCHAR(20) DEFAULT 'operador'",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS branch VARCHAR(30) DEFAULT 'ALL'",
-        "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS telefono VARCHAR(20)",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        
-        "ALTER TABLE conversaciones ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)",
-        "ALTER TABLE estados_conversacion ADD COLUMN IF NOT EXISTS averia_id INTEGER REFERENCES averias(id)",
         
         # Columnas de averias
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS branch VARCHAR(50)",
@@ -335,7 +322,7 @@ def diagnostico_operadores():
         ops = Operador.query.all()
         resultado = f"<h3>Diagnóstico de Operadores y Sedes</h3>"
         resultado += "<table border='1' cellpadding='5' style='border-collapse:collapse;'>"
-        resultado += "<tr><th>ID</th><th>Nombre</th><th>DNI</th><th>Sede</th><th>Teléfono</th><th>Rol</th><th>Activo</th><th>Verificación Password (Bitel@123 / Vip@123)</th></tr>"
+        resultado += "<tr><th>ID</th><th>Nombre</th><th>DNI</th><th>Sede</th><th>Rol</th><th>Activo</th><th>Verificación Password (Bitel@123 / Vip@123)</th></tr>"
         
         for op in ops:
             matches_pwd = check_password_hash(op.password_hash, "Bitel@123") or check_password_hash(op.password_hash, "Vip@123")
@@ -344,7 +331,6 @@ def diagnostico_operadores():
             resultado += f"<td>{op.nombre}</td>"
             resultado += f"<td>{op.dni}</td>"
             resultado += f"<td>{op.branch}</td>"
-            resultado += f"<td>{op.telefono or 'No registrado'}</td>"
             resultado += f"<td>{op.rol}</td>"
             resultado += f"<td>{op.activo}</td>"
             resultado += f"<td>{'CORRECTA' if matches_pwd else 'OTRA CONTRASEÑA'}</td>"
@@ -394,7 +380,6 @@ def register():
         correo = request.form["correo"].strip()
         password = request.form["password"].strip()
         branch = request.form["branch"].strip().upper()
-        telefono = request.form.get("telefono", "").strip()
 
         existente = Operador.query.filter((db.func.lower(Operador.dni) == db.func.lower(dni)) | (db.func.lower(Operador.correo) == db.func.lower(correo))).first()
         if existente:
@@ -410,7 +395,6 @@ def register():
             password_hash=pwd_hash,
             rol="operador",
             branch=branch,
-            telefono=telefono or None,
             activo=True
         )
         db.session.add(nuevo)
@@ -432,26 +416,6 @@ def listar_operadores():
     stats = obtener_estadisticas(branch=session.get("operador_branch"), es_admin=True)
     return render_template("operadores.html", operadores=operadores, stats=stats)
 
-
-@app.route("/operadores/editar-telefono", methods=["POST"])
-@login_requerido
-def editar_telefono():
-    if session.get("operador_rol") != "admin":
-        flash("Acceso denegado.", "danger")
-        return redirect(url_for("dashboard"))
-
-    op_id = request.form.get("operador_id")
-    telefono = request.form.get("telefono", "").strip()
-    
-    operador = db.session.get(Operador, op_id)
-    if operador:
-        operador.telefono = telefono or None
-        db.session.commit()
-        flash(f"Teléfono de {operador.nombre} actualizado a {telefono or 'Vacío'}.", "success")
-    else:
-        flash("Operador no encontrado.", "danger")
-        
-    return redirect(url_for("listar_operadores"))
 
 
 @app.route("/logout")
@@ -790,447 +754,6 @@ def exportar_averias():
     )
 
 
-@app.route("/webhook", methods=["GET", "POST"])
-def webhook():
-    if request.method == "GET":
-        verify_token = "botvip_token"
-        if (
-            request.args.get("hub.mode") == "subscribe"
-            and request.args.get("hub.verify_token") == verify_token
-        ):
-            return request.args.get("hub.challenge"), 200
-        return "Verification failed", 403
-
-    data = request.get_json()
-    try:
-        value = data["entry"][0]["changes"][0]["value"]
-        messages = value.get("messages")
-
-        if not messages:
-            return "OK", 200
-
-        msg = messages[0]
-        telefono = msg.get("from")
-        texto = msg.get("text", {}).get("body", "")
-
-        if not telefono or not texto:
-            return "OK", 200
-
-        procesar_mensaje_tecnico(telefono, texto)
-
-    except Exception as e:
-        print("Webhook error:", e)
-
-    return "OK", 200
-
-
-def procesar_mensaje_tecnico(telefono, texto):
-    texto_original = texto.strip()
-    texto_normalizado = texto_original.lower()
-
-    # Buscar operador por su número de teléfono (removiendo el prefijo 51 de país si existe)
-    tel_normalizado = telefono
-    if tel_normalizado.startswith("51") and len(tel_normalizado) > 9:
-        tel_normalizado = tel_normalizado[2:]
-        
-    operador = Operador.query.filter(
-        (Operador.telefono == telefono) | 
-        (Operador.telefono == tel_normalizado) |
-        (db.func.right(Operador.telefono, 9) == db.func.right(telefono, 9)),
-        Operador.activo == True
-    ).first()
-
-    if not operador:
-        # Enviar mensaje indicando número no autorizado
-        msg_no_auth = (
-            f"❌ *Número no autorizado*\n\n"
-            f"Tu número de WhatsApp ({telefono}) no se encuentra registrado en el sistema de técnicos de BotVip.\n\n"
-            f"Por favor solicita al Administrador que registre tu número en el panel."
-        )
-        enviar_mensaje(telefono, msg_no_auth)
-        return
-
-    # 0. Cancelación global de flujos guiados
-    if texto_normalizado in ["/cancelar", "cancelar"]:
-        estado = EstadoConversacion.query.filter_by(telefono=telefono).first()
-        if estado:
-            # Si estábamos creando una avería manual, eliminar el registro temporal incompleto
-            if estado.paso_actual.startswith("crear_"):
-                averia_temp = db.session.get(Averia, estado.averia_id)
-                if averia_temp:
-                    db.session.delete(averia_temp)
-            db.session.delete(estado)
-            db.session.commit()
-            enviar_mensaje(telefono, "🔄 *Operación cancelada*. Volviendo al menú principal.")
-        else:
-            enviar_mensaje(telefono, "💡 No tienes ningún flujo activo para cancelar.")
-        return
-
-    # Si el operador existe, procesamos su conversación
-    estado = EstadoConversacion.query.filter_by(telefono=telefono).first()
-    
-    if estado:
-        # Flujo guiado en progreso
-        averia = db.session.get(Averia, estado.averia_id)
-        if not averia or (averia.estado == "REPARADO" and not estado.paso_actual.startswith("crear_")):
-            # Cancelar flujo si la avería no existe o ya está reparada
-            db.session.delete(estado)
-            db.session.commit()
-            enviar_mensaje(telefono, "❌ La avería que estabas editando ya no está disponible o ya fue solucionada.")
-            return
-
-        registrar_conversacion(averia.id, "tecnico", texto_original)
-
-        # ----------------------------------------------------
-        # FLUJO GUIADO 1: RESOLVER AVERÍA (Reportar materiales)
-        # ----------------------------------------------------
-        if estado.paso_actual == "esperando_cable":
-            try:
-                cable_m = int(texto_original)
-                if cable_m < 0: raise ValueError
-            except ValueError:
-                enviar_mensaje(telefono, "❌ *Valor inválido*. Por favor responde solo con un número entero positivo (ej: `120` o `0`):")
-                return
-            
-            averia.material_cable_m = cable_m
-            estado.paso_actual = "esperando_conectores"
-            db.session.commit()
-            
-            msg = "🔧 *Paso 2/5*: ¿Cuántos conectores mecánicos utilizaste? (Responde con número entero, ej. `2`, o `0`)."
-            registrar_conversacion(averia.id, "bot", msg)
-            enviar_mensaje(telefono, msg)
-            
-        elif estado.paso_actual == "esperando_conectores":
-            try:
-                conectores = int(texto_original)
-                if conectores < 0: raise ValueError
-            except ValueError:
-                enviar_mensaje(telefono, "❌ *Valor inválido*. Por favor responde solo con un número entero positivo (ej: `2` o `0`):")
-                return
-            
-            averia.material_conectores = conectores
-            estado.paso_actual = "esperando_rosetas"
-            db.session.commit()
-            
-            msg = "🏠 *Paso 3/5*: ¿Cuántas rosetas ópticas utilizaste? (Responde con número entero, ej. `1`, o `0`)."
-            registrar_conversacion(averia.id, "bot", msg)
-            enviar_mensaje(telefono, msg)
-            
-        elif estado.paso_actual == "esperando_rosetas":
-            try:
-                rosetas = int(texto_original)
-                if rosetas < 0: raise ValueError
-            except ValueError:
-                enviar_mensaje(telefono, "❌ *Valor inválido*. Por favor responde solo con un número entero positivo (ej: `1` o `0`):")
-                return
-            
-            averia.material_rosetas = rosetas
-            estado.paso_actual = "esperando_mangas"
-            db.session.commit()
-            
-            msg = "📦 *Paso 4/5*: ¿Cuántas mangas/bandejas de empalme utilizaste? (Responde con número entero, ej. `1`, o `0`)."
-            registrar_conversacion(averia.id, "bot", msg)
-            enviar_mensaje(telefono, msg)
-            
-        elif estado.paso_actual == "esperando_mangas":
-            try:
-                mangas = int(texto_original)
-                if mangas < 0: raise ValueError
-            except ValueError:
-                enviar_mensaje(telefono, "❌ *Valor inválido*. Por favor responde solo con un número entero positivo (ej: `1` o `0`):")
-                return
-            
-            averia.material_mangas = mangas
-            estado.paso_actual = "esperando_comentarios"
-            db.session.commit()
-            
-            msg = "💬 *Paso 5/5*: Escribe un breve comentario u observación sobre la solución (o responde `ninguno`):"
-            registrar_conversacion(averia.id, "bot", msg)
-            enviar_mensaje(telefono, msg)
-            
-        elif estado.paso_actual == "esperando_comentarios":
-            averia.material_comentarios = texto_original if texto_normalizado != "ninguno" else "Reparado sin comentarios."
-            averia.estado = "REPARADO"
-            averia.fecha_resolucion = datetime.now()
-            averia.tecnico_id = operador.id
-            
-            # Borrar estado
-            db.session.delete(estado)
-            db.session.commit()
-            
-            msg = f"✅ *¡Reparación registrada con éxito!*\n\nLa avería de la cuenta *{averia.cuenta}* ha sido cerrada y los materiales se registraron para la sede *{operador.branch}*."
-            registrar_conversacion(averia.id, "bot", msg)
-            enviar_mensaje(telefono, msg)
-
-        # ----------------------------------------------------
-        # FLUJO GUIADO 2: CREAR AVERÍA MANUALMENTE
-        # ----------------------------------------------------
-        elif estado.paso_actual == "crear_esperando_cuenta":
-            cuenta_val = texto_original
-            if texto_normalizado == "ninguna":
-                import uuid
-                cuenta_val = f"SIN_CUENTA_{uuid.uuid4().hex[:8].upper()}"
-            
-            averia.cuenta = cuenta_val
-            estado.paso_actual = "crear_esperando_site"
-            db.session.commit()
-            
-            enviar_mensaje(telefono, "📍 *Paso 2/7 (Site)*: Escribe el Site (ej: `ARE0071` o `CAL0072`):")
-            
-        elif estado.paso_actual == "crear_esperando_site":
-            averia.site = texto_original.upper()
-            estado.paso_actual = "crear_esperando_xbox"
-            db.session.commit()
-            
-            enviar_mensaje(telefono, "📦 *Paso 3/7 (XBOX)*: Responde con `XB01` o `XB02`:")
-            
-        elif estado.paso_actual == "crear_esperando_xbox":
-            xbox_val = texto_original.upper()
-            if xbox_val not in ["XB01", "XB02"]:
-                enviar_mensaje(telefono, "❌ *Opción inválida*. Por favor responde solo con `XB01` o `XB02`:")
-                return
-            
-            averia.caja = xbox_val  # Guardamos temporalmente el xbox en caja
-            estado.paso_actual = "crear_esperando_caja"
-            db.session.commit()
-            
-            enviar_mensaje(telefono, "📥 *Paso 4/7 (Caja)*: Escribe la caja/splitter (ej: `SB111` o `EB214`):")
-            
-        elif estado.paso_actual == "crear_esperando_caja":
-            xbox_temp = averia.caja
-            averia.caja = f"{averia.site}-{xbox_temp}-{texto_original.upper()}"
-            estado.paso_actual = "crear_esperando_coordenadas"
-            db.session.commit()
-            
-            enviar_mensaje(telefono, "🗺️ *Paso 5/7 (Coordenadas)*: Envía las coordenadas en formato lat,lng (ej: `-16.3988,-71.5369`):")
-            
-        elif estado.paso_actual == "crear_esperando_coordenadas":
-            coords = texto_original.split(",")
-            if len(coords) != 2:
-                enviar_mensaje(telefono, "❌ *Formato inválido*. Por favor envía las coordenadas en formato lat,lng (ej: `-16.3988,-71.5369`):")
-                return
-            try:
-                float(coords[0].strip())
-                float(coords[1].strip())
-            except ValueError:
-                enviar_mensaje(telefono, "❌ *Formato inválido*. Asegúrate de ingresar números decimales separados por una coma (ej: `-16.3988,-71.5369`):")
-                return
-                
-            averia.coordenadas = texto_original
-            estado.paso_actual = "crear_esperando_detalles"
-            db.session.commit()
-            
-            enviar_mensaje(telefono, "💬 *Paso 6/7 (Detalles)*: Escribe una breve descripción de la avería:")
-            
-        elif estado.paso_actual == "crear_esperando_detalles":
-            averia.detalles = texto_original
-            estado.paso_actual = "crear_esperando_contrata"
-            db.session.commit()
-            
-            enviar_mensaje(telefono, "🚛 *Paso 7/7 (Contrata)*: Escribe el nombre de la contrata o responde `ninguna` para omitir:")
-            
-        elif estado.paso_actual == "crear_esperando_contrata":
-            averia.contrata = texto_original if texto_normalizado != "ninguna" else "Propia"
-            averia.estado = "PENDIENTE"
-            averia.dias_pendientes = 0.0
-            
-            # Limpiar estado
-            db.session.delete(estado)
-            db.session.commit()
-            
-            msg = (
-                f"✅ *¡Avería creada con éxito!*\n\n"
-                f"• *Cuenta*: {averia.cuenta}\n"
-                f"• *Caja*: {averia.caja}\n"
-                f"• *Detalles*: {averia.detalles}\n"
-                f"• *Sede*: {averia.branch}\n\n"
-                f"El ticket ha sido publicado en el mapa de control."
-            )
-            enviar_mensaje(telefono, msg)
-    else:
-        # Separar en palabras para extraer comando y argumentos
-        palabras = texto_original.split()
-        first_word = palabras[0].lower().strip() if palabras else ""
-        # Quitar '/' y acentos del primer término
-        cmd_clean = first_word.replace("/", "").replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
-        rest_text = " ".join(palabras[1:]).strip() if len(palabras) > 1 else ""
-        
-        # Normalizar el texto completo sin acentos ni slashes
-        texto_norm = texto_normalizado.replace("/", "").replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u").strip()
-
-        # 1. BUSCAR
-        if cmd_clean in ["buscar", "bus", "find", "filtrar", "b"] or texto_norm.startswith("buscar ") or texto_norm.startswith("filtrar "):
-            q = rest_text if rest_text else (texto_original[7:].strip() if texto_normalizado.startswith("buscar ") else "")
-            if not q:
-                enviar_mensaje(telefono, "💡 *Uso*: escribe `buscar <caja o cuenta>` (ej: `buscar SB111` o `buscar albertj10`)")
-                return
-                
-            query = Averia.query.filter_by(estado="PENDIENTE")
-            if operador.branch != "ALL":
-                query = query.filter_by(branch=operador.branch)
-                
-            query = query.filter(
-                (db.func.lower(Averia.caja).like(f"%{q.lower()}%")) |
-                (db.func.lower(Averia.cuenta).like(f"%{q.lower()}%")) |
-                (db.func.lower(Averia.codigo_wo).like(f"%{q.lower()}%"))
-            )
-            
-            resultados = query.limit(5).all()
-            if not resultados:
-                enviar_mensaje(telefono, f"🔍 No se encontraron averías pendientes para '{q}' en tu sede ({operador.branch}).")
-                return
-                
-            msg = f"🔍 *Averías encontradas en '{q}':*\n\n"
-            for av in resultados:
-                maps_link = f"https://www.google.com/maps/search/?api=1&query={av.coordenadas}" if av.coordenadas else "Sin coordenadas"
-                msg += f"• *Cuenta*: {av.cuenta}\n"
-                msg += f"  *Caja*: {av.caja}\n"
-                msg += f"  *Detalles*: {av.detalles or 'Sin descripción'}\n"
-                msg += f"  *Mapa*: {maps_link}\n\n"
-            enviar_mensaje(telefono, msg.strip())
-
-        # 2. VER TODOS LOS PENDIENTES
-        elif cmd_clean in ["todos", "todo", "pendientes", "lista", "listar", "ver"] or texto_norm in ["ver todos", "ver pendientes", "todos los pendientes", "todas", "ver todas", "lista de pendientes"]:
-            query = Averia.query.filter_by(estado="PENDIENTE")
-            if operador.branch != "ALL":
-                query = query.filter_by(branch=operador.branch)
-                
-            resultados = query.order_by(Averia.dias_pendientes.desc().nullslast(), Averia.id.desc()).limit(20).all()
-            total_pendientes = query.count()
-            
-            if not resultados:
-                enviar_mensaje(telefono, f"📋 No hay averías pendientes registradas para la sede {operador.branch}.")
-                return
-                
-            msg = f"📋 *Todos los pendientes ({operador.branch})* - Total: {total_pendientes}\n\n"
-            for i, av in enumerate(resultados, 1):
-                maps_link = f"https://www.google.com/maps/search/?api=1&query={av.coordenadas}" if av.coordenadas else "Sin coordenadas"
-                msg += f"*{i}. Cuenta*: {av.cuenta}\n"
-                msg += f"   *Caja*: {av.caja}\n"
-                msg += f"   *Obs*: {av.detalles or 'Sin detalles'}\n"
-                msg += f"   *Mapa*: {maps_link}\n\n"
-                
-            if total_pendientes > 20:
-                msg += f"⚠️ *Mostrando las 20 averías más antiguas de un total de {total_pendientes} pendientes.*\n\n"
-            msg += "💡 Para cerrar una avería, envía:\n`reparar <cuenta>`"
-            enviar_mensaje(telefono, msg.strip())
-
-        # 3. MIS AVERIAS
-        elif cmd_clean == "mis" or texto_norm in ["mis averias", "mis_averias", "mis cases", "mis tickets", "mis averia"]:
-            query = Averia.query.filter_by(estado="PENDIENTE")
-            if operador.branch != "ALL":
-                query = query.filter_by(branch=operador.branch)
-                
-            resultados = query.order_by(Averia.dias_pendientes.desc().nullslast()).limit(5).all()
-            if not resultados:
-                enviar_mensaje(telefono, f"📋 No tienes averías pendientes registradas en tu sede ({operador.branch}).")
-                return
-                
-            msg = f"📋 *Averías pendientes más críticas ({operador.branch}):*\n\n"
-            for av in resultados:
-                maps_link = f"https://www.google.com/maps/search/?api=1&query={av.coordenadas}" if av.coordenadas else "Sin coordenadas"
-                msg += f"• *Cuenta*: {av.cuenta} | *Caja*: {av.caja}\n"
-                msg += f"  *Detalles*: {av.detalles or 'Sin detalles'}\n"
-                msg += f"  *Mapa*: {maps_link}\n\n"
-            msg += "💡 Para cerrar una avería, envía:\n`reparar <cuenta>`"
-            enviar_mensaje(telefono, msg.strip())
-
-        # 4. REPARAR / CERRAR AVERIA
-        elif cmd_clean in ["reparar", "rep", "solucionar", "sol", "arreglar", "cerrar", "r"] or texto_norm.startswith("reparar ") or texto_norm.startswith("solucionar ") or texto_norm.startswith("rep "):
-            cuenta_req = rest_text if rest_text else (texto_original[8:].strip() if texto_normalizado.startswith("reparar ") else "")
-            if not cuenta_req:
-                enviar_mensaje(telefono, "💡 *Uso*: escribe `reparar <cuenta>` (ej: `reparar 15_gftth_albertj10`)")
-                return
-                
-            query = Averia.query.filter_by(cuenta=cuenta_req, estado="PENDIENTE")
-            if operador.branch != "ALL":
-                query = query.filter_by(branch=operador.branch)
-                
-            averia = query.first()
-            if not averia:
-                enviar_mensaje(telefono, f"❌ No se encontró ninguna avería pendiente para la cuenta '{cuenta_req}' en tu sede ({operador.branch}).")
-                return
-                
-            # Crear estado conversacion
-            nuevo_estado = EstadoConversacion(
-                telefono=telefono,
-                averia_id=averia.id,
-                paso_actual="esperando_cable"
-            )
-            db.session.add(nuevo_estado)
-            db.session.commit()
-            
-            registrar_conversacion(averia.id, "bot", "Iniciando flujo de reparación")
-            
-            msg = f"🛠️ *Flujo de Reparación iniciado* para la cuenta `{averia.cuenta}`.\n\n🔌 *Paso 1/5*: ¿Cuántos metros de cable drop utilizaste? (Responde con número entero, ej. `100`, o `0` si ninguno)."
-            enviar_mensaje(telefono, msg)
-
-        # 5. CREAR AVERIA MANUAL
-        elif cmd_clean in ["crear", "nuevo", "nueva", "n"] or texto_norm in ["crear averia", "crear caso", "crear_averia"]:
-            # Verificar que sea de una sede manual/provincias, o admin
-            if operador.branch in ["LI1", "LI2", "LI3", "LI4", "LI7"] and operador.rol != "admin":
-                enviar_mensaje(telefono, "❌ Tu sede no tiene habilitado el registro manual de averías.")
-                return
-                
-            # Inicializar avería temporal vacía
-            import uuid
-            nueva = Averia(
-                branch=operador.branch if operador.branch != "ALL" else "ARE",
-                cuenta=f"SIN_CUENTA_TEMP_{uuid.uuid4().hex[:6].upper()}", # Cuenta temporal
-                estado="PENDIENTE",
-                origen="MANUAL",
-                detalles="En proceso de registro..."
-            )
-            db.session.add(nueva)
-            db.session.commit()
-            
-            # Crear estado
-            nuevo_estado = EstadoConversacion(
-                telefono=telefono,
-                averia_id=nueva.id,
-                paso_actual="crear_esperando_cuenta"
-            )
-            db.session.add(nuevo_estado)
-            db.session.commit()
-            
-            enviar_mensaje(
-                telefono,
-                "📝 *Crear Nueva Avería Manual*\n"
-                "*(Escribe 'cancelar' en cualquier momento para abortar)*\n\n"
-                "🔌 *Paso 1/7 (Cuenta)*: Escribe la cuenta del cliente (ej: `15_gftth_juan`) o responde `ninguna` si no aplica:"
-            )
-
-        # 6. RESUMEN / METRICAS
-        elif cmd_clean in ["resumen", "res", "estado", "status", "info"]:
-            stats = obtener_estadisticas(branch=operador.branch, es_admin=(operador.branch == "ALL"))
-            msg = (
-                f"📊 *Resumen de Averías ({operador.branch})*:\n\n"
-                f"• *Pendientes*: {stats['pendientes']}\n"
-                f"• *Reparadas*: {stats['reparados']}\n"
-                f"• *Total*: {stats['totales']}\n\n"
-                f"🌐 Ver mapa interactivo:\nhttps://botvip-iz55.onrender.com"
-            )
-            enviar_mensaje(telefono, msg)
-
-        # 7. AYUDA / MENU POR DEFECTO
-        else:
-            # Menu de ayuda
-            menu_help = (
-                f"👋 ¡Hola, *{operador.nombre}*!\n"
-                f"Sede: *{operador.branch}*\n\n"
-                f"⚙️ *Comandos rápidos disponibles* (sin '/'):\n"
-                f"🔍 `buscar <texto>` - Buscar averías por caja o cuenta\n"
-                f"📋 `todos` - Ver todos los pendientes de tu sede\n"
-                f"📋 `mis` - Ver las 5 averías más antiguas/urgentes\n"
-                f"🔧 `reparar <cuenta>` - Registrar solución y materiales\n"
-                f"📊 `resumen` - Ver estadísticas de tu sede\n"
-            )
-            if operador.branch not in ["LI1", "LI2", "LI3", "LI4", "LI7"] or operador.rol == "admin":
-                menu_help += f"📝 `crear` - Registrar nueva avería manual\n"
-            
-            menu_help += f"\n💡 *En cualquier flujo*, escribe `cancelar` para volver aquí.\n"
-            menu_help += f"🌐 Portal Web: https://botvip-iz55.onrender.com"
-            enviar_mensaje(telefono, menu_help)
 
 
 with app.app_context():

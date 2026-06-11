@@ -13,7 +13,6 @@ class Operador(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     rol = db.Column(db.String(20), default="operador")  # admin / operador
     branch = db.Column(db.String(30), default="ALL")    # LI1, ARE, ALL, etc.
-    telefono = db.Column(db.String(20))                 # Celular del técnico para WhatsApp
     activo = db.Column(db.Boolean, default=True)
     fecha_creacion = db.Column(db.DateTime, server_default=db.func.current_timestamp())
 
@@ -82,26 +81,4 @@ class Averia(db.Model):
     tecnico = db.relationship("Operador", backref="averias_resueltas", foreign_keys=[tecnico_id])
 
 
-class Conversacion(db.Model):
-    __tablename__ = "conversaciones"
 
-    id = db.Column(db.Integer, primary_key=True)
-    caso_id = db.Column(db.Integer, db.ForeignKey("casos.id"))
-    averia_id = db.Column(db.Integer, db.ForeignKey("averias.id"))
-    remitente = db.Column(db.String(20))
-    mensaje = db.Column(db.Text)
-    fecha = db.Column(db.DateTime, server_default=db.func.current_timestamp())
-
-
-class EstadoConversacion(db.Model):
-    __tablename__ = "estados_conversacion"
-
-    telefono = db.Column(db.String(20), primary_key=True)
-    caso_id = db.Column(db.Integer, db.ForeignKey("casos.id"))
-    averia_id = db.Column(db.Integer, db.ForeignKey("averias.id"))
-    paso_actual = db.Column(db.String(50))
-    fecha_actualizacion = db.Column(
-        db.DateTime,
-        server_default=db.func.current_timestamp(),
-        onupdate=db.func.current_timestamp(),
-    )
