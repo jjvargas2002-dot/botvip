@@ -455,16 +455,21 @@ def dashboard():
     
     stats = obtener_estadisticas(branch=branch, es_admin=es_admin)
     
-    # Obtener las averías pendientes correspondientes a la sede
-    query = Averia.query.filter_by(estado="PENDIENTE")
+    # Obtener las averías pendientes y reparadas (últimas 100) correspondientes a la sede
+    query_pendientes = Averia.query.filter_by(estado="PENDIENTE")
+    query_reparadas = Averia.query.filter_by(estado="REPARADO")
+    
     if not es_admin and branch != "ALL":
-        query = query.filter_by(branch=branch)
+        query_pendientes = query_pendientes.filter_by(branch=branch)
+        query_reparadas = query_reparadas.filter_by(branch=branch)
         
-    averias_pendientes = query.order_by(Averia.dias_pendientes.desc().nullslast()).all()
+    averias_pendientes = query_pendientes.order_by(Averia.dias_pendientes.desc().nullslast()).all()
+    averias_reparadas = query_reparadas.order_by(Averia.fecha_resolucion.desc()).limit(100).all()
+    averias_totales = averias_pendientes + averias_reparadas
     
     # Serializar datos para Leaflet map
     map_data = []
-    for av in averias_pendientes:
+    for av in averias_totales:
         if av.coordenadas:
             coords = av.coordenadas.split(",")
             if len(coords) == 2:
@@ -474,21 +479,22 @@ def dashboard():
                     map_data.append({
                         "id": av.id,
                         "branch": av.branch,
-                        "cuenta": av.cuenta,
+                        "cuenta": av.cuenta or "Sin cuenta",
                         "codigo_wo": av.codigo_wo or "N/A",
                         "detalles": av.detalles or "Sin descripción",
                         "contrata": av.contrata or "Sin contrata",
                         "site": av.site or "N/A",
                         "caja": av.caja or "N/A",
                         "dias": av.dias_pendientes or 0,
+                        "estado": av.estado,
                         "lat": lat,
                         "lng": lng
                     })
                 except ValueError:
                     continue
                     
-    # Verificar si es una sede de provincias que requiere añadir averías manualmente
-    es_provincia = branch not in ["LI1", "LI2", "LI3", "LI4", "LI7", "ALL"]
+    # Habilitar formulario manual para todos
+    es_provincia = True
     
     import json
     return render_template(
@@ -564,11 +570,6 @@ def crear_averia_manual():
     branch = session.get("operador_branch")
     es_admin = session.get("operador_rol") == "admin"
     
-    # Provincias y Admin pueden crear manual
-    if not es_admin and branch in ["LI1", "LI2", "LI3", "LI4", "LI7"]:
-        flash("Tu sede no permite agregar averías manualmente (se sincronizan desde el drive).", "danger")
-        return redirect(url_for("dashboard"))
-        
     try:
         cuenta = request.form.get("cuenta", "").strip()
         if not cuenta:
@@ -585,9 +586,9 @@ def crear_averia_manual():
         # Sede de registro
         target_branch = branch if not es_admin else request.form.get("branch", "ARE").strip().upper()
         
-        # Validar XBOX
-        if xbox not in ["XB01", "XB02"]:
-            flash("La XBOX debe ser XB01 o XB02.", "danger")
+        # Validar XBOX o HUBOX
+        if not (xbox.startswith("XB") or xbox.startswith("HB")):
+            flash("El tipo de caja debe ser XBOX (XB01, XB02) o HUBOX (HB01, HB02...).", "danger")
             return redirect(url_for("dashboard"))
             
         # Componer código de caja: SITE-XBOX-caja

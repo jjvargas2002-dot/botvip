@@ -79,14 +79,12 @@
         <table class="table table-hover align-middle mb-0" id="averiasTable">
             <thead class="table-light">
                 <tr>
-                    <th scope="col" class="ps-4">ID</th>
-                    <th scope="col">Sede</th>
+                    <th scope="col" class="ps-4">Sede</th>
                     <th scope="col">Cuenta</th>
                     <th scope="col">Caja</th>
                     <th scope="col">WO / Detalles</th>
                     <th scope="col">Estado</th>
                     <th scope="col">Materiales Consumidos</th>
-                    <th scope="col">Técnico / Cierre</th>
                     <th scope="col" class="pe-4">Fecha Creación</th>
                 </tr>
             </thead>
@@ -98,8 +96,7 @@
                     data-branch="{{ av.branch }}"
                     data-origin="{{ av.origen }}">
                     
-                    <td class="ps-4 font-semibold text-primary">#{{ av.id }}</td>
-                    <td>
+                    <td class="ps-4">
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ av.branch }}</span>
                     </td>
                     <td>
@@ -111,7 +108,7 @@
                     </td>
                     <td>
                         <div class="fw-medium text-slate-800">{{ av.codigo_wo or 'N/A' }}</div>
-                        <small class="text-muted d-block text-truncate" style="max-width: 180px;" title="{{ av.detalles or '' }}">{{ av.detalles or 'Sin descripción' }}</small>
+                        <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
                     </td>
                     <td>
                         {% if av.estado == 'REPARADO' %}
@@ -140,30 +137,20 @@
                         <span class="text-muted small">-</span>
                         {% endif %}
                     </td>
-                    <td>
-                        {% if av.tecnico %}
-                        <div class="fw-semibold text-slate-800" style="font-size: 0.85rem;">{{ av.tecnico.nombre }}</div>
-                        <small class="text-muted d-block" style="font-size: 0.75rem;">
-                            {{ av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else '-' }}
-                        </small>
-                        {% else %}
-                        <span class="text-muted small">-</span>
-                        {% endif %}
-                    </td>
                     <td class="pe-4 text-muted" style="font-size: 0.825rem;">
                         {{ av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else '-' }}
                     </td>
                 </tr>
                 {% else %}
                 <tr id="emptyRow">
-                    <td colspan="9" class="text-center text-muted py-5">
+                    <td colspan="7" class="text-center text-muted py-5">
                         <i class="bi bi-folder-x fs-1 d-block mb-2 text-slate-400"></i>
                         No hay averías registradas en el sistema para esta sede.
                     </td>
                 </tr>
                 {% endfor %}
                 <tr id="noResultsRow" style="display: none;">
-                    <td colspan="9" class="text-center text-muted py-5">
+                    <td colspan="7" class="text-center text-muted py-5">
                         <i class="bi bi-search fs-1 d-block mb-2 text-slate-400"></i>
                         No se encontraron registros con los filtros seleccionados.
                     </td>

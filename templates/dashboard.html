@@ -110,6 +110,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Cuenta</th>
+                                <th>Detalles</th>
                                 <th>Caja</th>
                                 <th>WO / Contrata</th>
                                 <th>Días</th>
@@ -121,7 +122,9 @@
                             <tr>
                                 <td>
                                     <div class="fw-semibold">{{ av.cuenta }}</div>
-                                    <small class="text-muted d-block" style="font-size: 0.75rem;">{{ av.detalles|truncate(40) }}</small>
+                                </td>
+                                <td>
+                                    <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</span>
@@ -166,21 +169,25 @@
             <div class="card-body p-3">
                 <p class="text-muted small mb-3">Utiliza este formulario para registrar una avería manualmente en tu sede. <strong>Tip: Haz clic en cualquier lugar del mapa para capturar sus coordenadas.</strong></p>
                 <form action="{{ url_for('crear_averia_manual') }}" method="POST">
-                    {% if session.get('operador_rol') == 'admin' %}
                     <div class="mb-2">
                         <label class="form-label small fw-medium text-secondary">Sede (Branch)</label>
                         <select class="form-select form-select-custom py-1.5 fs-7" name="branch" required>
-                            <option value="ARE">Arequipa (ARE)</option>
-                            <option value="PIU">Piura (PIU)</option>
-                            <option value="SAN">San Martín (SAN)</option>
-                            <option value="CAJ">Cajamarca (CAJ)</option>
-                            <option value="LAL">La Libertad (LAL)</option>
-                            <option value="HUN">Huánuco (HUN)</option>
-                            <option value="CUS">Cusco (CUS)</option>
-                            <option value="JUN">Junín (JUN)</option>
+                            {% set current_branch = session.get('operador_branch') %}
+                            <option value="LI1" {% if current_branch == 'LI1' %}selected{% endif %}>Lima (LI1)</option>
+                            <option value="LI2" {% if current_branch == 'LI2' %}selected{% endif %}>Lima (LI2)</option>
+                            <option value="LI3" {% if current_branch == 'LI3' %}selected{% endif %}>Lima (LI3)</option>
+                            <option value="LI4" {% if current_branch == 'LI4' %}selected{% endif %}>Lima (LI4)</option>
+                            <option value="LI7" {% if current_branch == 'LI7' %}selected{% endif %}>Lima (LI7)</option>
+                            <option value="ARE" {% if current_branch == 'ARE' %}selected{% endif %}>Arequipa (ARE)</option>
+                            <option value="PIU" {% if current_branch == 'PIU' %}selected{% endif %}>Piura (PIU)</option>
+                            <option value="SAN" {% if current_branch == 'SAN' %}selected{% endif %}>San Martín (SAN)</option>
+                            <option value="CAJ" {% if current_branch == 'CAJ' %}selected{% endif %}>Cajamarca (CAJ)</option>
+                            <option value="LAL" {% if current_branch == 'LAL' %}selected{% endif %}>La Libertad (LAL)</option>
+                            <option value="HUN" {% if current_branch == 'HUN' %}selected{% endif %}>Huánuco (HUN)</option>
+                            <option value="CUS" {% if current_branch == 'CUS' %}selected{% endif %}>Cusco (CUS)</option>
+                            <option value="JUN" {% if current_branch == 'JUN' %}selected{% endif %}>Junín (JUN)</option>
                         </select>
                     </div>
-                    {% endif %}
                     
                     <div class="mb-2">
                         <label class="form-label small fw-medium text-secondary">Cuenta del Cliente (Opcional)</label>
@@ -193,10 +200,14 @@
                             <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="site" placeholder="Ej: ARE0071" required>
                         </div>
                         <div class="col-6">
-                            <label class="form-label small fw-medium text-secondary">XBOX</label>
+                            <label class="form-label small fw-medium text-secondary">Caja / HUBOX</label>
                             <select class="form-select form-select-custom py-1.5 fs-7" name="xbox" required>
                                 <option value="XB01">XB01</option>
                                 <option value="XB02">XB02</option>
+                                <option value="HB01">HB01</option>
+                                <option value="HB02">HB02</option>
+                                <option value="HB03">HB03</option>
+                                <option value="HB04">HB04</option>
                             </select>
                         </div>
                     </div>
@@ -208,7 +219,12 @@
                     
                     <div class="mb-2">
                         <label class="form-label small fw-medium text-secondary">Coordenadas</label>
-                        <input type="text" id="coordenadas_input" class="form-control form-control-custom py-1.5 fs-7" name="coordenadas" placeholder="Ej: -16.3988,-71.5369" required>
+                        <div class="input-group">
+                            <input type="text" id="coordenadas_input" class="form-control form-control-custom py-1.5 fs-7" name="coordenadas" placeholder="Ej: -16.3988,-71.5369" required style="border-radius: 0.5rem 0 0 0.5rem;">
+                            <button type="button" id="btn-gps" class="btn btn-outline-primary fs-7" onclick="obtenerUbicacionGPS()" style="border-radius: 0 0.5rem 0.5rem 0;">
+                                <i class="bi bi-geo-fill"></i> GPS
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="mb-2">
@@ -315,11 +331,19 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
     
-    // Iconos personalizados para los marcadores
-    const markerIcon = L.icon({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    // Iconos de colores para Leaflet
+    const yellowIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+
+    const greenIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
         iconSize: [25, 41],
         iconAnchor: [12, 41],
         popupAnchor: [1, -34],
@@ -330,6 +354,18 @@
     
     // Renderizar marcadores
     averias.forEach(function(av) {
+        const esPendiente = av.estado === 'PENDIENTE';
+        const iconToUse = esPendiente ? yellowIcon : greenIcon;
+        const statusBadge = esPendiente 
+            ? `<span class="badge bg-warning text-dark">${av.dias} días pendientes</span>` 
+            : `<span class="badge bg-success text-white">Reparada</span>`;
+            
+        const resolverBtn = esPendiente 
+            ? `<button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
+                    <i class="bi bi-check-circle-fill"></i> Resolver Avería
+               </button>`
+            : ``;
+
         const popupContent = `
             <div style="font-family: 'Inter', sans-serif; min-width: 220px;">
                 <h6 style="font-weight: 700; margin-bottom: 0.5rem; color: #1e3a8a;">Sede: ${av.branch}</h6>
@@ -337,20 +373,18 @@
                 <div style="margin-bottom: 0.25rem;"><strong>WO:</strong> <span class="leaflet-popup-content-value">${av.codigo_wo}</span></div>
                 <div style="margin-bottom: 0.25rem;"><strong>Caja:</strong> <span class="leaflet-popup-content-value">${av.caja}</span></div>
                 <div style="margin-bottom: 0.25rem;"><strong>Contrata:</strong> <span class="leaflet-popup-content-value">${av.contrata}</span></div>
-                <div style="margin-bottom: 0.5rem;"><strong>Días Pendientes:</strong> <span class="badge bg-warning text-dark">${av.dias} días</span></div>
+                <div style="margin-bottom: 0.5rem;"><strong>Estado:</strong> ${statusBadge}</div>
                 <div style="margin-bottom: 0.5rem; font-size: 0.8rem; color: #475569;"><strong>Detalle:</strong> ${av.detalles}</div>
                 <div class="d-grid gap-1 mt-2">
                     <a href="https://www.google.com/maps/search/?api=1&query=${av.lat},${av.lng}" target="_blank" class="btn btn-outline-danger btn-sm text-start py-1" style="font-size: 0.75rem;">
                         <i class="bi bi-geo-alt-fill"></i> Abrir en Google Maps
                     </a>
-                    <button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
-                        <i class="bi bi-check-circle-fill"></i> Resolver Avería
-                    </button>
+                    ${resolverBtn}
                 </div>
             </div>
         `;
         
-        const marker = L.marker([av.lat, av.lng], { icon: markerIcon }).addTo(map);
+        const marker = L.marker([av.lat, av.lng], { icon: iconToUse }).addTo(map);
         marker.bindPopup(popupContent);
         bounds.push([av.lat, av.lng]);
     });
@@ -360,29 +394,81 @@
         map.fitBounds(bounds, { padding: [50, 50] });
     }
     
-    // Captura de coordenadas al hacer clic en el mapa
+    // Captura de coordenadas al hacer clic en el mapa y marcador interactivo
     map.on('click', function(e) {
         const lat = e.latlng.lat.toFixed(7);
         const lng = e.latlng.lng.toFixed(7);
         const coordenadasInput = document.getElementById('coordenadas_input');
         if (coordenadasInput) {
             coordenadasInput.value = `${lat},${lng}`;
-            // Crear o mover un marcador temporal
-            if (window.tempMarker) {
-                window.tempMarker.setLatLng(e.latlng);
-            } else {
-                window.tempMarker = L.marker(e.latlng, {
-                    draggable: true
-                }).addTo(map);
-                window.tempMarker.bindPopup("Ubicación capturada para registro").openPopup();
-                
-                window.tempMarker.on('dragend', function(e) {
-                    const newLatLng = e.target.getLatLng();
-                    coordenadasInput.value = `${newLatLng.lat.toFixed(7)},${newLatLng.lng.toFixed(7)}`;
-                });
+            
+            if (window.markerTemporal) {
+                map.removeLayer(window.markerTemporal);
             }
+            window.markerTemporal = L.marker([lat, lng], { draggable: true }).addTo(map);
+            window.markerTemporal.bindPopup("<b>Ubicación manual seleccionada</b><br>Arrastra este marcador para ajustar la posición.").openPopup();
+            
+            window.markerTemporal.on('dragend', function(evt) {
+                const newLatLng = evt.target.getLatLng();
+                coordenadasInput.value = `${newLatLng.lat.toFixed(7)},${newLatLng.lng.toFixed(7)}`;
+            });
         }
     });
+
+    // Función de geolocalización GPS móvil
+    window.obtenerUbicacionGPS = function() {
+        if ("geolocation" in navigator) {
+            const btn = document.getElementById("btn-gps");
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> GPS';
+            btn.disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude.toFixed(7);
+                    const lng = position.coords.longitude.toFixed(7);
+                    const coordenadasInput = document.getElementById('coordenadas_input');
+                    if (coordenadasInput) {
+                        coordenadasInput.value = `${lat},${lng}`;
+                        
+                        // Centrar mapa
+                        map.setView([lat, lng], 16);
+                        
+                        // Dibujar marcador
+                        if (window.markerTemporal) {
+                            map.removeLayer(window.markerTemporal);
+                        }
+                        window.markerTemporal = L.marker([lat, lng], { draggable: true }).addTo(map);
+                        window.markerTemporal.bindPopup("<b>Ubicación GPS capturada</b><br>Arrastra este marcador para ajustar la posición.").openPopup();
+                        
+                        window.markerTemporal.on('dragend', function(evt) {
+                            const newLatLng = evt.target.getLatLng();
+                            coordenadasInput.value = `${newLatLng.lat.toFixed(7)},${newLatLng.lng.toFixed(7)}`;
+                        });
+                    }
+
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                },
+                function(error) {
+                    let msg = "Error al obtener ubicación.";
+                    if (error.code === error.PERMISSION_DENIED) {
+                        msg = "Permiso denegado para acceder al GPS.";
+                    }
+                    alert(msg);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        } else {
+            alert("Tu navegador no soporta geolocalización.");
+        }
+    };
 
     // Control del Modal de Resolución
     const resolverModal = new bootstrap.Modal(document.getElementById('resolverAveriaModal'));
@@ -492,7 +578,7 @@
                                         </div>
                                     `;
                                     
-                                    const newMarker = L.marker([lat, lng], { icon: markerIcon }).addTo(map);
+                                    const newMarker = L.marker([lat, lng], { icon: yellowIcon }).addTo(map);
                                     newMarker.bindPopup(popupContent);
                                     
                                     // Guardar localmente
