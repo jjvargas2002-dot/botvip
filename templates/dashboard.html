@@ -401,5 +401,136 @@
         
         resolverModal.show();
     }
+
+    // --- LOGICA DE ALERTAS Y NOTIFICACIONES PWA EN TIEMPO REAL ---
+    let lastKnownId = 0;
+    averias.forEach(function(av) {
+        if (av.id > lastKnownId) {
+            lastKnownId = av.id;
+        }
+    });
+
+    function mostrarToastAlerta(cantidad) {
+        let toastContainer = document.getElementById('toast-container-alertas');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container-alertas';
+            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            toastContainer.style.zIndex = '1100';
+            document.body.appendChild(toastContainer);
+        }
+        
+        const toastId = 'toast-' + Date.now();
+        const html = `
+            <div id="${toastId}" class="toast align-items-center text-white bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body d-flex align-items-center justify-content-between w-100 gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-bell-fill fs-5"></i>
+                            <div>Hay <strong>${cantidad}</strong> averías nuevas asignadas.</div>
+                        </div>
+                        <button class="btn btn-sm btn-light py-0.5 px-2 text-primary fw-bold" onclick="location.reload()">Refrescar</button>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+        
+        toastContainer.insertAdjacentHTML('beforeend', html);
+        const toastEl = document.getElementById(toastId);
+        const bsToast = new bootstrap.Toast(toastEl, { autohide: false });
+        bsToast.show();
+    }
+
+    function comprobarNuevasAverias() {
+        fetch(`/api/averias/alertas?last_id=${lastKnownId}`)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.alertas && data.alertas.length > 0) {
+                    let nuevasAveriasAgregadas = 0;
+                    
+                    data.alertas.forEach(function(av) {
+                        // Evitar duplicados locales
+                        let yaExiste = averias.some(function(item) { return item.id === av.id; });
+                        if (yaExiste) return;
+                        
+                        nuevasAveriasAgregadas++;
+                        
+                        // 1. Notificación push del navegador
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            const notifTitle = `🔔 Nueva avería (${av.branch})`;
+                            const notifOptions = {
+                                body: `Caja: ${av.caja}\nObs: ${av.detalles}`,
+                                icon: '/static/icon.png',
+                                vibrate: [200, 100, 200],
+                                tag: 'averia-' + av.id
+                            };
+                            new Notification(notifTitle, notifOptions);
+                        }
+                        
+                        // 2. Agregar al mapa dinámicamente
+                        if (av.coordenadas) {
+                            const coords = av.coordenadas.split(",");
+                            if (coords.length === 2) {
+                                const lat = parseFloat(coords[0].trim());
+                                const lng = parseFloat(coords[1].trim());
+                                if (!isNaN(lat) && !isNaN(lng)) {
+                                    const popupContent = `
+                                        <div style="font-family: 'Inter', sans-serif; min-width: 220px;">
+                                            <h6 style="font-weight: 700; margin-bottom: 0.5rem; color: #1e3a8a;">Sede: ${av.branch}</h6>
+                                            <div style="margin-bottom: 0.25rem;"><strong>Cuenta:</strong> <span class="leaflet-popup-content-value">${av.cuenta}</span></div>
+                                            <div style="margin-bottom: 0.25rem;"><strong>Caja:</strong> <span class="leaflet-popup-content-value">${av.caja}</span></div>
+                                            <div style="margin-bottom: 0.5rem; font-size: 0.8rem; color: #475569;"><strong>Detalle:</strong> ${av.detalles}</div>
+                                            <div class="d-grid gap-1 mt-2">
+                                                <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" class="btn btn-outline-danger btn-sm text-start py-1" style="font-size: 0.75rem;">
+                                                    <i class="bi bi-geo-alt-fill"></i> Abrir en Google Maps
+                                                </a>
+                                                <button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
+                                                    <i class="bi bi-check-circle-fill"></i> Resolver Avería
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `;
+                                    
+                                    const newMarker = L.marker([lat, lng], { icon: markerIcon }).addTo(map);
+                                    newMarker.bindPopup(popupContent);
+                                    
+                                    // Guardar localmente
+                                    averias.push({
+                                        id: av.id,
+                                        branch: av.branch,
+                                        cuenta: av.cuenta,
+                                        caja: av.caja,
+                                        detalles: av.detalles,
+                                        lat: lat,
+                                        lng: lng,
+                                        dias: 0
+                                    });
+                                }
+                            }
+                        }
+                        
+                        if (av.id > lastKnownId) {
+                            lastKnownId = av.id;
+                        }
+                    });
+                    
+                    if (nuevasAveriasAgregadas > 0) {
+                        // 3. Reproducir sonido de alerta
+                        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-500.wav");
+                        audio.play().catch(function(err) {
+                            console.log("El navegador bloqueó la reproducción automática del audio:", err);
+                        });
+                        
+                        // 4. Mostrar el Toast flotante
+                        mostrarToastAlerta(nuevasAveriasAgregadas);
+                    }
+                }
+            })
+            .catch(function(err) { console.error("Error consultando alertas:", err); });
+    }
+
+    // Iniciar consulta cada 30 segundos
+    setInterval(comprobarNuevasAverias, 30000);
 </script>
 {% endblock %}

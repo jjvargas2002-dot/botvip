@@ -278,46 +278,54 @@ def sincronizar_drive():
             av.material_comentarios = "Cerrado automáticamente al no figurar en la lista del Drive."
         
         db.session.commit()
-        
-        # Notificar por WhatsApp de las nuevas averías importadas
-        for br, lista_av in nuevos_por_branch.items():
-            total_nuevos = len(lista_av)
-            if total_nuevos == 0:
-                continue
-            
-            # Buscar operadores activos de esta sede con teléfono
-            operadores = Operador.query.filter_by(branch=br, activo=True).all()
-            for op in operadores:
-                if op.telefono:
-                    num = op.telefono.strip()
-                    if num:
-                        try:
-                            if total_nuevos <= 3:
-                                for av in lista_av:
-                                    msg = (
-                                        f"🔔 *Nueva avería asignada ({br})*:\n\n"
-                                        f"• *Cuenta*: {av.cuenta}\n"
-                                        f"• *Caja*: {av.caja}\n"
-                                        f"• *Obs*: {av.detalles or 'Sin detalles'}\n\n"
-                                        f"💡 Escribe `reparar {av.cuenta}` cuando la soluciones."
-                                    )
-                                    enviar_mensaje(num, msg)
-                            else:
-                                msg = (
-                                    f"🔔 *Nuevas averías asignadas ({br})*:\n\n"
-                                    f"Se han registrado *{total_nuevos}* nuevas averías para tu sede en el sistema.\n\n"
-                                    f"📋 Escribe `todos` para ver la lista completa de pendientes."
-                                )
-                                enviar_mensaje(num, msg)
-                        except Exception as e_notif:
-                            print(f"Error enviando notificación WhatsApp a {num}: {e_notif}")
-                            
         total_cerrados = len(cerrados_ext)
         return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} cerrados externamente."
     except Exception as e:
         db.session.rollback()
         print("Error en sincronización de drive:", e)
         return False, f"Error en sincronización: {str(e)}"
+
+
+@app.route("/manifest.json")
+def serve_manifest():
+    return app.send_static_file("manifest.json")
+
+
+@app.route("/sw.js")
+def serve_sw():
+    response = app.send_static_file("sw.js")
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
+
+
+@app.route("/api/averias/alertas", methods=["GET"])
+@login_requerido
+def api_alertas_averias():
+    last_id = request.args.get("last_id", type=int)
+    if last_id is None:
+        return {"alertas": []}, 200
+        
+    branch = session.get("operador_branch")
+    es_admin = session.get("operador_rol") == "admin"
+    
+    query = Averia.query.filter(Averia.estado == "PENDIENTE", Averia.id > last_id)
+    if not es_admin and branch != "ALL":
+        query = query.filter_by(branch=branch)
+        
+    nuevas = query.order_by(Averia.id.asc()).all()
+    
+    alertas = []
+    for av in nuevas:
+        alertas.append({
+            "id": av.id,
+            "cuenta": av.cuenta,
+            "branch": av.branch,
+            "caja": av.caja or "N/A",
+            "detalles": av.detalles or "Sin descripción",
+            "coordenadas": av.coordenadas or ""
+        })
+        
+    return {"alertas": alertas}, 200
 
 
 @app.route("/diagnostico-operadores")
@@ -586,26 +594,6 @@ def resolver_averia(id):
     return redirect(request.referrer or url_for("dashboard"))
 
 
-def notificar_nueva_averia_individual(averia):
-    # Buscar técnicos de la sede que tengan teléfono y estén activos
-    operadores = Operador.query.filter_by(branch=averia.branch, activo=True).all()
-    for op in operadores:
-        if op.telefono:
-            num = op.telefono.strip()
-            if num:
-                try:
-                    msg = (
-                        f"🔔 *Nueva avería asignada a tu sede ({averia.branch})*:\n\n"
-                        f"• *Cuenta*: {averia.cuenta}\n"
-                        f"• *Caja*: {averia.caja}\n"
-                        f"• *Obs*: {averia.detalles or 'Sin detalles'}\n\n"
-                        f"💡 Escribe `reparar {averia.cuenta}` cuando la soluciones."
-                    )
-                    enviar_mensaje(num, msg)
-                except Exception as e:
-                    print(f"Error notificando nueva avería individual a {num}: {e}")
-
-
 @app.route("/averias/crear", methods=["POST"])
 @login_requerido
 def crear_averia_manual():
@@ -663,13 +651,6 @@ def crear_averia_manual():
                 existente.dias_pendientes = 0.0
                 existente.origen = "MANUAL"
                 db.session.commit()
-                
-                # Notificar a los técnicos de la reactivación
-                try:
-                    notificar_nueva_averia_individual(existente)
-                except Exception as e_notif:
-                    print("Error notificando reactivación:", e_notif)
-                    
                 flash(f"Se reactivó la avería para la cuenta {cuenta}.", "success")
                 return redirect(url_for("dashboard"))
         
@@ -687,13 +668,6 @@ def crear_averia_manual():
         )
         db.session.add(nueva)
         db.session.commit()
-        
-        # Notificar a los técnicos por WhatsApp
-        try:
-            notificar_nueva_averia_individual(nueva)
-        except Exception as e_notif:
-            print("Error notificado nueva avería manual:", e_notif)
-            
         flash(f"Avería manual para cuenta {cuenta} creada con éxito.", "success")
     except Exception as e:
         db.session.rollback()
@@ -1064,12 +1038,6 @@ def procesar_mensaje_tecnico(telefono, texto):
             db.session.delete(estado)
             db.session.commit()
             
-            # Notificar a los otros técnicos de la sede
-            try:
-                notificar_nueva_averia_individual(averia)
-            except Exception as e_notif:
-                print("Error notificando nueva avería desde WhatsApp:", e_notif)
-                
             msg = (
                 f"✅ *¡Avería creada con éxito!*\n\n"
                 f"• *Cuenta*: {averia.cuenta}\n"
