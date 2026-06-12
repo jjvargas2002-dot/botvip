@@ -520,13 +520,37 @@ def dashboard():
     # Habilitar formulario manual para todos
     es_provincia = True
     
+    from sqlalchemy import func
+    # Calculate material totals for this branch/sede
+    query_sums = db.session.query(
+        func.sum(Averia.material_cable_m).label("cable"),
+        func.sum(Averia.material_conectores).label("conectores"),
+        func.sum(Averia.material_rosetas).label("rosetas"),
+        func.sum(Averia.material_mangas).label("mangas"),
+        func.sum(Averia.material_acopladores).label("acopladores")
+    ).filter_by(estado="REPARADO")
+    
+    if not es_admin and branch != "ALL":
+        query_sums = query_sums.filter_by(branch=branch)
+        
+    sums = query_sums.first()
+    
+    materials_totals = {
+        "cable": (sums.cable if sums and sums.cable is not None else 0),
+        "conectores": (sums.conectores if sums and sums.conectores is not None else 0),
+        "rosetas": (sums.rosetas if sums and sums.rosetas is not None else 0),
+        "mangas": (sums.mangas if sums and sums.mangas is not None else 0),
+        "acopladores": (sums.acopladores if sums and sums.acopladores is not None else 0)
+    }
+    
     import json
     return render_template(
         "dashboard.html", 
         stats=stats, 
         map_json=json.dumps(map_data),
         averias_list=averias_pendientes,
-        es_provincia=es_provincia
+        es_provincia=es_provincia,
+        materials=materials_totals
     )
 
 
@@ -636,7 +660,7 @@ def crear_averia_manual():
                 existente.site = site
                 existente.coordenadas = coordenadas
                 existente.detalles = detalles
-                existente.contrata = contrata
+                existente.contrata = contrata or "TGI"
                 existente.dias_pendientes = 0.0
                 existente.origen = "MANUAL"
                 db.session.commit()
@@ -650,7 +674,7 @@ def crear_averia_manual():
             caja=caja_compuesta,
             coordenadas=coordenadas,
             detalles=detalles,
-            contrata=contrata or "Propia",
+            contrata=contrata or "TGI",
             estado="PENDIENTE",
             dias_pendientes=0.0,
             origen="MANUAL"
