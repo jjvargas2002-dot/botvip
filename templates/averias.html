@@ -178,7 +178,9 @@
                     data-mangas="{{ av.material_mangas or 0 }}"
                     data-acopladores="{{ av.material_acopladores or 0 }}"
                     data-materials-json="{{ av.materiales_json or '{}' }}"
-                    data-comentarios="{{ av.material_comentarios or '' }}">
+                    data-comentarios="{{ av.material_comentarios or '' }}"
+                    data-caja="{{ av.caja or '' }}"
+                    data-cuenta="{{ av.cuenta or '' }}">
                     
                     <td class="ps-4">
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ av.branch }}</span>
@@ -549,6 +551,8 @@
             const row = btnElement.closest('.averia-row');
             const materialesJson = row.getAttribute('data-materials-json') || '{}';
             const solucion = row.getAttribute('data-comentarios') || '';
+            const caja = row.getAttribute('data-caja') || '';
+            const cuenta = row.getAttribute('data-cuenta') || '';
             
             let materialsText = "";
             try {
@@ -571,15 +575,20 @@
                 materialsText = "• Ninguno\n";
             }
 
-            const text = `${site || 'N/A'}
-  ${details || 'Sin descripción'}
-CAUSA
+            let headerText = `*${site || 'N/A'}*\n`;
+            if (caja) {
+                headerText += `Caja: ${caja}\n`;
+            }
+            if (cuenta && !cuenta.startsWith('SIN_CUENTA_')) {
+                headerText += `Cuenta: ${cuenta}\n`;
+            }
+
+            const text = `${headerText}CAUSA
   ${causa || 'N/A'}
 SOLUCIÓN
   ${solucion || 'Pendiente de registrar'}
 MATERIALES
-${materialsText}Nota 
-LÍNEA con potencia 🆗`;
+${materialsText}`;
 
             navigator.clipboard.writeText(text).then(function() {
                 const originalText = btnElement.innerHTML;

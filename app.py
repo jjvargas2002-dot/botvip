@@ -834,8 +834,8 @@ def crear_averia_manual():
             cuenta = f"SIN_CUENTA_{uuid.uuid4().hex[:8].upper()}"
             
         site = request.form["site"].strip().upper()
-        xbox = request.form["xbox"].strip().upper()
-        caja_input = request.form["caja"].strip().upper()
+        xbox = request.form.get("xbox", "").strip().upper()
+        caja_input = request.form.get("caja", "").strip().upper()
         coordenadas = request.form["coordenadas"].strip()
         detalles = request.form["detalles"].strip()
         contrata = request.form.get("contrata", "").strip()
@@ -843,13 +843,18 @@ def crear_averia_manual():
         # Sede de registro
         target_branch = branch if not es_admin else request.form.get("branch", "ARE").strip().upper()
         
-        # Validar XBOX o HUBOX
-        if not (xbox.startswith("XB") or xbox.startswith("HB")):
-            flash("El tipo de caja debe ser XBOX (XB01, XB02) o HUBOX (HB01, HB02...).", "danger")
+        # Validar XBOX o HUBOX si se provee
+        if xbox and not (xbox.startswith("XB") or xbox.startswith("HB")):
+            flash("El tipo de caja debe ser XBOX o HUBOX.", "danger")
             return redirect(url_for("dashboard"))
             
-        # Componer código de caja: SITE-XBOX-caja
-        caja_compuesta = f"{site}-{xbox}-{caja_input}"
+        # Componer código de caja
+        parts = [site]
+        if xbox:
+            parts.append(xbox)
+        if caja_input:
+            parts.append(caja_input)
+        caja_compuesta = "-".join(parts)
         
         # Validar si ya existe la cuenta (solo si no es un placeholder autogenerado)
         existente = None
