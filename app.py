@@ -127,16 +127,20 @@ def sincronizar_sites():
         f = io.StringIO(content)
         reader = csv.reader(f)
         
-        header = next(reader, None)
+        header = None
+        indices = {}
+        for row in reader:
+            row_upper = [col.strip().upper() for col in row]
+            if "BRANCH" in row_upper and "SITE LOGICAL" in row_upper:
+                header = row_upper
+                indices = {col.strip().upper(): i for i, col in enumerate(row)}
+                break
+                
         if not header:
-            return False, "La pestaña SITES está vacía."
+            return False, "Faltan columnas Branch o Site Logical en la pestaña SITES"
             
-        indices = {col.strip().upper(): i for i, col in enumerate(header)}
         branch_idx = indices.get("BRANCH")
         site_idx = indices.get("SITE LOGICAL")
-        
-        if branch_idx is None or site_idx is None:
-            return False, "Faltan columnas Branch o Site Logical en la pestaña SITES"
             
         sites_list = []
         for row in reader:

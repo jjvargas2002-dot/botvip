@@ -271,6 +271,7 @@
             <div class="card-body p-3">
                 <p class="text-muted small mb-3">Utiliza este formulario para registrar una avería manualmente en tu sede. <strong>Tip: Haz clic en cualquier lugar del mapa para capturar sus coordenadas.</strong></p>
                 <form action="{{ url_for('crear_averia_manual') }}" method="POST">
+                    {% if session.get('operador_rol') == 'admin' %}
                     <div class="mb-2">
                         <label class="form-label small fw-medium text-secondary">Sede (Branch)</label>
                         <select class="form-select form-select-custom py-1.5 fs-7" name="branch" required>
@@ -290,6 +291,9 @@
                             <option value="JUN" {% if current_branch == 'JUN' %}selected{% endif %}>Junín (JUN)</option>
                         </select>
                     </div>
+                    {% else %}
+                    <input type="hidden" name="branch" value="{{ session.get('operador_branch') }}">
+                    {% endif %}
                     
                     <div class="mb-2">
                         <label class="form-label small fw-medium text-secondary">Cuenta del Cliente (Opcional)</label>
@@ -809,7 +813,7 @@
             }
             
             const filtered = cachedSites.filter(item => {
-                const matchesBranch = !selectedBranch || item.branch === selectedBranch;
+                const matchesBranch = !selectedBranch || selectedBranch === "ALL" || item.branch === selectedBranch;
                 const matchesSearch = item.site.includes(val);
                 return matchesBranch && matchesSearch;
             });
