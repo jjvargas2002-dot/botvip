@@ -1008,12 +1008,62 @@ def registrar_stock():
             materiales_por_seccion_stock[sec] = []
         materiales_por_seccion_stock[sec].append(m)
         
+    # Calcular consumos de esta sede
+    reparadas_sede = Averia.query.filter_by(branch=sede_actual, estado="REPARADO").all()
+    consumo_dict = {f"{m['codigo']}|{m['nombre']}": 0 for m in MATERIALES_MASTER}
+    
+    for av in reparadas_sede:
+        mats_dict = av.materiales_dict
+        for key, cant in mats_dict.items():
+            if cant:
+                if key in consumo_dict:
+                    consumo_dict[key] += cant
+                else:
+                    parts = key.split("|")
+                    if len(parts) > 0:
+                        code = parts[0]
+                        found = next((m for m in MATERIALES_MASTER if m["codigo"] == code), None)
+                        if found:
+                            master_key = f"{found['codigo']}|{found['nombre']}"
+                            consumo_dict[master_key] += cant
+
+    consumo_materiales = []
+    for m in MATERIALES_MASTER:
+        key = f"{m['codigo']}|{m['nombre']}"
+        cant = consumo_dict.get(key, 0)
+        if cant > 0:
+            consumo_materiales.append({
+                "codigo": m["codigo"],
+                "nombre": m["nombre"],
+                "seccion": m["seccion"],
+                "cantidad": cant
+            })
+            
+    # Calcular tipificaciones de esta sede
+    typifications = [
+        "Personas externa cortó",
+        "Camión grande rompió fibra",
+        "Puerto sucio",
+        "Refusión de hilo / cambio de módulo",
+        "Cambio de caja",
+        "Caja robada",
+        "Reemplazo de poste eléctrico",
+        "Conector roto"
+    ]
+    tipificaciones_sede = []
+    for typ in typifications:
+        count = sum(1 for av in reparadas_sede if av.tipificacion == typ)
+        tipificaciones_sede.append({"tipificacion": typ, "cantidad": count})
+        
     return render_template(
         "stock.html",
         materiales_por_seccion=materiales_por_seccion_stock,
         sede_actual=sede_actual,
         sedes=sedes,
-        es_admin_or_noc=(es_admin or es_noc)
+        es_admin_or_noc=(es_admin or es_noc),
+        consumo_materiales=consumo_materiales,
+        tipificaciones_data=tipificaciones_sede,
+        total_reparadas_sede=len(reparadas_sede)
     )
 
 
@@ -1291,10 +1341,6 @@ def exportar_averias():
     for mes_str in months_keys:
         month_sheet = workbook.create_sheet(title=mes_str)
         
-        contratas_del_mes = sorted(list(set(av.contrata for av in reparadas_por_mes[mes_str] if av.contrata)))
-        if not contratas_del_mes:
-            contratas_del_mes = ["TGI"]
-            
         # Title row
         month_sheet.merge_cells("A1:F1")
         month_sheet["A1"] = f"BALANCE DE MATERIALES - MES: {mes_str}"
@@ -1308,8 +1354,10 @@ def exportar_averias():
             "CODIGO",
             "STOCK ACTUAL",
             "STOCK ENVIADO NOC",
-            "FECHA ENVIO NOC"
-        ] + contratas_del_mes + ["TOTAL"]
+            "FECHA ENVIO NOC",
+            "BITEL",
+            "TOTAL"
+        ]
         
         for col_idx, h in enumerate(headers_m, start=1):
             cell = month_sheet.cell(row=3, column=col_idx, value=h)
@@ -1332,15 +1380,13 @@ def exportar_averias():
             month_sheet.cell(row=row_num, column=5, value=st_data["stock_enviado_noc"]).alignment = right_align
             month_sheet.cell(row=row_num, column=6, value=st_data["fecha_envio_noc"]).alignment = center_align
             
-            for c_idx, c in enumerate(contratas_del_mes):
-                cant = sum(get_material_quantity(av.materiales_dict, m) for av in reparadas_por_mes[mes_str] if av.contrata == c)
-                c_cell = month_sheet.cell(row=row_num, column=7 + c_idx, value=cant)
-                c_cell.alignment = right_align
+            # Bitel consumption (total sum of material consumed in this month)
+            cant = sum(get_material_quantity(av.materiales_dict, m) for av in reparadas_por_mes[mes_str])
+            c_cell = month_sheet.cell(row=row_num, column=7, value=cant)
+            c_cell.alignment = right_align
                 
-            last_contrata_col_letter = get_column_letter(6 + len(contratas_del_mes))
-            total_col_idx = 7 + len(contratas_del_mes)
-            total_cell = month_sheet.cell(row=row_num, column=total_col_idx)
-            total_cell.value = f"=(D{row_num}+E{row_num})-SUM(G{row_num}:{last_contrata_col_letter}{row_num})"
+            total_cell = month_sheet.cell(row=row_num, column=8)
+            total_cell.value = f"=(D{row_num}+E{row_num})-G{row_num}"
             total_cell.alignment = right_align
             total_cell.font = bold_font
             total_cell.fill = green_fill

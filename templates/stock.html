@@ -3,6 +3,8 @@
 {% block title %}Inventario y Registro de Stock - BotVip{% endblock %}
 
 {% block extra_head %}
+<!-- Chart.js for local Sede dashboard -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
     .stock-card {
         border-radius: 1.25rem;
@@ -89,6 +91,25 @@
         justify-content: flex-end;
         gap: 1rem;
     }
+    .nav-tabs-premium {
+        border-bottom: 2px solid var(--border-color);
+    }
+    .nav-tabs-premium .nav-link {
+        border: none;
+        color: var(--text-muted);
+        font-weight: 600;
+        padding: 0.75rem 1.25rem;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+    .nav-tabs-premium .nav-link:hover {
+        color: var(--primary);
+    }
+    .nav-tabs-premium .nav-link.active {
+        color: var(--primary);
+        border-bottom: 3px solid var(--primary);
+        background: transparent;
+    }
 </style>
 {% endblock %}
 
@@ -98,9 +119,9 @@
         <div class="stock-card mb-4">
             <div class="stock-header d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
-                    <h2 class="h4 mb-1 fw-bold"><i class="bi bi-box-seam-fill me-2 text-info"></i>Inventario y Stock</h2>
+                    <h2 class="h4 mb-1 fw-bold"><i class="bi bi-box-seam-fill me-2 text-info"></i>Inventario y Control</h2>
                     <p class="mb-0 text-muted-light" style="font-size: 0.9rem; color: #94a3b8;">
-                        Registra y actualiza el stock actual, material enviado por el NOC y fecha de envío.
+                        Registra el stock de materiales y visualiza estadísticas de consumo para esta sucursal.
                     </p>
                 </div>
                 
@@ -122,62 +143,146 @@
                 </div>
             </div>
 
-            <!-- Búsqueda rápida de materiales -->
-            <div class="p-3 border-bottom bg-light">
-                <div class="search-container">
-                    <i class="bi bi-search search-icon"></i>
-                    <input type="text" id="materialSearch" class="form-control form-control-custom search-input" placeholder="Buscar material por nombre o código en todas las secciones...">
-                </div>
+            <!-- Navigation Tabs for Stock and Dashboard -->
+            <div class="px-4 pt-3 bg-light border-bottom">
+                <ul class="nav nav-tabs nav-tabs-premium border-0" id="stockTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#registerStockPane" type="button" role="tab" aria-controls="registerStockPane" aria-selected="true">
+                            <i class="bi bi-pencil-square me-1.5"></i>Registrar Inventario
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboardStockPane" type="button" role="tab" aria-controls="dashboardStockPane" aria-selected="false">
+                            <i class="bi bi-bar-chart-line-fill me-1.5"></i>Resumen de Consumo y Tipificaciones
+                        </button>
+                    </li>
+                </ul>
             </div>
 
-            <form method="POST" action="{{ url_for('registrar_stock', branch=sede_actual) }}">
-                <div class="p-4">
-                    <div class="accordion" id="stockAccordion">
-                        {% for seccion, materiales in materiales_por_seccion.items() %}
-                        {% set sec_id = seccion.replace(' ', '_').replace(',', '').replace('/', '_') %}
-                        <div class="accordion-item accordion-item-custom">
-                            <h2 class="accordion-header" id="heading-{{ sec_id }}">
-                                <button class="accordion-button accordion-button-custom" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ sec_id }}" aria-expanded="true" aria-controls="collapse-{{ sec_id }}">
-                                    <span class="d-flex justify-content-between align-items-center w-100 pe-3">
-                                        <span>
-                                            <i class="bi bi-folder-fill text-warning me-2"></i>{{ seccion }}
-                                        </span>
-                                        <span class="badge bg-secondary rounded-pill" style="font-size: 0.8rem;">{{ materiales|length }} ítems</span>
-                                    </span>
-                                </button>
-                            </h2>
-                            <div id="collapse-{{ sec_id }}" class="accordion-collapse collapse show" aria-labelledby="heading-{{ sec_id }}">
-                                <div class="accordion-body p-0">
+            <div class="tab-content">
+                <!-- Tab 1: Registrar Inventario -->
+                <div class="tab-pane fade show active" id="registerStockPane" role="tabpanel" aria-labelledby="register-tab">
+                    <!-- Búsqueda rápida de materiales -->
+                    <div class="p-3 border-bottom bg-light">
+                        <div class="search-container">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text" id="materialSearch" class="form-control form-control-custom search-input" placeholder="Buscar material por nombre o código en todas las secciones...">
+                        </div>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('registrar_stock', branch=sede_actual) }}">
+                        <div class="p-4">
+                            <div class="accordion" id="stockAccordion">
+                                {% for seccion, materiales in materiales_por_seccion.items() %}
+                                {% set sec_id = seccion.replace(' ', '_').replace(',', '').replace('/', '_') %}
+                                <div class="accordion-item accordion-item-custom">
+                                    <h2 class="accordion-header" id="heading-{{ sec_id }}">
+                                        <button class="accordion-button accordion-button-custom" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ sec_id }}" aria-expanded="true" aria-controls="collapse-{{ sec_id }}">
+                                            <span class="d-flex justify-content-between align-items-center w-100 pe-3">
+                                                <span>
+                                                    <i class="bi bi-folder-fill text-warning me-2"></i>{{ seccion }}
+                                                </span>
+                                                <span class="badge bg-secondary rounded-pill" style="font-size: 0.8rem;">{{ materiales|length }} ítems</span>
+                                            </span>
+                                        </button>
+                                    </h2>
+                                    <div id="collapse-{{ sec_id }}" class="accordion-collapse collapse show" aria-labelledby="heading-{{ sec_id }}">
+                                        <div class="accordion-body p-0">
+                                            <div class="table-responsive">
+                                                <table class="table table-stock table-hover mb-0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th style="width: 120px;">Código</th>
+                                                            <th>Material</th>
+                                                            <th class="text-center" style="width: 140px;">Stock Actual</th>
+                                                            <th class="text-center" style="width: 140px;">Stock Enviado NOC</th>
+                                                            <th class="text-center" style="width: 180px;">Fecha Envío NOC</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for m in materiales %}
+                                                        <tr class="material-row" data-search="{{ m.nombre.lower() }} {{ m.codigo }}">
+                                                            <td>
+                                                                <span class="badge bg-light text-dark border font-monospace px-2 py-1">{{ m.codigo }}</span>
+                                                                <input type="hidden" name="material_codigo" value="{{ m.codigo }}">
+                                                            </td>
+                                                            <td>
+                                                                <div class="fw-semibold text-main">{{ m.nombre }}</div>
+                                                                <div class="text-muted" style="font-size: 0.75rem;">{{ seccion }}</div>
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <input type="number" name="stock_actual" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_actual }}">
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <input type="number" name="stock_enviado_noc" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_enviado_noc }}">
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <input type="date" name="fecha_envio_noc" class="form-control form-control-custom form-control-sm input-stock-date mx-auto" value="{{ m.fecha_envio_noc }}">
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Botones de Acción flotante -->
+                        <div class="actions-bar shadow-sm">
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary px-4 py-2 rounded-3">
+                                <i class="bi bi-arrow-left me-2"></i>Volver al Mapa
+                            </a>
+                            <button type="submit" class="btn btn-premium-primary px-5 py-2 rounded-3 fw-semibold shadow-sm">
+                                <i class="bi bi-save-fill me-2"></i>Guardar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Tab 2: Dashboard de Consumo y Tipificaciones -->
+                <div class="tab-pane fade" id="dashboardStockPane" role="tabpanel" aria-labelledby="dashboard-tab">
+                    <div class="p-4">
+                        <div class="row align-items-center mb-4">
+                            <div class="col">
+                                <h4 class="fw-bold mb-1 text-slate-800"><i class="bi bi-activity text-primary me-2"></i>Consumo y Estadísticas: Sede {{ sede_actual }}</h4>
+                                <p class="text-muted mb-0" style="font-size: 0.9rem;">
+                                    Resumen acumulado de materiales utilizados en averías reparadas para esta sede. Total de averías reparadas: <strong class="text-success">{{ total_reparadas_sede }}</strong>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="row g-4">
+                            <!-- Col 1: Materiales Utilizados -->
+                            <div class="col-lg-7">
+                                <div class="card card-premium p-3 h-100">
+                                    <h5 class="fw-bold mb-3 text-secondary" style="font-size: 1rem;"><i class="bi bi-receipt-cutoff text-primary me-2"></i>Resumen de Material Utilizado</h5>
                                     <div class="table-responsive">
-                                        <table class="table table-stock table-hover mb-0">
-                                            <thead>
+                                        <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
+                                            <thead class="table-light">
                                                 <tr>
-                                                    <th style="width: 120px;">Código</th>
+                                                    <th style="width: 100px;">Código</th>
                                                     <th>Material</th>
-                                                    <th class="text-center" style="width: 140px;">Stock Actual</th>
-                                                    <th class="text-center" style="width: 140px;">Stock Enviado NOC</th>
-                                                    <th class="text-center" style="width: 180px;">Fecha Envío NOC</th>
+                                                    <th>Sección</th>
+                                                    <th class="text-center" style="width: 120px;">Cantidad</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {% for m in materiales %}
-                                                <tr class="material-row" data-search="{{ m.nombre.lower() }} {{ m.codigo }}">
-                                                    <td>
-                                                        <span class="badge bg-light text-dark border font-monospace px-2 py-1">{{ m.codigo }}</span>
-                                                        <input type="hidden" name="material_codigo" value="{{ m.codigo }}">
-                                                    </td>
-                                                    <td>
-                                                        <div class="fw-semibold text-main">{{ m.nombre }}</div>
-                                                        <div class="text-muted" style="font-size: 0.75rem;">{{ seccion }}</div>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <input type="number" name="stock_actual" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_actual }}">
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <input type="number" name="stock_enviado_noc" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_enviado_noc }}">
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <input type="date" name="fecha_envio_noc" class="form-control form-control-custom form-control-sm input-stock-date mx-auto" value="{{ m.fecha_envio_noc }}">
+                                                {% for c in consumo_materiales %}
+                                                <tr>
+                                                    <td><span class="badge bg-light text-dark border font-monospace">{{ c.codigo }}</span></td>
+                                                    <td class="fw-semibold text-slate-800">{{ c.nombre }}</td>
+                                                    <td><span class="badge bg-secondary-subtle text-secondary" style="font-size: 0.75rem;">{{ c.seccion }}</span></td>
+                                                    <td class="text-center"><span class="badge bg-primary text-white px-2.5 py-1.5 fw-bold">{{ c.cantidad }}</span></td>
+                                                </tr>
+                                                {% else %}
+                                                <tr>
+                                                    <td colspan="4" class="text-center py-5 text-muted">
+                                                        <i class="bi bi-inbox-fill fs-2 d-block mb-2 text-secondary"></i>
+                                                        No se registran materiales utilizados para averías reparadas en esta sede.
                                                     </td>
                                                 </tr>
                                                 {% endfor %}
@@ -186,21 +291,43 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Col 2: Tipificaciones -->
+                            <div class="col-lg-5">
+                                <div class="card card-premium p-3 h-100">
+                                    <h5 class="fw-bold mb-3 text-secondary" style="font-size: 1rem;"><i class="bi bi-tag-fill text-primary me-2"></i>Tipificación de Averías</h5>
+                                    <div class="table-responsive mb-3">
+                                        <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Tipo de Problema</th>
+                                                    <th class="text-center" style="width: 100px;">Cantidad</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for t in tipificaciones_data %}
+                                                <tr>
+                                                    <td class="fw-semibold text-slate-700">{{ t.tipificacion }}</td>
+                                                    <td class="text-center"><span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1">{{ t.cantidad }}</span></td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {% if total_reparadas_sede > 0 %}
+                                    <div class="card bg-light border-0 p-2 text-center">
+                                        <div class="chart-container" style="height: 200px; width: 100%; position: relative;">
+                                            <canvas id="sedeTipChart"></canvas>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
-                        {% endfor %}
                     </div>
                 </div>
-
-                <!-- Botones de Acción flotante -->
-                <div class="actions-bar shadow-sm">
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary px-4 py-2 rounded-3">
-                        <i class="bi bi-arrow-left me-2"></i>Volver al Mapa
-                    </a>
-                    <button type="submit" class="btn btn-premium-primary px-5 py-2 rounded-3 fw-semibold shadow-sm">
-                        <i class="bi bi-save-fill me-2"></i>Guardar Cambios
-                    </button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
@@ -209,6 +336,7 @@
 {% block extra_js %}
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        // --- SEARCH IN registerStockPane ---
         const searchInput = document.getElementById("materialSearch");
         const rows = document.querySelectorAll(".material-row");
         const accordions = document.querySelectorAll(".accordion-item-custom");
@@ -216,21 +344,14 @@
         searchInput.addEventListener("input", function() {
             const query = this.value.toLowerCase().trim();
             
-            // Si la búsqueda está vacía, mostrar todo
             if (query === "") {
                 rows.forEach(row => row.style.display = "");
                 accordions.forEach(acc => {
                     acc.style.display = "";
-                    const collapse = acc.querySelector(".accordion-collapse");
-                    const bsCollapse = bootstrap.Collapse.getInstance(collapse);
-                    if (bsCollapse && collapse.classList.contains("show")) {
-                        // Mantener abierto
-                    }
                 });
                 return;
             }
             
-            // Filtrar las filas
             accordions.forEach(acc => {
                 let matchCount = 0;
                 const accRows = acc.querySelectorAll(".material-row");
@@ -245,7 +366,6 @@
                     }
                 });
                 
-                // Si la sección no tiene coincidencias, ocultarla. Si tiene, mostrarla y expandirla.
                 if (matchCount > 0) {
                     acc.style.display = "";
                     const collapseEl = acc.querySelector(".accordion-collapse");
@@ -258,6 +378,49 @@
                 }
             });
         });
+
+        // --- CHART INITIALIZATION FOR LOCAL SEDE DASHBOARD ---
+        {% if total_reparadas_sede > 0 %}
+        const tipDataSede = {{ tipificaciones_data|tojson }};
+        const labelsTipSede = tipDataSede.map(t => t.tipificacion);
+        const countsTipSede = tipDataSede.map(t => t.cantidad);
+
+        const ctxSede = document.getElementById('sedeTipChart').getContext('2d');
+        new Chart(ctxSede, {
+            type: 'doughnut',
+            data: {
+                labels: labelsTipSede,
+                datasets: [{
+                    data: countsTipSede,
+                    backgroundColor: [
+                        '#2563eb', // primary blue
+                        '#10b981', // green
+                        '#f59e0b', // orange
+                        '#ef4444', // red
+                        '#8b5cf6', // purple
+                        '#06b6d4', // cyan
+                        '#ec4899', // pink
+                        '#64748b'  // slate
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 8,
+                            font: { size: 9 },
+                            padding: 8
+                        }
+                    }
+                }
+            }
+        });
+        {% endif %}
     });
 </script>
 {% endblock %}
