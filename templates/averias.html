@@ -180,7 +180,8 @@
                     data-materials-json="{{ av.materiales_json or '{}' }}"
                     data-comentarios="{{ av.material_comentarios or '' }}"
                     data-caja="{{ av.caja or '' }}"
-                    data-cuenta="{{ av.cuenta or '' }}">
+                    data-cuenta="{{ av.cuenta or '' }}"
+                    data-tipificacion="{{ av.tipificacion or '' }}">
                     
                     <td class="ps-4">
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ av.branch }}</span>
@@ -334,6 +335,21 @@
                     <!-- Hidden input to store JSON data -->
                     <input type="hidden" name="materiales_json" id="materiales_json_input" value="{}">
 
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium text-secondary">Tipificación del Problema</label>
+                        <select class="form-select form-select-custom py-1.5 fs-7" name="tipificacion" required>
+                            <option value="">-- Seleccionar Tipificación --</option>
+                            <option value="Personas externa cortó">Personas externa cortó</option>
+                            <option value="Camión grande rompió fibra">Camión grande rompió fibra</option>
+                            <option value="Puerto sucio">Puerto sucio</option>
+                            <option value="Refusión de hilo / cambio de módulo">Refusión de hilo / cambio de módulo</option>
+                            <option value="Cambio de caja">Cambio de caja</option>
+                            <option value="Caja robada">Caja robada</option>
+                            <option value="Reemplazo de poste eléctrico">Reemplazo de poste eléctrico</option>
+                            <option value="Conector roto">Conector roto</option>
+                        </select>
+                    </div>
+
                     <div class="mb-0">
                         <label class="form-label small fw-medium text-secondary">Comentarios/Observaciones</label>
                         <textarea class="form-control form-control-custom" name="comentarios" rows="3" placeholder="Ej: Se empalmó acometida en poste, se solucionó problema de potencia..." required></textarea>
@@ -453,6 +469,7 @@
             const row = btnElement.closest('.averia-row');
             const materialesJson = row.getAttribute('data-materials-json') || '{}';
             const comentarios = row.getAttribute('data-comentarios') || '';
+            const tipificacion = row.getAttribute('data-tipificacion') || '';
             
             document.getElementById('modal_cuenta_label').innerText = cuenta;
             document.getElementById('formResolverAveria').action = `/averias/resolver/${id}`;
@@ -468,6 +485,7 @@
             document.getElementById('select-material-input').value = "";
             document.getElementById('cantidad-material-input').value = 1;
             document.getElementsByName('comentarios')[0].value = comentarios;
+            document.getElementsByName('tipificacion')[0].value = tipificacion;
             
             resolverModal.show();
         };

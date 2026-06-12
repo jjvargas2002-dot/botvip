@@ -77,6 +77,7 @@ class Averia(db.Model):
     material_acopladores = db.Column(db.Integer, default=0)
     material_comentarios = db.Column(db.Text)
     materiales_json = db.Column(db.Text)
+    tipificacion = db.Column(db.String(100), nullable=True)
 
     # Relación
     tecnico = db.relationship("Operador", backref="averias_resueltas", foreign_keys=[tecnico_id])
@@ -103,6 +104,21 @@ class Averia(db.Model):
         if self.material_acopladores:
             res["Sin Código|Acoplador Óptico"] = self.material_acopladores
         return res
+
+
+class StockBranch(db.Model):
+    __tablename__ = "stock_branch"
+
+    id = db.Column(db.Integer, primary_key=True)
+    branch = db.Column(db.String(50), nullable=False)
+    material_codigo = db.Column(db.String(50), nullable=False)
+    material_nombre = db.Column(db.String(255), nullable=False)
+    stock_actual = db.Column(db.Integer, default=0)
+    stock_enviado_noc = db.Column(db.Integer, default=0)
+    fecha_envio_noc = db.Column(db.Date, nullable=True)
+    fecha_actualizacion = db.Column(db.DateTime, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+    __table_args__ = (db.UniqueConstraint("branch", "material_codigo", name="uq_branch_material"),)
 
 
 

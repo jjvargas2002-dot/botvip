@@ -138,6 +138,12 @@
             <li class="nav-item">
                 <button class="nav-link" id="details-tab" data-bs-toggle="tab" data-bs-target="#detailsSummary" type="button" role="tab"><i class="bi bi-list-ul me-1.5"></i>Historial de Averías y Materiales</button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tipificaciones-tab" data-bs-toggle="tab" data-bs-target="#tipificacionesSummary" type="button" role="tab"><i class="bi bi-tag-fill me-1.5"></i>Tipificación de Averías</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stockSummary" type="button" role="tab"><i class="bi bi-box-seam-fill me-1.5"></i>Stock de Sucursales</button>
+            </li>
         </ul>
     </div>
     <div class="card-body p-0">
@@ -313,6 +319,136 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Tipificaciones Summary Tab -->
+            <div class="tab-pane fade" id="tipificacionesSummary" role="tabpanel">
+                <div class="p-4">
+                    <div class="row g-4 align-items-center">
+                        <div class="col-lg-6">
+                            <h6 class="fw-bold mb-3 text-primary"><i class="bi bi-list-stars me-2"></i>Distribución de Tipificaciones</h6>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Tipificación del Problema</th>
+                                            <th class="text-center" style="width: 120px;">Cantidad</th>
+                                            <th class="text-center" style="width: 120px;">Porcentaje</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% set total_tip = stats.total_reparadas %}
+                                        {% for t in tipificaciones_data %}
+                                        <tr>
+                                            <td class="fw-semibold text-slate-800">{{ t.tipificacion }}</td>
+                                            <td class="text-center"><span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1">{{ t.cantidad }}</span></td>
+                                            <td class="text-center fw-bold text-primary">
+                                                {% if total_tip > 0 %}
+                                                    {{ ((t.cantidad / total_tip) * 100)|round(1) }}%
+                                                {% else %}
+                                                    0%
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card bg-light border-0 p-3">
+                                <h6 class="fw-bold mb-3 text-center text-secondary">Gráfico de Frecuencia</h6>
+                                <div class="chart-container" style="height: 320px;">
+                                    <canvas id="tipificacionesChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stock Sucursales Tab -->
+            <div class="tab-pane fade" id="stockSummary" role="tabpanel">
+                <div class="p-3 bg-light border-bottom">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="stockSearchInput" class="form-control form-control-custom border-start-0 py-1.5 fs-7 bg-white" placeholder="Buscar material o código...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="stockBranchFilter" class="form-select form-select-custom py-1.5 fs-7 bg-white">
+                                <option value="">Todas las Sedes</option>
+                                <option value="LI1">LI1</option>
+                                <option value="LI2">LI2</option>
+                                <option value="LI3">LI3</option>
+                                <option value="LI4">LI4</option>
+                                <option value="LI7">LI7</option>
+                                <option value="ARE">ARE</option>
+                                <option value="PIU">PIU</option>
+                                <option value="SAN">SAN</option>
+                                <option value="CAJ">CAJ</option>
+                                <option value="LAL">LAL</option>
+                                <option value="HUN">HUN</option>
+                                <option value="CUS">CUS</option>
+                                <option value="JUN">JUN</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5 text-end text-muted small">
+                            Mostrando <strong id="visibleStockCounter" class="text-slate-800">{{ stock_regs|length }}</strong> de {{ stock_regs|length }} registros de inventario
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0" id="stockDetailsTable" style="font-size: 0.825rem;">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="ps-4">Sede</th>
+                                <th>Material</th>
+                                <th class="text-center" style="width: 100px;">Código</th>
+                                <th class="text-center" style="width: 120px;">Stock Actual</th>
+                                <th class="text-center" style="width: 140px;">Stock Enviado NOC</th>
+                                <th class="text-center" style="width: 130px;">Fecha Envío NOC</th>
+                                <th class="pe-4 text-end" style="width: 150px;">Última Act.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in stock_regs %}
+                            <tr class="stock-row" 
+                                data-search="{{ s.material_nombre.lower() }} {{ s.material_codigo }}"
+                                data-branch="{{ s.branch }}">
+                                <td class="ps-4"><span class="badge bg-info-subtle text-info border px-2 py-0.5">{{ s.branch }}</span></td>
+                                <td class="fw-semibold text-slate-800">{{ s.material_nombre }}</td>
+                                <td class="text-center font-monospace">{{ s.material_codigo }}</td>
+                                <td class="text-center">
+                                    {% if s.stock_actual < 5 %}
+                                        <span class="badge bg-danger-subtle text-danger border px-2.5 py-1 fw-bold">{{ s.stock_actual }}</span>
+                                    {% else %}
+                                        <span class="badge bg-success-subtle text-success border px-2.5 py-1 fw-bold">{{ s.stock_actual }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center fw-semibold text-secondary">{{ s.stock_enviado_noc or 0 }}</td>
+                                <td class="text-center text-muted">{{ s.fecha_envio_noc.strftime('%Y-%m-%d') if s.fecha_envio_noc else '-' }}</td>
+                                <td class="pe-4 text-end text-muted font-monospace" style="font-size: 0.75rem;">{{ s.fecha_actualizacion.strftime('%Y-%m-%d %H:%M') if s.fecha_actualizacion else '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr id="stockEmptyRow">
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-box-fill fs-1 d-block mb-2 text-secondary"></i>
+                                    No hay registros de stock reportados por las sedes.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <tr id="stockNoResultsRow" style="display: none;">
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-search fs-1 d-block mb-2"></i>
+                                    No se encontraron registros de stock con los criterios.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -465,6 +601,92 @@
 
         searchInput.addEventListener("input", filterNocTable);
         branchFilter.addEventListener("change", filterNocTable);
+
+        // 3. Tipificaciones Chart
+        const tipData = {{ tipificaciones_data|tojson }};
+        const labelsTip = tipData.map(t => t.tipificacion);
+        const countsTip = tipData.map(t => t.cantidad);
+
+        const ctxTip = document.getElementById('tipificacionesChart').getContext('2d');
+        new Chart(ctxTip, {
+            type: 'doughnut',
+            data: {
+                labels: labelsTip,
+                datasets: [{
+                    data: countsTip,
+                    backgroundColor: [
+                        '#2563eb', // primary blue
+                        '#10b981', // green
+                        '#f59e0b', // orange
+                        '#ef4444', // red
+                        '#8b5cf6', // purple
+                        '#06b6d4', // cyan
+                        '#ec4899', // pink
+                        '#64748b'  // slate
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            boxWidth: 12,
+                            font: { size: 10 }
+                        }
+                    }
+                }
+            }
+        });
+
+        // --- STOCK TABLE SEARCH & FILTER ---
+        const stockSearchInput = document.getElementById("stockSearchInput");
+        const stockBranchFilter = document.getElementById("stockBranchFilter");
+        const stockRows = document.querySelectorAll(".stock-row");
+        const stockNoResultsRow = document.getElementById("stockNoResultsRow");
+        const stockCounterEl = document.getElementById("visibleStockCounter");
+
+        function filterStockTable() {
+            const query = stockSearchInput.value.toLowerCase().trim();
+            const branch = stockBranchFilter.value;
+            let visibleCount = 0;
+
+            stockRows.forEach(row => {
+                const searchData = row.getAttribute("data-search").toLowerCase();
+                const rowBranch = row.getAttribute("data-branch");
+
+                const matchesSearch = query === "" || searchData.includes(query);
+                const matchesBranch = branch === "" || rowBranch === branch;
+
+                if (matchesSearch && matchesBranch) {
+                    row.style.display = "";
+                    visibleCount++;
+                } else {
+                    row.style.display = "none";
+                }
+            });
+
+            if (stockCounterEl) {
+                stockCounterEl.innerText = visibleCount;
+            }
+
+            if (stockRows.length > 0) {
+                if (visibleCount === 0) {
+                    stockNoResultsRow.style.display = "";
+                } else {
+                    stockNoResultsRow.style.display = "none";
+                }
+            }
+        }
+
+        if (stockSearchInput && stockBranchFilter) {
+            stockSearchInput.addEventListener("input", filterStockTable);
+            stockBranchFilter.addEventListener("change", filterStockTable);
+            filterStockTable();
+        }
     });
 </script>
 {% endblock %}

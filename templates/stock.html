@@ -1,0 +1,263 @@
+{% extends "layout.html" %}
+
+{% block title %}Inventario y Registro de Stock - BotVip{% endblock %}
+
+{% block extra_head %}
+<style>
+    .stock-card {
+        border-radius: 1.25rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+    .stock-header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        color: #ffffff;
+        padding: 1.5rem 2rem;
+    }
+    .accordion-button-custom {
+        background-color: #f8fafc;
+        color: #1e293b;
+        font-weight: 600;
+        border: 1px solid var(--border-color);
+        transition: all 0.2s ease;
+    }
+    .accordion-button-custom:not(.collapsed) {
+        background-color: rgba(37, 99, 235, 0.08);
+        color: var(--primary);
+        border-color: rgba(37, 99, 235, 0.2);
+        box-shadow: none;
+    }
+    .accordion-item-custom {
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem !important;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+    .table-stock th {
+        background-color: #f1f5f9;
+        color: #475569;
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        padding: 0.75rem 1rem;
+    }
+    .table-stock td {
+        padding: 0.75rem 1rem;
+        vertical-align: middle;
+    }
+    .input-stock-number {
+        width: 100px;
+        text-align: center;
+        font-weight: 500;
+    }
+    .input-stock-date {
+        width: 150px;
+    }
+    .section-badge {
+        font-size: 0.75rem;
+        background-color: rgba(99, 102, 241, 0.1);
+        color: #6366f1;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        font-weight: 600;
+    }
+    .search-container {
+        position: relative;
+    }
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+    }
+    .search-input {
+        padding-left: 2.5rem;
+    }
+    /* Sticky bottom actions bar */
+    .actions-bar {
+        position: sticky;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        border-top: 1px solid var(--border-color);
+        padding: 1rem 2rem;
+        z-index: 100;
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="stock-card mb-4">
+            <div class="stock-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h2 class="h4 mb-1 fw-bold"><i class="bi bi-box-seam-fill me-2 text-info"></i>Inventario y Stock</h2>
+                    <p class="mb-0 text-muted-light" style="font-size: 0.9rem; color: #94a3b8;">
+                        Registra y actualiza el stock actual, material enviado por el NOC y fecha de envío.
+                    </p>
+                </div>
+                
+                <div class="d-flex align-items-center gap-3">
+                    {% if es_admin_or_noc %}
+                    <form method="GET" class="d-flex align-items-center gap-2 mb-0">
+                        <span class="text-nowrap" style="color: #cbd5e1; font-weight: 500;">Sede Consultada:</span>
+                        <select name="branch" class="form-select form-select-custom form-select-sm w-auto bg-dark text-white border-secondary" onchange="this.form.submit()">
+                            {% for s in sedes %}
+                            <option value="{{ s }}" {% if s == sede_actual %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    {% else %}
+                    <div class="user-badge" style="background-color: rgba(14, 165, 233, 0.2); color: #0ea5e9;">
+                        <i class="bi bi-building me-1"></i> Sucursal: {{ sede_actual }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Búsqueda rápida de materiales -->
+            <div class="p-3 border-bottom bg-light">
+                <div class="search-container">
+                    <i class="bi bi-search search-icon"></i>
+                    <input type="text" id="materialSearch" class="form-control form-control-custom search-input" placeholder="Buscar material por nombre o código en todas las secciones...">
+                </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('registrar_stock', branch=sede_actual) }}">
+                <div class="p-4">
+                    <div class="accordion" id="stockAccordion">
+                        {% for seccion, materiales in materiales_por_seccion.items() %}
+                        {% set sec_id = seccion.replace(' ', '_').replace(',', '').replace('/', '_') %}
+                        <div class="accordion-item accordion-item-custom">
+                            <h2 class="accordion-header" id="heading-{{ sec_id }}">
+                                <button class="accordion-button accordion-button-custom" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ sec_id }}" aria-expanded="true" aria-controls="collapse-{{ sec_id }}">
+                                    <span class="d-flex justify-content-between align-items-center w-100 pe-3">
+                                        <span>
+                                            <i class="bi bi-folder-fill text-warning me-2"></i>{{ seccion }}
+                                        </span>
+                                        <span class="badge bg-secondary rounded-pill" style="font-size: 0.8rem;">{{ materiales|length }} ítems</span>
+                                    </span>
+                                </button>
+                            </h2>
+                            <div id="collapse-{{ sec_id }}" class="accordion-collapse collapse show" aria-labelledby="heading-{{ sec_id }}">
+                                <div class="accordion-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-stock table-hover mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 120px;">Código</th>
+                                                    <th>Material</th>
+                                                    <th class="text-center" style="width: 140px;">Stock Actual</th>
+                                                    <th class="text-center" style="width: 140px;">Stock Enviado NOC</th>
+                                                    <th class="text-center" style="width: 180px;">Fecha Envío NOC</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for m in materiales %}
+                                                <tr class="material-row" data-search="{{ m.nombre.lower() }} {{ m.codigo }}">
+                                                    <td>
+                                                        <span class="badge bg-light text-dark border font-monospace px-2 py-1">{{ m.codigo }}</span>
+                                                        <input type="hidden" name="material_codigo" value="{{ m.codigo }}">
+                                                    </td>
+                                                    <td>
+                                                        <div class="fw-semibold text-main">{{ m.nombre }}</div>
+                                                        <div class="text-muted" style="font-size: 0.75rem;">{{ seccion }}</div>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="number" name="stock_actual" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_actual }}">
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="number" name="stock_enviado_noc" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_enviado_noc }}">
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="date" name="fecha_envio_noc" class="form-control form-control-custom form-control-sm input-stock-date mx-auto" value="{{ m.fecha_envio_noc }}">
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Botones de Acción flotante -->
+                <div class="actions-bar shadow-sm">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary px-4 py-2 rounded-3">
+                        <i class="bi bi-arrow-left me-2"></i>Volver al Mapa
+                    </a>
+                    <button type="submit" class="btn btn-premium-primary px-5 py-2 rounded-3 fw-semibold shadow-sm">
+                        <i class="bi bi-save-fill me-2"></i>Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const searchInput = document.getElementById("materialSearch");
+        const rows = document.querySelectorAll(".material-row");
+        const accordions = document.querySelectorAll(".accordion-item-custom");
+        
+        searchInput.addEventListener("input", function() {
+            const query = this.value.toLowerCase().trim();
+            
+            // Si la búsqueda está vacía, mostrar todo
+            if (query === "") {
+                rows.forEach(row => row.style.display = "");
+                accordions.forEach(acc => {
+                    acc.style.display = "";
+                    const collapse = acc.querySelector(".accordion-collapse");
+                    const bsCollapse = bootstrap.Collapse.getInstance(collapse);
+                    if (bsCollapse && collapse.classList.contains("show")) {
+                        // Mantener abierto
+                    }
+                });
+                return;
+            }
+            
+            // Filtrar las filas
+            accordions.forEach(acc => {
+                let matchCount = 0;
+                const accRows = acc.querySelectorAll(".material-row");
+                
+                accRows.forEach(row => {
+                    const searchText = row.getAttribute("data-search");
+                    if (searchText.includes(query)) {
+                        row.style.display = "";
+                        matchCount++;
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+                
+                // Si la sección no tiene coincidencias, ocultarla. Si tiene, mostrarla y expandirla.
+                if (matchCount > 0) {
+                    acc.style.display = "";
+                    const collapseEl = acc.querySelector(".accordion-collapse");
+                    if (!collapseEl.classList.contains("show")) {
+                        const bsCollapse = new bootstrap.Collapse(collapseEl, { toggle: false });
+                        bsCollapse.show();
+                    }
+                } else {
+                    acc.style.display = "none";
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
