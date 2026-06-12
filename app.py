@@ -835,6 +835,7 @@ def crear_averia_manual():
             
         site = request.form["site"].strip().upper()
         xbox = request.form.get("xbox", "").strip().upper()
+        hubox = request.form.get("hubox", "").strip().upper()
         caja_input = request.form.get("caja", "").strip().upper()
         coordenadas = request.form["coordenadas"].strip()
         detalles = request.form["detalles"].strip()
@@ -843,15 +844,20 @@ def crear_averia_manual():
         # Sede de registro
         target_branch = branch if not es_admin else request.form.get("branch", "ARE").strip().upper()
         
-        # Validar XBOX o HUBOX si se provee
-        if xbox and not (xbox.startswith("XB") or xbox.startswith("HB")):
-            flash("El tipo de caja debe ser XBOX o HUBOX.", "danger")
+        # Validar XBOX y HUBOX si se proveen
+        if xbox and not xbox.startswith("XB"):
+            flash("El tipo de caja XBOX debe comenzar con XB.", "danger")
+            return redirect(url_for("dashboard"))
+        if hubox and not hubox.startswith("HB"):
+            flash("El tipo de caja HUBOX debe comenzar con HB.", "danger")
             return redirect(url_for("dashboard"))
             
         # Componer código de caja
         parts = [site]
         if xbox:
             parts.append(xbox)
+        if hubox:
+            parts.append(hubox)
         if caja_input:
             parts.append(caja_input)
         caja_compuesta = "-".join(parts)
