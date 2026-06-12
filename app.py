@@ -421,21 +421,32 @@ def sincronizar_drive():
             caja = row[indices.get("CAJA")].strip() if "CAJA" in indices else ""
             coordenadas = row[indices.get("COORDENADAS")].strip() if "COORDENADAS" in indices else ""
             
+            # Verificar si en el Drive figura como resuelto
+            status_upper = status_ont.upper().strip()
+            status_caja_upper = status_caja.upper().strip()
+            resuelto_keywords = ["REPARADO", "SOLUCIONADO", "CERRADO", "OK", "ATENDIDO", "RESUELTO"]
+            es_resuelto_drive = any(k in status_upper or k in status_caja_upper for k in resuelto_keywords)
+
             # Buscar en BD
             averia = Averia.query.filter_by(cuenta=cuenta).first()
             if averia:
                 # Si ya existe, actualizar datos del drive solo si está pendiente localmente
                 if averia.estado == "PENDIENTE":
-                    averia.branch = branch
-                    averia.codigo_wo = codigo_wo
-                    averia.detalles = detalles
-                    averia.dias_pendientes = dias_pendientes
-                    averia.status_caja = status_caja if status_caja else status_ont
-                    averia.contrata = contrata
-                    averia.periodo_pendiente = periodo_pendiente
-                    averia.site = site
-                    averia.caja = caja
-                    averia.coordenadas = coordenadas
+                    if es_resuelto_drive:
+                        averia.estado = "REPARADO"
+                        averia.fecha_resolucion = datetime.now()
+                        averia.material_comentarios = f"Marcado como resuelto en el Drive (Estado: {status_ont or status_caja})"
+                    else:
+                        averia.branch = branch
+                        averia.codigo_wo = codigo_wo
+                        averia.detalles = detalles
+                        averia.dias_pendientes = dias_pendientes
+                        averia.status_caja = status_caja if status_caja else status_ont
+                        averia.contrata = contrata
+                        averia.periodo_pendiente = periodo_pendiente
+                        averia.site = site
+                        averia.caja = caja
+                        averia.coordenadas = coordenadas
                     actualizados += 1
             else:
                 # Crear nueva avería
@@ -445,7 +456,9 @@ def sincronizar_drive():
                     cuenta=cuenta,
                     detalles=detalles,
                     dias_pendientes=dias_pendientes,
-                    estado="PENDIENTE",
+                    estado="REPARADO" if es_resuelto_drive else "PENDIENTE",
+                    fecha_resolucion=datetime.now() if es_resuelto_drive else None,
+                    material_comentarios=f"Marcado como resuelto en el Drive al importar" if es_resuelto_drive else None,
                     status_caja=status_caja if status_caja else status_ont,
                     contrata=contrata,
                     periodo_pendiente=periodo_pendiente,
@@ -949,18 +962,25 @@ def agrupar_clientes_averia(id):
         averia.caja = caja_compuesta
         
         selected_accounts = request.form.getlist("selected_clientes")
-        averia.cuentas_asociadas = ", ".join(selected_accounts) if selected_accounts else None
+        new_set = set(selected_accounts)
         
-        # Mark other pending averias on this site for selected accounts as REPARADO (with 0 materials)
-        if selected_accounts:
-            other_averias = Averia.query.filter(
+        # Parse old associated list
+        old_list = [c.strip() for c in (averia.cuentas_asociadas or "").split(",") if c.strip()]
+        old_set = set(old_list)
+        
+        # Accounts to add to group (new - old)
+        to_add = new_set - old_set
+        # Accounts to remove from group (old - new)
+        to_remove = old_set - new_set
+        
+        # For new ones, mark as REPARADO
+        if to_add:
+            averias_to_add = Averia.query.filter(
                 Averia.site == averia.site,
-                Averia.cuenta.in_(selected_accounts),
-                Averia.id != averia.id,
-                Averia.estado == "PENDIENTE"
+                Averia.cuenta.in_(to_add),
+                Averia.id != averia.id
             ).all()
-            
-            for av_g in other_averias:
+            for av_g in averias_to_add:
                 av_g.estado = "REPARADO"
                 av_g.fecha_resolucion = datetime.now()
                 av_g.tecnico_id = session.get("operador_id")
@@ -973,6 +993,22 @@ def agrupar_clientes_averia(id):
                 av_g.material_acopladores = 0
                 av_g.materiales_json = "{}"
                 
+        # For removed ones, revert back to PENDING
+        if to_remove:
+            averias_to_remove = Averia.query.filter(
+                Averia.site == averia.site,
+                Averia.cuenta.in_(to_remove),
+                Averia.id != averia.id
+            ).all()
+            for av_g in averias_to_remove:
+                av_g.estado = "PENDIENTE"
+                av_g.fecha_resolucion = None
+                av_g.tecnico_id = None
+                av_g.material_comentarios = None
+                av_g.tipificacion = None
+                
+        averia.cuentas_asociadas = ", ".join(selected_accounts) if selected_accounts else None
+        
         try:
             db.session.commit()
             flash("Asociación de clientes y caja guardada con éxito.", "success")
@@ -983,6 +1019,8 @@ def agrupar_clientes_averia(id):
         return redirect(url_for("dashboard"))
         
     # GET: query accounts on the same site
+    associated_list = [c.strip() for c in (averia.cuentas_asociadas or "").split(",") if c.strip()]
+    
     cuentas_query = db.session.query(
         Averia.cuenta, Averia.caja, Averia.estado, Averia.id
     ).filter(
@@ -996,15 +1034,19 @@ def agrupar_clientes_averia(id):
     vistas = set()
     for row in cuentas_query:
         if row.cuenta and row.cuenta not in vistas:
-            vistas.add(row.cuenta)
-            cl = clientes_dict.get(row.cuenta)
-            clientes_del_site.append({
-                "cuenta": row.cuenta,
-                "caja": row.caja or "",
-                "estado": row.estado,
-                "id": row.id,
-                "nombre": cl.nombre if cl else "Cliente de Sheet"
-            })
+            is_associated = row.cuenta in associated_list
+            # Only show if PENDING or if already associated with this group
+            if row.estado == "PENDIENTE" or is_associated:
+                vistas.add(row.cuenta)
+                cl = clientes_dict.get(row.cuenta)
+                clientes_del_site.append({
+                    "cuenta": row.cuenta,
+                    "caja": row.caja or "",
+                    "estado": row.estado,
+                    "id": row.id,
+                    "nombre": cl.nombre if cl else "Cliente de Sheet",
+                    "seleccionado": is_associated
+                })
             
     return render_template(
         "agrupar.html",
