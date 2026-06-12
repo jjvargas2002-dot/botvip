@@ -211,14 +211,20 @@
                                                                 <div class="text-muted" style="font-size: 0.75rem;">{{ seccion }}</div>
                                                             </td>
                                                             <td class="text-center">
-                                                                <input type="number" name="stock_actual" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_actual }}">
-                                                            </td>
-                                                            <td class="text-center">
-                                                                <input type="number" name="stock_enviado_noc" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_enviado_noc }}">
-                                                            </td>
-                                                            <td class="text-center">
-                                                                <input type="date" name="fecha_envio_noc" class="form-control form-control-custom form-control-sm input-stock-date mx-auto" value="{{ m.fecha_envio_noc }}">
-                                                            </td>
+                                                                 <input type="number" name="stock_actual" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_actual }}">
+                                                             </td>
+                                                             <td class="text-center">
+                                                                 <input type="number" name="stock_enviado_noc" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="0">
+                                                                 {% if m.stock_enviado_noc > 0 %}
+                                                                 <div class="text-muted mt-1 small" style="font-size: 0.725rem;"><span class="badge bg-secondary-subtle text-secondary">Ant: {{ m.stock_enviado_noc }}</span></div>
+                                                                 {% endif %}
+                                                             </td>
+                                                             <td class="text-center">
+                                                                 <input type="date" name="fecha_envio_noc" class="form-control form-control-custom form-control-sm input-stock-date mx-auto" value="">
+                                                                 {% if m.fecha_envio_noc %}
+                                                                 <div class="text-muted mt-1 small" style="font-size: 0.725rem;"><span class="badge bg-light text-dark border">{{ m.fecha_envio_noc }}</span></div>
+                                                                 {% endif %}
+                                                             </td>
                                                         </tr>
                                                         {% endfor %}
                                                     </tbody>
@@ -383,20 +389,26 @@
         document.querySelectorAll('input[name="stock_enviado_noc"]').forEach(nocInput => {
             const row = nocInput.closest('tr');
             const actualInput = row.querySelector('input[name="stock_actual"]');
+            const dateInput = row.querySelector('input[name="fecha_envio_noc"]');
             
-            nocInput.setAttribute('data-initial-noc', nocInput.value || '0');
+            nocInput.setAttribute('data-initial-noc', '0');
             actualInput.setAttribute('data-initial-actual', actualInput.value || '0');
             
             nocInput.addEventListener('input', function() {
-                const initNoc = parseInt(this.getAttribute('data-initial-noc')) || 0;
                 const currentNoc = parseInt(this.value) || 0;
                 const initActual = parseInt(actualInput.getAttribute('data-initial-actual')) || 0;
                 
-                const diff = currentNoc - initNoc;
-                if (diff > 0) {
-                    actualInput.value = initActual + diff;
+                if (currentNoc > 0) {
+                    actualInput.value = initActual + currentNoc;
+                    if (dateInput && !dateInput.value) {
+                        const today = new Date().toISOString().split('T')[0];
+                        dateInput.value = today;
+                    }
                 } else {
                     actualInput.value = initActual;
+                    if (dateInput) {
+                        dateInput.value = "";
+                    }
                 }
             });
         });

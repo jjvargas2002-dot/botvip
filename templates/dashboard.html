@@ -171,7 +171,14 @@
                 </select>
             </div>
             {% endif %}
-            <div class="{% if session.get('operador_rol') == 'admin' %}col-md-3{% else %}col-md-4{% endif %}">
+            <div class="col-md-2">
+                <select id="statusFilter" class="form-select form-select-custom py-1.5 fs-7" onchange="applyFilters()">
+                    <option value="PENDIENTE" selected>Ver Solo Pendientes</option>
+                    <option value="REPARADO">Ver Solo Reparados</option>
+                    <option value="ALL">Ver Todos (Pendientes y Reparados)</option>
+                </select>
+            </div>
+            <div class="{% if session.get('operador_rol') == 'admin' %}col-md-2{% else %}col-md-3{% endif %}">
                 <select id="siteFilter" class="form-select form-select-custom py-1.5 fs-7" onchange="applyFilters()">
                     <option value="">Todos los SITEs (Nodos)</option>
                 </select>
@@ -179,10 +186,24 @@
             <div class="{% if session.get('operador_rol') == 'admin' %}col-md-3{% else %}col-md-4{% endif %}">
                 <input type="text" id="mapSearchInput" class="form-control form-control-custom py-1.5 fs-7" placeholder="Buscar por cuenta, caja, etc..." oninput="applyFilters()">
             </div>
-            <div class="col-md-2">
-                <button class="btn btn-outline-secondary btn-sm w-100 py-1.5 fs-7" onclick="resetDashboardFilters()">
-                    <i class="bi bi-arrow-counterclockwise me-1"></i>Limpiar
+            <div class="col-md-1 text-end">
+                <button class="btn btn-outline-secondary btn-sm w-100 py-1.5 fs-7" onclick="resetDashboardFilters()" title="Limpiar Filtros">
+                    <i class="bi bi-arrow-counterclockwise"></i>
                 </button>
+            </div>
+        </div>
+        
+        <!-- Months Selector Row -->
+        <div class="row mt-2 pt-2 border-top">
+            <div class="col-12">
+                <div class="d-flex flex-wrap align-items-center gap-3">
+                    <div class="fw-bold text-slate-800 fs-7" style="min-width: 120px;">
+                        <i class="bi bi-calendar-event-fill text-primary me-2"></i>Filtrar por Mes:
+                    </div>
+                    <div id="monthsFilterContainer" class="d-flex flex-wrap gap-1.5">
+                        <!-- Dynamic month pills will load here -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -202,14 +223,14 @@
 
         <div class="card card-premium">
             <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between">
-                <h5 class="fw-bold mb-0 text-slate-800"><i class="bi bi-list-task me-2 text-primary"></i>Lista de Pendientes en {{ session.get('operador_branch') }}</h5>
+                <h5 class="fw-bold mb-0 text-slate-800" id="list-title-label"><i class="bi bi-list-task me-2 text-primary"></i>Lista de Averías</h5>
                 <span class="badge bg-primary rounded-pill" id="pending-counter">{{ averias_list|length }} casos</span>
             </div>
             <div class="card-body p-0 table-responsive" style="max-height: 400px; overflow: auto;">
                 {% if not averias_list %}
                 <div class="p-4 text-center text-muted">
                     <i class="bi bi-check2-circle fs-1 mb-2 text-success"></i>
-                    <p class="mb-0">No hay averías pendientes activas en esta sede.</p>
+                    <p class="mb-0">No hay averías registradas activas.</p>
                 </div>
                 {% else %}
                 <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem; min-width: 750px;">
@@ -219,15 +240,31 @@
                             <th>Detalles</th>
                             <th>Caja</th>
                             <th>WO / Contrata</th>
-                            <th>Días</th>
+                            <th>Días / Fecha</th>
                             <th class="text-end">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for av in averias_list %}
-                        <tr class="pending-row" data-site="{{ av.site }}" data-branch="{{ av.branch }}" data-search="{{ av.cuenta }} {{ av.caja }} {{ av.site or '' }} {{ av.codigo_wo or '' }} {{ av.detalles or '' }} {{ av.contrata }}">
+                        <tr class="averia-row-item" 
+                            data-id="{{ av.id }}"
+                            data-estado="{{ av.estado }}"
+                            data-site="{{ av.site or '' }}"
+                            data-branch="{{ av.branch or '' }}"
+                            data-cable="{{ av.material_cable_m or 0 }}"
+                            data-conectores="{{ av.material_conectores or 0 }}"
+                            data-rosetas="{{ av.material_rosetas or 0 }}"
+                            data-mangas="{{ av.material_mangas or 0 }}"
+                            data-acopladores="{{ av.material_acopladores or 0 }}"
+                            data-date="{{ av.fecha_resolucion.strftime('%Y-%m-%d') if av.estado == 'REPARADO' else av.fecha_creacion.strftime('%Y-%m-%d') if av.fecha_creacion else '' }}"
+                            data-search="{{ av.cuenta }} {{ av.caja }} {{ av.site or '' }} {{ av.codigo_wo or '' }} {{ av.detalles or '' }} {{ av.contrata }} {{ av.estado }}">
                             <td>
-                                <div class="fw-semibold">{{ av.cuenta }}</div>
+                                <div class="fw-semibold text-dark">{{ av.cuenta }}</div>
+                                {% if av.estado == 'REPARADO' %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem;"><i class="bi bi-check-circle-fill me-1"></i>Reparada</span>
+                                {% else %}
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size: 0.7rem;"><i class="bi bi-clock-fill me-1"></i>Pendiente</span>
+                                {% endif %}
                             </td>
                             <td>
                                 <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
@@ -240,7 +277,11 @@
                                 <small class="text-muted">{{ av.contrata }}</small>
                             </td>
                             <td>
-                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">{{ av.dias_pendientes or 0 }} d</span>
+                                {% if av.estado == 'PENDIENTE' %}
+                                <span class="badge bg-warning text-dark">{{ av.dias_pendientes or 0 }} d</span>
+                                {% else %}
+                                <small class="text-muted">{{ av.fecha_resolucion.strftime('%d/%m/%Y') if av.fecha_resolucion else '' }}</small>
+                                {% endif %}
                             </td>
                             <td class="text-end">
                                 <div class="d-inline-flex gap-1.5 pe-3">
@@ -249,9 +290,15 @@
                                         <i class="bi bi-geo-alt-fill text-danger"></i>
                                     </a>
                                     {% endif %}
+                                    {% if av.estado == 'PENDIENTE' %}
                                     <button class="btn btn-sm btn-success py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
                                         <i class="bi bi-check-circle"></i> Resolver
                                     </button>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-outline-primary py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
+                                        <i class="bi bi-pencil-square"></i> Materiales
+                                    </button>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>
@@ -517,6 +564,77 @@
     const bounds = [];
     window.mapMarkers = [];
     
+    // Nombres de los meses en español para los filtros
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    
+    // Procesar fechas y asignar mes a cada avería
+    averias.forEach(av => {
+        let dateStr = av.estado === 'REPARADO' ? av.fecha_resolucion : av.fecha_creacion;
+        if (!dateStr) dateStr = av.fecha_creacion;
+        if (dateStr) {
+            const parts = dateStr.split("-");
+            if (parts.length >= 2) {
+                const year = parts[0];
+                const monthIdx = parseInt(parts[1]) - 1;
+                const monthName = monthNames[monthIdx];
+                av.monthKey = `${year}-${parts[1]}`;
+                av.monthLabel = `${monthName} ${year}`;
+                av.monthSortVal = parseInt(year) * 100 + parseInt(parts[1]);
+            } else {
+                av.monthKey = "";
+                av.monthLabel = "";
+                av.monthSortVal = 0;
+            }
+        } else {
+            av.monthKey = "";
+            av.monthLabel = "";
+            av.monthSortVal = 0;
+        }
+    });
+
+    // Construir dinámicamente los botones-badges de filtros de meses
+    const uniqueMonthsMap = {};
+    averias.forEach(av => {
+        if (av.monthKey) {
+            uniqueMonthsMap[av.monthKey] = {
+                key: av.monthKey,
+                label: av.monthLabel,
+                sortVal: av.monthSortVal
+            };
+        }
+    });
+    const sortedMonths = Object.values(uniqueMonthsMap).sort((a, b) => b.sortVal - a.sortVal);
+    
+    let selectedMonths = [];
+    const monthsContainer = document.getElementById("monthsFilterContainer");
+    if (monthsContainer) {
+        monthsContainer.innerHTML = "";
+        if (sortedMonths.length === 0) {
+            monthsContainer.innerHTML = `<span class="text-muted small">No hay meses disponibles</span>`;
+        } else {
+            sortedMonths.forEach(m => {
+                const pill = document.createElement("button");
+                pill.type = "button";
+                pill.className = "btn btn-sm btn-outline-primary rounded-pill py-0.5 px-3 fs-7 fw-semibold transition-all";
+                pill.innerText = m.label;
+                pill.dataset.key = m.key;
+                pill.addEventListener("click", function() {
+                    if (selectedMonths.includes(m.key)) {
+                        selectedMonths = selectedMonths.filter(k => k !== m.key);
+                        this.classList.remove("btn-primary");
+                        this.classList.add("btn-outline-primary");
+                    } else {
+                        selectedMonths.push(m.key);
+                        this.classList.remove("btn-outline-primary");
+                        this.classList.add("btn-primary");
+                    }
+                    applyFilters();
+                });
+                monthsContainer.appendChild(pill);
+            });
+        }
+    }
+
     // Renderizar marcadores
     averias.forEach(function(av) {
         const esPendiente = av.estado === 'PENDIENTE';
@@ -581,29 +699,88 @@
         const selectedBranch = branchSelect ? branchSelect.value : '';
         const searchInput = document.getElementById('mapSearchInput');
         const searchText = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        const statusFilter = document.getElementById('statusFilter').value;
         
         let visibleBounds = [];
         
-        // Filtrar marcadores en el mapa
+        // Contadores y sumadores dinámicos
+        let countTotal = 0;
+        let countPending = 0;
+        let countRepaired = 0;
+        
+        let sumCable = 0;
+        let sumConectores = 0;
+        let sumRosetas = 0;
+        let sumMangas = 0;
+        let sumAcopladores = 0;
+        
+        // Filtrar marcadores en el mapa y filas de la tabla
         window.mapMarkers.forEach(item => {
-            const matchesSite = selectedSite === "" || item.data.site === selectedSite;
-            const matchesBranch = selectedBranch === "" || item.data.branch === selectedBranch;
+            const av = item.data;
+            const matchesSite = selectedSite === "" || av.site === selectedSite;
+            const matchesBranch = selectedBranch === "" || av.branch === selectedBranch;
             
             let matchesSearch = true;
             if (searchText !== "") {
-                const searchStr = `${item.data.cuenta} ${item.data.codigo_wo} ${item.data.caja} ${item.data.site} ${item.data.detalles} ${item.data.contrata}`.toLowerCase();
+                const searchStr = `${av.cuenta} ${av.codigo_wo} ${av.caja} ${av.site} ${av.detalles} ${av.contrata} ${av.estado}`.toLowerCase();
                 matchesSearch = searchStr.includes(searchText);
             }
             
-            if (matchesSite && matchesBranch && matchesSearch) {
+            // Filtro por mes (30 días para reparados si no hay meses filtrados)
+            let matchesMonth = true;
+            if (selectedMonths.length > 0) {
+                matchesMonth = selectedMonths.includes(av.monthKey);
+            } else {
+                if (av.estado === 'REPARADO') {
+                    if (av.fecha_resolucion) {
+                        const resDate = new Date(av.fecha_resolucion);
+                        const today = new Date();
+                        const diffTime = Math.abs(today - resDate);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        matchesMonth = diffDays <= 30;
+                    } else {
+                        matchesMonth = false;
+                    }
+                }
+            }
+            
+            // Filtro por estado
+            let matchesStatus = true;
+            if (statusFilter === 'PENDIENTE') {
+                matchesStatus = av.estado === 'PENDIENTE';
+            } else if (statusFilter === 'REPARADO') {
+                matchesStatus = av.estado === 'REPARADO';
+            }
+            
+            const isVisible = matchesSite && matchesBranch && matchesSearch && matchesMonth && matchesStatus;
+            
+            if (isVisible) {
                 if (!map.hasLayer(item.marker)) {
                     item.marker.addTo(map);
                 }
                 visibleBounds.push(item.marker.getLatLng());
+                
+                countTotal++;
+                if (av.estado === 'PENDIENTE') {
+                    countPending++;
+                } else if (av.estado === 'REPARADO') {
+                    countRepaired++;
+                    sumCable += parseInt(av.cable) || 0;
+                    sumConectores += parseInt(av.conectores) || 0;
+                    sumRosetas += parseInt(av.rosetas) || 0;
+                    sumMangas += parseInt(av.mangas) || 0;
+                    sumAcopladores += parseInt(av.acopladores) || 0;
+                }
             } else {
                 if (map.hasLayer(item.marker)) {
                     map.removeLayer(item.marker);
                 }
+            }
+            
+            // Alternar fila de tabla
+            const row = document.querySelector(`.averia-row-item[data-id="${av.id}"]`);
+            if (row) {
+                row.style.display = isVisible ? "" : "none";
             }
         });
         
@@ -612,34 +789,60 @@
             map.fitBounds(visibleBounds, { padding: [50, 50] });
         }
         
-        // Filtrar filas de la lista de pendientes
-        const rows = document.querySelectorAll(".pending-row");
-        let visibleCount = 0;
-        rows.forEach(row => {
-            const rowSite = row.getAttribute("data-site");
-            const rowBranch = row.getAttribute("data-branch");
-            const rowSearchText = row.getAttribute("data-search") ? row.getAttribute("data-search").toLowerCase() : "";
-            
-            const matchesSite = selectedSite === "" || rowSite === selectedSite;
-            const matchesBranch = selectedBranch === "" || rowBranch === selectedBranch;
-            
-            let matchesSearch = true;
-            if (searchText !== "") {
-                matchesSearch = rowSearchText.includes(searchText);
-            }
-            
-            if (matchesSite && matchesBranch && matchesSearch) {
-                row.style.display = "";
-                visibleCount++;
-            } else {
-                row.style.display = "none";
+        // Actualizar métricas
+        document.querySelectorAll(".metric-card").forEach(card => {
+            const labelEl = card.querySelector(".metric-label");
+            const valueEl = card.querySelector(".metric-value");
+            if (labelEl && valueEl) {
+                const label = labelEl.innerText.trim();
+                if (label.includes("Total")) {
+                    valueEl.innerText = countTotal;
+                } else if (label.includes("Pendientes")) {
+                    valueEl.innerText = countPending;
+                } else if (label.includes("Reparadas")) {
+                    valueEl.innerText = countRepaired;
+                }
             }
         });
         
-        // Actualizar contador superior
+        // Actualizar consumos de materiales
+        document.querySelectorAll(".metric-card-noc").forEach(card => {
+            const labelEl = card.querySelector(".metric-label");
+            const valueEl = card.querySelector(".metric-value");
+            if (labelEl && valueEl) {
+                const label = labelEl.innerText.trim().toLowerCase();
+                if (label.includes("cable")) {
+                    valueEl.innerText = `${sumCable} m`;
+                } else if (label.includes("conector")) {
+                    valueEl.innerText = `${sumConectores} ud`;
+                } else if (label.includes("roseta")) {
+                    valueEl.innerText = `${sumRosetas} ud`;
+                } else if (label.includes("manga")) {
+                    valueEl.innerText = `${sumMangas} ud`;
+                } else if (label.includes("acoplador")) {
+                    valueEl.innerText = `${sumAcopladores} ud`;
+                }
+            }
+        });
+        
+        // Actualizar título de lista
+        const titleLabel = document.getElementById("list-title-label");
+        if (titleLabel) {
+            let stateWord = "Averías";
+            if (statusFilter === 'PENDIENTE') stateWord = "Averías Pendientes";
+            else if (statusFilter === 'REPARADO') stateWord = "Averías Reparadas";
+            
+            let monthWord = "";
+            if (selectedMonths.length > 0) {
+                monthWord = " de meses seleccionados";
+            }
+            titleLabel.innerHTML = `<i class="bi bi-list-task me-2 text-primary"></i>Lista de ${stateWord}${monthWord}`;
+        }
+        
+        // Actualizar contador superior de lista
         const counter = document.getElementById("pending-counter");
         if (counter) {
-            counter.innerText = visibleCount + " casos";
+            counter.innerText = countTotal + " casos";
         }
     };
 
@@ -649,8 +852,22 @@
         if (branchSelect) branchSelect.value = "";
         const searchInput = document.getElementById('mapSearchInput');
         if (searchInput) searchInput.value = "";
+        document.getElementById('statusFilter').value = "PENDIENTE";
+        
+        selectedMonths = [];
+        const monthsContainer = document.getElementById("monthsFilterContainer");
+        if (monthsContainer) {
+            monthsContainer.querySelectorAll("button").forEach(btn => {
+                btn.classList.remove("btn-primary");
+                btn.classList.add("btn-outline-primary");
+            });
+        }
+        
         window.applyFilters();
     };
+
+    // Aplicar filtros iniciales en carga
+    window.applyFilters();
     
     // Captura de coordenadas al hacer clic en el mapa y marcador interactivo
     map.on('click', function(e) {

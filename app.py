@@ -669,16 +669,18 @@ def dashboard():
     
     stats = obtener_estadisticas(branch=branch, es_admin=es_admin)
     
-    # Obtener las averías pendientes y reparadas (últimas 100) correspondientes a la sede
+    # Obtener las averías pendientes y las reparadas en los últimos 12 meses
+    from datetime import datetime, timedelta
+    hace_12_meses = datetime.now() - timedelta(days=365)
     query_pendientes = Averia.query.filter_by(estado="PENDIENTE")
-    query_reparadas = Averia.query.filter_by(estado="REPARADO")
+    query_reparadas = Averia.query.filter(Averia.estado == "REPARADO", Averia.fecha_resolucion >= hace_12_meses)
     
     if not es_admin and branch != "ALL":
         query_pendientes = query_pendientes.filter_by(branch=branch)
         query_reparadas = query_reparadas.filter_by(branch=branch)
         
     averias_pendientes = query_pendientes.order_by(Averia.dias_pendientes.desc().nullslast()).all()
-    averias_reparadas = query_reparadas.order_by(Averia.fecha_resolucion.desc()).limit(100).all()
+    averias_reparadas = query_reparadas.order_by(Averia.fecha_resolucion.desc()).all()
     averias_totales = averias_pendientes + averias_reparadas
     
     # Serializar datos para Leaflet map
@@ -705,7 +707,14 @@ def dashboard():
                         "lng": lng,
                         "materiales_json": av.materiales_json or "{}",
                         "comentarios": av.material_comentarios or "",
-                        "tipificacion": av.tipificacion or ""
+                        "tipificacion": av.tipificacion or "",
+                        "fecha_creacion": av.fecha_creacion.strftime("%Y-%m-%d") if av.fecha_creacion else "",
+                        "fecha_resolucion": av.fecha_resolucion.strftime("%Y-%m-%d") if av.fecha_resolucion else "",
+                        "cable": av.material_cable_m or 0,
+                        "conectores": av.material_conectores or 0,
+                        "rosetas": av.material_rosetas or 0,
+                        "mangas": av.material_mangas or 0,
+                        "acopladores": av.material_acopladores or 0
                     })
                 except ValueError:
                     continue
@@ -741,7 +750,7 @@ def dashboard():
         "dashboard.html", 
         stats=stats, 
         map_json=json.dumps(map_data),
-        averias_list=averias_pendientes,
+        averias_list=averias_totales,
         es_provincia=es_provincia,
         materials=materials_totals
     )
@@ -764,6 +773,50 @@ def sync_sheets():
     return redirect(url_for("dashboard"))
 
 
+def ajustar_stock_por_consumo(branch, old_mats_dict, new_mats_dict):
+    """
+    Compara old_mats_dict y new_mats_dict, calcula la diferencia (new_qty - old_qty)
+    y descuenta esa diferencia de StockBranch.stock_actual para la sede dada.
+    """
+    all_keys = set(list(old_mats_dict.keys()) + list(new_mats_dict.keys()))
+    for key in all_keys:
+        parts = key.split("|")
+        if len(parts) < 2:
+            continue
+        codigo = parts[0]
+        nombre = parts[1]
+        
+        old_qty = old_mats_dict.get(key, 0)
+        new_qty = new_mats_dict.get(key, 0)
+        
+        try:
+            old_qty = int(old_qty)
+        except (ValueError, TypeError):
+            old_qty = 0
+            
+        try:
+            new_qty = int(new_qty)
+        except (ValueError, TypeError):
+            new_qty = 0
+            
+        diff = new_qty - old_qty
+        if diff == 0:
+            continue
+            
+        reg = StockBranch.query.filter_by(branch=branch, material_codigo=codigo).first()
+        if not reg:
+            mat_master = next((m for m in MATERIALES_MASTER if m["codigo"] == codigo), None)
+            reg = StockBranch(
+                branch=branch,
+                material_codigo=codigo,
+                material_nombre=mat_master["nombre"] if mat_master else nombre,
+                stock_actual=0
+            )
+            db.session.add(reg)
+            
+        reg.stock_actual = max(0, reg.stock_actual - diff)
+
+
 @app.route("/averias/resolver/<int:id>", methods=["POST"])
 @login_requerido
 def resolver_averia(id):
@@ -783,6 +836,17 @@ def resolver_averia(id):
         materiales_json_str = request.form.get("materiales_json", "{}")
         comentarios = request.form.get("comentarios", "").strip()
         
+        # Obtener materiales viejos antes de actualizar
+        old_mats = averia.materiales_dict
+        
+        try:
+            mats = json.loads(materiales_json_str)
+        except Exception:
+            mats = {}
+            
+        # Ajustar el stock según el consumo
+        ajustar_stock_por_consumo(averia.branch, old_mats, mats)
+        
         averia.estado = "REPARADO"
         averia.fecha_resolucion = datetime.now()
         averia.tecnico_id = session.get("operador_id")
@@ -791,11 +855,6 @@ def resolver_averia(id):
         averia.tipificacion = request.form.get("tipificacion", "").strip()
         
         # Calcular valores compatibles para las 5 columnas básicas
-        try:
-            mats = json.loads(materiales_json_str)
-        except Exception:
-            mats = {}
-            
         cable_m = 0
         conectores = 0
         rosetas = 0
@@ -835,6 +894,7 @@ def resolver_averia(id):
         db.session.rollback()
         flash(f"Error al resolver avería: {str(e)}", "danger")
         return redirect(url_for("dashboard"))
+
 
 
 @app.route("/averias/agrupar/<int:id>", methods=["GET", "POST"])
@@ -1076,23 +1136,29 @@ def registrar_stock():
                 db.session.add(reg)
                 
             try:
-                reg.stock_actual = int(actuales[i]) if actuales[i] else 0
+                submitted_actual = int(actuales[i]) if actuales[i] else 0
             except ValueError:
-                reg.stock_actual = 0
+                submitted_actual = 0
                 
             try:
-                reg.stock_enviado_noc = int(enviados[i]) if enviados[i] else 0
+                submitted_enviado = int(enviados[i]) if enviados[i] else 0
             except ValueError:
-                reg.stock_enviado_noc = 0
+                submitted_enviado = 0
                 
-            fecha_str = fechas[i] if len(fechas) > i else ""
-            if fecha_str:
-                try:
-                    reg.fecha_envio_noc = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-                except ValueError:
-                    reg.fecha_envio_noc = None
-            else:
-                reg.fecha_envio_noc = None
+            reg.stock_actual = submitted_actual
+            
+            # Solo actualizar los detalles del último envío NOC si se ingresó un valor > 0
+            if submitted_enviado > 0:
+                reg.stock_enviado_noc = submitted_enviado
+                fecha_str = fechas[i] if len(fechas) > i else ""
+                if fecha_str:
+                    try:
+                        reg.fecha_envio_noc = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        reg.fecha_envio_noc = datetime.today().date()
+                else:
+                    reg.fecha_envio_noc = datetime.today().date()
+
                 
         try:
             db.session.commit()
