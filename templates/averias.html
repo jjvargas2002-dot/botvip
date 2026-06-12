@@ -13,7 +13,7 @@
         <p class="text-muted mb-0">Listado histórico de tickets y consumos de material de tu sede. Total registrados: <strong class="text-primary">{{ averias|length }}</strong></p>
     </div>
     <div class="col-md-6 text-md-end d-flex gap-2 justify-content-md-end">
-        <a href="{{ url_for('exportar_averias') }}" class="btn btn-success d-flex align-items-center gap-1.5 py-2 px-3 shadow-sm">
+        <a id="btnExportarExcel" href="{{ url_for('exportar_averias') }}" class="btn btn-success d-flex align-items-center gap-1.5 py-2 px-3 shadow-sm">
             <i class="bi bi-file-earmark-excel-fill"></i> Exportar Reporte Excel
         </a>
         {% if session.get('operador_rol')|lower == 'noc' %}
@@ -32,14 +32,14 @@
 <div class="card-premium mb-4">
     <div class="card-body p-3">
         <div class="row g-2">
-            <div class="col-md-3">
+            <div class="col-md-2 col-12">
                 <div class="input-group">
                     <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
-                    <input type="text" id="searchInput" class="form-control form-control-custom border-start-0" placeholder="Buscar por cuenta, caja, WO, detalles...">
+                    <input type="text" id="searchInput" class="form-control form-control-custom border-start-0" placeholder="Buscar...">
                 </div>
             </div>
-            {% if session.get('operador_rol') == 'admin' %}
-            <div class="col-md-2">
+            {% if session.get('operador_rol') in ['admin', 'noc'] %}
+            <div class="col-md-2 col-6">
                 <select id="branchFilter" class="form-select form-select-custom">
                     <option value="">Todas las Sedes</option>
                     <option value="LI1">LI1</option>
@@ -61,6 +61,11 @@
             <input type="hidden" id="branchFilter" value="">
             {% endif %}
             <div class="col-md-2 col-6">
+                <select id="monthFilter" class="form-select form-select-custom">
+                    <option value="">Todos los Meses</option>
+                </select>
+            </div>
+            <div class="col-md-2 col-6">
                 <select id="siteFilter" class="form-select form-select-custom">
                     <option value="">Todos los SITEs</option>
                 </select>
@@ -72,10 +77,10 @@
                     <option value="REPARA">Reparado</option>
                 </select>
             </div>
-            <div class="col-md-2 col-6">
+            <div class="col-md-1 col-6">
                 <select id="originFilter" class="form-select form-select-custom">
-                    <option value="">Orígenes</option>
-                    <option value="SHEETS">Sheets (Drive)</option>
+                    <option value="">Origen</option>
+                    <option value="SHEETS">Sheets</option>
                     <option value="MANUAL">Manual</option>
                 </select>
             </div>
@@ -171,6 +176,7 @@
                     data-status="{{ av.estado }}"
                     data-branch="{{ av.branch }}"
                     data-site="{{ av.site or '' }}"
+                    data-month="{{ av.fecha_resolucion.strftime('%Y-%m') if av.fecha_resolucion else (av.fecha_creacion.strftime('%Y-%m') if av.fecha_creacion else '') }}"
                     data-origin="{{ av.origen }}"
                     data-cable="{{ av.material_cable_m or 0 }}"
                     data-conectores="{{ av.material_conectores or 0 }}"
@@ -401,6 +407,7 @@
     document.addEventListener("DOMContentLoaded", function() {
         const searchInput = document.getElementById("searchInput");
         const branchFilter = document.getElementById("branchFilter");
+        const monthFilter = document.getElementById("monthFilter");
         const siteFilter = document.getElementById("siteFilter");
         const statusFilter = document.getElementById("statusFilter");
         const originFilter = document.getElementById("originFilter");
@@ -418,9 +425,19 @@
             siteFilter.appendChild(option);
         });
 
+        // Autopopular dinámicamente los meses únicos en el dropdown
+        const uniqueMonths = [...new Set(Array.from(rows).map(row => row.getAttribute("data-month")).filter(m => m && m.trim() !== ''))].sort().reverse();
+        uniqueMonths.forEach(month => {
+            const option = document.createElement("option");
+            option.value = month;
+            option.innerText = month;
+            monthFilter.appendChild(option);
+        });
+
         function filterTable() {
             const query = searchInput.value.toLowerCase().trim();
-            const branch = branchFilter.value;
+            const branch = branchFilter ? branchFilter.value : "";
+            const month = monthFilter.value;
             const site = siteFilter.value;
             const status = statusFilter.value;
             const origin = originFilter.value;
@@ -437,15 +454,17 @@
                 const rowStatus = row.getAttribute("data-status");
                 const rowBranch = row.getAttribute("data-branch");
                 const rowSite = row.getAttribute("data-site");
+                const rowMonth = row.getAttribute("data-month");
                 const rowOrigin = row.getAttribute("data-origin");
                 
                 const matchesSearch = query === "" || searchData.includes(query);
                 const matchesBranch = branch === "" || rowBranch === branch;
+                const matchesMonth = month === "" || rowMonth === month;
                 const matchesSite = site === "" || rowSite === site;
                 const matchesStatus = status === "" || rowStatus.includes(status);
                 const matchesOrigin = origin === "" || rowOrigin === origin;
                 
-                if (matchesSearch && matchesBranch && matchesSite && matchesStatus && matchesOrigin) {
+                if (matchesSearch && matchesBranch && matchesMonth && matchesSite && matchesStatus && matchesOrigin) {
                     row.style.display = "";
                     visibleCount++;
                     
@@ -475,17 +494,32 @@
                     noResultsRow.style.display = "none";
                 }
             }
+
+            // Actualizar URL del botón de exportar excel
+            const btnExportar = document.getElementById("btnExportarExcel");
+            if (btnExportar) {
+                let exportUrl = "{{ url_for('exportar_averias') }}";
+                const params = [];
+                if (branch) params.push("branch=" + encodeURIComponent(branch));
+                if (month) params.push("month=" + encodeURIComponent(month));
+                if (params.length > 0) {
+                    exportUrl += "?" + params.join("&");
+                }
+                btnExportar.setAttribute("href", exportUrl);
+            }
         }
         
         searchInput.addEventListener("input", filterTable);
         if (branchFilter) branchFilter.addEventListener("change", filterTable);
+        monthFilter.addEventListener("change", filterTable);
         siteFilter.addEventListener("change", filterTable);
         statusFilter.addEventListener("change", filterTable);
         originFilter.addEventListener("change", filterTable);
         
         resetFilters.addEventListener("click", function() {
             searchInput.value = "";
-            if (branchFilter && branchFilter.type !== "hidden") branchFilter.value = "";
+            if (branchFilter && branchFilter.tagName === "SELECT") branchFilter.value = "";
+            monthFilter.value = "";
             siteFilter.value = "";
             statusFilter.value = "";
             originFilter.value = "";

@@ -1263,14 +1263,15 @@ def registrar_stock():
 @login_requerido
 def listar_averias():
     es_admin = session.get("operador_rol") == "admin"
+    es_noc = session.get("operador_rol") == "noc"
     branch = session.get("operador_branch")
     
     query = Averia.query
-    if not es_admin and branch != "ALL":
+    if not es_admin and not es_noc and branch != "ALL":
         query = query.filter_by(branch=branch)
         
     averias = query.order_by(Averia.id.desc()).all()
-    stats = obtener_estadisticas(branch=branch, es_admin=es_admin)
+    stats = obtener_estadisticas(branch=branch, es_admin=(es_admin or es_noc))
     return render_template("averias.html", averias=averias, stats=stats)
 
 
@@ -1279,13 +1280,32 @@ def listar_averias():
 def exportar_averias():
     import collections
     es_admin = session.get("operador_rol") == "admin"
-    branch = session.get("operador_branch")
+    es_noc = session.get("operador_rol") == "noc"
+    user_branch = session.get("operador_branch")
     
+    branch_arg = request.args.get("branch")
+    month_arg = request.args.get("month")
+    
+    if not es_admin and not es_noc and user_branch != "ALL":
+        target_branch = user_branch
+    else:
+        target_branch = branch_arg if branch_arg else "ALL"
+        
     query = Averia.query
-    if not es_admin and branch != "ALL":
-        query = query.filter_by(branch=branch)
+    if target_branch != "ALL":
+        query = query.filter_by(branch=target_branch)
         
     averias = query.order_by(Averia.id.desc()).all()
+    
+    # Filter by month python-side (consistent with frontend data-month)
+    if month_arg:
+        filtered_averias = []
+        for av in averias:
+            av_date = av.fecha_resolucion if av.fecha_resolucion else av.fecha_creacion
+            if av_date and av_date.strftime("%Y-%m") == month_arg:
+                filtered_averias.append(av)
+        averias = filtered_averias
+        
     reparadas = [av for av in averias if av.estado == "REPARADO" and av.fecha_resolucion]
     
     # Group reparadas by month (YYYY-MM)
@@ -1294,30 +1314,21 @@ def exportar_averias():
         mes_str = av.fecha_resolucion.strftime("%Y-%m")
         reparadas_por_mes[mes_str].append(av)
         
-    # Get stock records
-    if branch == "ALL":
-        from sqlalchemy import func
-        stock_records = db.session.query(
-            StockBranch.material_nombre,
-            func.sum(StockBranch.stock_actual).label("stock_actual"),
-            func.sum(StockBranch.stock_enviado_noc).label("stock_enviado_noc"),
-            func.max(StockBranch.fecha_envio_noc).label("fecha_envio_noc")
-        ).group_by(StockBranch.material_nombre).all()
-        stock_dict = {
-            r.material_nombre: {
-                "stock_actual": int(r.stock_actual or 0),
-                "stock_enviado_noc": int(r.stock_enviado_noc or 0),
-                "fecha_envio_noc": r.fecha_envio_noc.strftime("%Y-%m-%d") if r.fecha_envio_noc else ""
-            } for r in stock_records
-        }
-    else:
-        stock_records = StockBranch.query.filter_by(branch=branch).all()
-        stock_dict = {
-            r.material_nombre: {
-                "stock_actual": r.stock_actual or 0,
-                "stock_enviado_noc": r.stock_enviado_noc or 0,
-                "fecha_envio_noc": r.fecha_envio_noc.strftime("%Y-%m-%d") if r.fecha_envio_noc else ""
-            } for r in stock_records
+    # Group reparadas by month and branch
+    reparadas_por_mes_y_branch = collections.defaultdict(list)
+    for av in reparadas:
+        mes_str = av.fecha_resolucion.strftime("%Y-%m")
+        br = av.branch or "Sin Sede"
+        reparadas_por_mes_y_branch[(mes_str, br)].append(av)
+        
+    # Build dictionary of stock by branch and material name
+    stock_by_branch = collections.defaultdict(dict)
+    all_stock = StockBranch.query.all()
+    for r in all_stock:
+        stock_by_branch[r.branch][r.material_nombre] = {
+            "stock_actual": r.stock_actual or 0,
+            "stock_enviado_noc": r.stock_enviado_noc or 0,
+            "fecha_envio_noc": r.fecha_envio_noc.strftime("%Y-%m-%d") if r.fecha_envio_noc else ""
         }
         
     workbook = Workbook()
@@ -1398,13 +1409,16 @@ def exportar_averias():
             c_cell = summary_sheet.cell(row=curr_row, column=3 + idx, value=cant)
             c_cell.alignment = right_align
             
-        start_letter = get_column_letter(3)
-        end_letter = get_column_letter(2 + len(months_keys))
         total_cell = summary_sheet.cell(row=curr_row, column=3 + len(months_keys))
-        total_cell.value = f"=SUM({start_letter}{curr_row}:{end_letter}{curr_row})"
         total_cell.alignment = right_align
         total_cell.font = bold_font
         total_cell.fill = green_fill
+        if months_keys:
+            start_letter = get_column_letter(3)
+            end_letter = get_column_letter(2 + len(months_keys))
+            total_cell.value = f"=SUM({start_letter}{curr_row}:{end_letter}{curr_row})"
+        else:
+            total_cell.value = 0
         
         curr_row += 1
         
@@ -1447,13 +1461,16 @@ def exportar_averias():
             c_cell = summary_sheet.cell(row=curr_row, column=2 + idx, value=count)
             c_cell.alignment = right_align
             
-        start_letter = get_column_letter(2)
-        end_letter = get_column_letter(1 + len(months_keys))
         total_cell = summary_sheet.cell(row=curr_row, column=2 + len(months_keys))
-        total_cell.value = f"=SUM({start_letter}{curr_row}:{end_letter}{curr_row})"
         total_cell.alignment = right_align
         total_cell.font = bold_font
         total_cell.fill = green_fill
+        if months_keys:
+            start_letter = get_column_letter(2)
+            end_letter = get_column_letter(1 + len(months_keys))
+            total_cell.value = f"=SUM({start_letter}{curr_row}:{end_letter}{curr_row})"
+        else:
+            total_cell.value = 0
         
         curr_row += 1
 
@@ -1531,13 +1548,27 @@ def exportar_averias():
         for cell in row:
             cell.alignment = Alignment(vertical="top", wrap_text=True)
 
-    # 3. MONTHLY SHEETS
-    for mes_str in months_keys:
-        month_sheet = workbook.create_sheet(title=mes_str)
+    # 3. MONTHLY BALANCE SHEETS
+    if target_branch != "ALL":
+        keys_to_generate = [(mes_str, target_branch) for mes_str in sorted(list(reparadas_por_mes.keys()), reverse=True)]
+    else:
+        # Group by month and sort branches alphabetically
+        grouped_by_month = collections.defaultdict(list)
+        for (mes_str, br) in reparadas_por_mes_y_branch.keys():
+            grouped_by_month[mes_str].append(br)
+            
+        keys_to_generate = []
+        for mes_str in sorted(grouped_by_month.keys(), reverse=True):
+            for br in sorted(grouped_by_month[mes_str]):
+                keys_to_generate.append((mes_str, br))
+                
+    for mes_str, br in keys_to_generate:
+        sheet_title = f"{mes_str} ({br})" if target_branch == "ALL" else mes_str
+        month_sheet = workbook.create_sheet(title=sheet_title)
         
         # Title row
         month_sheet.merge_cells("A1:F1")
-        month_sheet["A1"] = f"BALANCE DE MATERIALES - MES: {mes_str}"
+        month_sheet["A1"] = f"BALANCE DE MATERIALES - Sede: {br} - Mes: {mes_str}"
         month_sheet["A1"].font = Font(size=14, bold=True, color="5B21B6")
         month_sheet["A1"].alignment = left_align
         month_sheet.row_dimensions[1].height = 30
@@ -1561,10 +1592,13 @@ def exportar_averias():
             
         month_sheet.row_dimensions[3].height = 25
         
+        st_dict_br = stock_by_branch.get(br, {})
+        reparadas_m_b = reparadas_por_mes_y_branch.get((mes_str, br), []) if target_branch == "ALL" else reparadas_por_mes.get(mes_str, [])
+        
         for idx, m in enumerate(MATERIALES_MASTER, start=1):
             row_num = 3 + idx
             
-            st_data = stock_dict.get(m["nombre"], {"stock_actual": 0, "stock_enviado_noc": 0, "fecha_envio_noc": ""})
+            st_data = st_dict_br.get(m["nombre"], {"stock_actual": 0, "stock_enviado_noc": 0, "fecha_envio_noc": ""})
             
             month_sheet.cell(row=row_num, column=1, value=idx).alignment = center_align
             month_sheet.cell(row=row_num, column=2, value=m["nombre"]).alignment = left_align
@@ -1574,8 +1608,8 @@ def exportar_averias():
             month_sheet.cell(row=row_num, column=5, value=st_data["stock_enviado_noc"]).alignment = right_align
             month_sheet.cell(row=row_num, column=6, value=st_data["fecha_envio_noc"]).alignment = center_align
             
-            # Bitel consumption (total sum of material consumed in this month)
-            cant = sum(get_material_quantity(av.materiales_dict, m) for av in reparadas_por_mes[mes_str])
+            # Bitel consumption (total sum of material consumed in this month/branch combo)
+            cant = sum(get_material_quantity(av.materiales_dict, m) for av in reparadas_m_b)
             c_cell = month_sheet.cell(row=row_num, column=7, value=cant)
             c_cell.alignment = right_align
                 
@@ -1602,10 +1636,20 @@ def exportar_averias():
     workbook.save(output)
     output.seek(0)
     
+    # Construct descriptive filename
+    filename_parts = ["reporte_averias"]
+    if target_branch != "ALL":
+        filename_parts.append(target_branch.lower())
+    else:
+        filename_parts.append("global")
+    if month_arg:
+        filename_parts.append(month_arg)
+    download_name = "_".join(filename_parts) + ".xlsx"
+    
     return send_file(
         output,
         as_attachment=True,
-        download_name=f"reporte_averias_{branch.lower() if branch != 'ALL' else 'global'}.xlsx",
+        download_name=download_name,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
