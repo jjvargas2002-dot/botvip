@@ -1118,6 +1118,9 @@ def registrar_stock():
         sede_actual = branch.strip().upper()
         
     if request.method == "POST":
+        if es_noc:
+            flash("No tienes permisos para modificar el inventario.", "danger")
+            return redirect(url_for("registrar_stock", branch=sede_actual))
         codigos = request.form.getlist("material_codigo")
         nombres = request.form.getlist("material_nombre")
         actuales = request.form.getlist("stock_actual")
@@ -1249,6 +1252,7 @@ def registrar_stock():
         sede_actual=sede_actual,
         sedes=sedes,
         es_admin_or_noc=(es_admin or es_noc),
+        es_noc=es_noc,
         consumo_materiales=consumo_materiales,
         tipificaciones_data=tipificaciones_sede,
         total_reparadas_sede=len(reparadas_sede)

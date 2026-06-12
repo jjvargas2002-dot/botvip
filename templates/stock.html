@@ -212,16 +212,16 @@
                                                                 <div class="text-muted" style="font-size: 0.75rem;">{{ seccion }}</div>
                                                             </td>
                                                             <td class="text-center">
-                                                                 <input type="number" name="stock_actual" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_actual }}">
+                                                                 <input type="number" name="stock_actual" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="{{ m.stock_actual }}" {% if es_noc %}disabled{% endif %}>
                                                              </td>
                                                              <td class="text-center">
-                                                                 <input type="number" name="stock_enviado_noc" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="0">
+                                                                 <input type="number" name="stock_enviado_noc" class="form-control form-control-custom form-control-sm input-stock-number mx-auto" min="0" value="0" {% if es_noc %}disabled{% endif %}>
                                                                  {% if m.stock_enviado_noc > 0 %}
                                                                  <div class="text-muted mt-1 small" style="font-size: 0.725rem;"><span class="badge bg-secondary-subtle text-secondary">Ant: {{ m.stock_enviado_noc }}</span></div>
                                                                  {% endif %}
                                                              </td>
                                                              <td class="text-center">
-                                                                 <input type="date" name="fecha_envio_noc" class="form-control form-control-custom form-control-sm input-stock-date mx-auto" value="">
+                                                                 <input type="date" name="fecha_envio_noc" class="form-control form-control-custom form-control-sm input-stock-date mx-auto" value="" {% if es_noc %}disabled{% endif %}>
                                                                  {% if m.fecha_envio_noc %}
                                                                  <div class="text-muted mt-1 small" style="font-size: 0.725rem;"><span class="badge bg-light text-dark border">{{ m.fecha_envio_noc }}</span></div>
                                                                  {% endif %}
@@ -240,12 +240,18 @@
 
                         <!-- Botones de Acción flotante -->
                         <div class="actions-bar shadow-sm">
-                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary px-4 py-2 rounded-3">
-                                <i class="bi bi-arrow-left me-2"></i>Volver al Mapa
+                            <a href="{{ url_for('noc_dashboard' if es_noc else 'dashboard') }}" class="btn btn-outline-secondary px-4 py-2 rounded-3">
+                                <i class="bi bi-arrow-left me-2"></i>{% if es_noc %}Volver al Dashboard NOC{% else %}Volver al Mapa{% endif %}
                             </a>
+                            {% if not es_noc %}
                             <button type="submit" class="btn btn-premium-primary px-5 py-2 rounded-3 fw-semibold shadow-sm">
                                 <i class="bi bi-save-fill me-2"></i>Guardar Cambios
                             </button>
+                            {% else %}
+                            <span class="badge bg-secondary text-secondary-subtle border px-3 py-2 rounded-3 d-flex align-items-center gap-1.5 fw-semibold" style="font-size: 0.85rem;">
+                                <i class="bi bi-eye-fill"></i> Modo Solo Lectura (NOC)
+                            </span>
+                            {% endif %}
                         </div>
                     </form>
                 </div>
