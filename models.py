@@ -119,7 +119,7 @@ class StockBranch(db.Model):
     fecha_envio_noc = db.Column(db.Date, nullable=True)
     fecha_actualizacion = db.Column(db.DateTime, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
-    __table_args__ = (db.UniqueConstraint("branch", "material_codigo", name="uq_branch_material"),)
+    __table_args__ = (db.UniqueConstraint("branch", "material_nombre", name="uq_branch_material_nombre"),)
 
 
 

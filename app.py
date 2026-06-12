@@ -269,9 +269,12 @@ def asegurar_esquema():
             stock_enviado_noc INTEGER DEFAULT 0,
             fecha_envio_noc DATE,
             fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(branch, material_codigo)
+            UNIQUE(branch, material_nombre)
         )
         """,
+        "ALTER TABLE stock_branch DROP CONSTRAINT IF EXISTS uq_branch_material",
+        "ALTER TABLE stock_branch DROP CONSTRAINT IF EXISTS stock_branch_branch_material_codigo_key",
+        "ALTER TABLE stock_branch ADD CONSTRAINT uq_branch_material_nombre UNIQUE (branch, material_nombre)",
         "ALTER TABLE averias DROP CONSTRAINT IF EXISTS averias_cuenta_key",
         "ALTER TABLE averias ALTER COLUMN cuenta DROP NOT NULL"
     ]
@@ -803,13 +806,12 @@ def ajustar_stock_por_consumo(branch, old_mats_dict, new_mats_dict):
         if diff == 0:
             continue
             
-        reg = StockBranch.query.filter_by(branch=branch, material_codigo=codigo).first()
+        reg = StockBranch.query.filter_by(branch=branch, material_nombre=nombre).first()
         if not reg:
-            mat_master = next((m for m in MATERIALES_MASTER if m["codigo"] == codigo), None)
             reg = StockBranch(
                 branch=branch,
                 material_codigo=codigo,
-                material_nombre=mat_master["nombre"] if mat_master else nombre,
+                material_nombre=nombre,
                 stock_actual=0
             )
             db.session.add(reg)
@@ -1117,21 +1119,22 @@ def registrar_stock():
         
     if request.method == "POST":
         codigos = request.form.getlist("material_codigo")
+        nombres = request.form.getlist("material_nombre")
         actuales = request.form.getlist("stock_actual")
         enviados = request.form.getlist("stock_enviado_noc")
         fechas = request.form.getlist("fecha_envio_noc")
         
-        for i, cod in enumerate(codigos):
-            mat_master = next((m for m in MATERIALES_MASTER if m["codigo"] == cod), None)
-            if not mat_master:
+        for i, nombre in enumerate(nombres):
+            cod = codigos[i] if len(codigos) > i else ""
+            if not nombre:
                 continue
                 
-            reg = StockBranch.query.filter_by(branch=sede_actual, material_codigo=cod).first()
+            reg = StockBranch.query.filter_by(branch=sede_actual, material_nombre=nombre).first()
             if not reg:
                 reg = StockBranch(
                     branch=sede_actual,
                     material_codigo=cod,
-                    material_nombre=mat_master["nombre"]
+                    material_nombre=nombre
                 )
                 db.session.add(reg)
                 
@@ -1170,11 +1173,11 @@ def registrar_stock():
         return redirect(url_for("registrar_stock", branch=sede_actual))
         
     stock_regs = StockBranch.query.filter_by(branch=sede_actual).all()
-    stock_dict = {r.material_codigo: r for r in stock_regs}
+    stock_dict = {r.material_nombre: r for r in stock_regs}
     
     materiales_stock = []
     for m in MATERIALES_MASTER:
-        reg = stock_dict.get(m["codigo"])
+        reg = stock_dict.get(m["nombre"])
         materiales_stock.append({
             "codigo": m["codigo"],
             "nombre": m["nombre"],
@@ -1291,13 +1294,13 @@ def exportar_averias():
     if branch == "ALL":
         from sqlalchemy import func
         stock_records = db.session.query(
-            StockBranch.material_codigo,
+            StockBranch.material_nombre,
             func.sum(StockBranch.stock_actual).label("stock_actual"),
             func.sum(StockBranch.stock_enviado_noc).label("stock_enviado_noc"),
             func.max(StockBranch.fecha_envio_noc).label("fecha_envio_noc")
-        ).group_by(StockBranch.material_codigo).all()
+        ).group_by(StockBranch.material_nombre).all()
         stock_dict = {
-            r.material_codigo: {
+            r.material_nombre: {
                 "stock_actual": int(r.stock_actual or 0),
                 "stock_enviado_noc": int(r.stock_enviado_noc or 0),
                 "fecha_envio_noc": r.fecha_envio_noc.strftime("%Y-%m-%d") if r.fecha_envio_noc else ""
@@ -1306,7 +1309,7 @@ def exportar_averias():
     else:
         stock_records = StockBranch.query.filter_by(branch=branch).all()
         stock_dict = {
-            r.material_codigo: {
+            r.material_nombre: {
                 "stock_actual": r.stock_actual or 0,
                 "stock_enviado_noc": r.stock_enviado_noc or 0,
                 "fecha_envio_noc": r.fecha_envio_noc.strftime("%Y-%m-%d") if r.fecha_envio_noc else ""
@@ -1557,7 +1560,7 @@ def exportar_averias():
         for idx, m in enumerate(MATERIALES_MASTER, start=1):
             row_num = 3 + idx
             
-            st_data = stock_dict.get(m["codigo"], {"stock_actual": 0, "stock_enviado_noc": 0, "fecha_envio_noc": ""})
+            st_data = stock_dict.get(m["nombre"], {"stock_actual": 0, "stock_enviado_noc": 0, "fecha_envio_noc": ""})
             
             month_sheet.cell(row=row_num, column=1, value=idx).alignment = center_align
             month_sheet.cell(row=row_num, column=2, value=m["nombre"]).alignment = left_align
