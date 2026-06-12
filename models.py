@@ -76,9 +76,33 @@ class Averia(db.Model):
     material_mangas = db.Column(db.Integer, default=0)
     material_acopladores = db.Column(db.Integer, default=0)
     material_comentarios = db.Column(db.Text)
+    materiales_json = db.Column(db.Text)
 
     # Relación
     tecnico = db.relationship("Operador", backref="averias_resueltas", foreign_keys=[tecnico_id])
+
+    @property
+    def materiales_dict(self):
+        import json
+        if self.materiales_json:
+            try:
+                return json.loads(self.materiales_json)
+            except Exception:
+                pass
+        
+        # Fallback para compatibilidad con registros antiguos
+        res = {}
+        if self.material_cable_m:
+            res["299381|Cable de fibra óptica 1 hilo - Drop"] = self.material_cable_m
+        if self.material_conectores:
+            res["299378|Conector rápido SC/APC"] = self.material_conectores
+        if self.material_rosetas:
+            res["Sin Código|Roseta Óptica"] = self.material_rosetas
+        if self.material_mangas:
+            res["299799|Caja de empalme tipo domo 24Fo, 8 puertos"] = self.material_mangas
+        if self.material_acopladores:
+            res["Sin Código|Acoplador Óptico"] = self.material_acopladores
+        return res
 
 
 

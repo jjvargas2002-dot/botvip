@@ -18,6 +18,150 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 
+MATERIALES_MASTER = [
+    # Sección OLT
+    {"codigo": "291368", "nombre": "OLT GPON ZTE C610 - 16 puertos DC", "seccion": "OLT"},
+    {"codigo": "291368", "nombre": "Cable de alimentación OC para chasis C610 (15m)", "seccion": "OLT"},
+    {"codigo": "291368", "nombre": "Cable de puesta a tierra de protección (10m)", "seccion": "OLT"},
+    {"codigo": "294701", "nombre": "Transceptor óptico bidireccional monofibra SFP GPON-OLT clase C+", "seccion": "OLT"},
+    {"codigo": "283866", "nombre": "Módulo óptico bidireccional de doble fibra y canal único ZTE 10Km/1.25Gb", "seccion": "OLT"},
+    # Sección ODF
+    {"codigo": "294702", "nombre": "Patch Cord SC/UPC-SC/UPC 3m", "seccion": "ODF"},
+    {"codigo": "89", "nombre": "Patch Cord LC/UPC-LC/UPC 3m", "seccion": "ODF"},
+    {"codigo": "87", "nombre": "Patch Cord LC/UPC-LC/UPC 15m", "seccion": "ODF"},
+    {"codigo": "86", "nombre": "Patch Cord LC/UPC-LC/UPC 10m", "seccion": "ODF"},
+    {"codigo": "267990", "nombre": "ODF 48 puertos SC/UPC", "seccion": "ODF"},
+    {"codigo": "2925", "nombre": "ODF 24 puertos SC/UPC", "seccion": "ODF"},
+    {"codigo": "265191", "nombre": "Gabinete exterior para OLT y ODF", "seccion": "ODF"},
+    # Sección CAJAS
+    {"codigo": "299798", "nombre": "Caja de empalme tipo domo 48Fo, 8 puertos", "seccion": "CAJAS"},
+    {"codigo": "299799", "nombre": "Caja de empalme tipo domo 24Fo, 8 puertos", "seccion": "CAJAS"},
+    {"codigo": "424", "nombre": "Caja de empalme plana 24Fo, 4 puertos", "seccion": "CAJAS"},
+    {"codigo": "423", "nombre": "Caja de empalme plana 12Fo, 4 puertos", "seccion": "CAJAS"},
+    {"codigo": "8810", "nombre": "Caja de empalme plana 4Fo, 3 puertos", "seccion": "CAJAS"},
+    {"codigo": "262079", "nombre": "Caja de empalme plana 1Fo, 2 puertos, empalme mecánico", "seccion": "CAJAS"},
+    {"codigo": "300476", "nombre": "ODB, 11 puertos para adaptadores (HUB-BOX 70/30)", "seccion": "CAJAS"},
+    {"codigo": "300477", "nombre": "ODB, 11 puertos para adaptadores (SUB-BOX 70/30)", "seccion": "CAJAS"},
+    {"codigo": "300478", "nombre": "ODB, 11 puertos para adaptadores (SUB-BOX 50/50)", "seccion": "CAJAS"},
+    {"codigo": "300479", "nombre": "ODB, 10 puertos para adaptadores (END-BOX 50/50)", "seccion": "CAJAS"},
+    {"codigo": "298476", "nombre": "ODB, 9 puertos para adaptadores (EXP-BOX 50/50)", "seccion": "CAJAS"},
+    {"codigo": "298912", "nombre": "ODB, 9 puertos para adaptadores (Edificio)", "seccion": "CAJAS"},
+    {"codigo": "296344", "nombre": "ZTE_ODB, 2 puertos de fibra para adaptadores (Caja de unión)", "seccion": "CAJAS"},
+    {"codigo": "294765", "nombre": "ZTE_ODB, 8 puertos MPO y 4 puertos de fibra para adaptadores (X-BOX)", "seccion": "CAJAS"},
+    {"codigo": "294764", "nombre": "ZTE_ODB, 5 puertos para adaptadores (HUB-BOX)", "seccion": "CAJAS"},
+    {"codigo": "294767", "nombre": "ZTE_ODB, 11 puertos para adaptadores (SUB-BOX 70/30)", "seccion": "CAJAS"},
+    {"codigo": "294768", "nombre": "ZTE_ODB, 11 puertos para adaptadores (SUB-BOX 50/50)", "seccion": "CAJAS"},
+    {"codigo": "294766", "nombre": "ZTE_ODB, 10 puertos para adaptadores (END-BOX 50/50)", "seccion": "CAJAS"},
+    {"codigo": "296345", "nombre": "ZTE_ODB, 9 puertos para adaptadores (EXP-BOX 50/50)", "seccion": "CAJAS"},
+    # Sección de Conectores
+    {"codigo": "299379", "nombre": "Conector de campo impermeable para caja ZTE", "seccion": "CONECTORES"},
+    {"codigo": "299378", "nombre": "Conector rápido SC/APC", "seccion": "CONECTORES"},
+    {"codigo": "Sin Código", "nombre": "Splitter PLC 1x8 (Pigtail PLC 1x8)", "seccion": "CONECTORES"},
+    # Sección de Cables
+    {"codigo": "43978", "nombre": "Cable de fibra óptica ADSS 48 fibras, vano 100m", "seccion": "CABLES"},
+    {"codigo": "63004", "nombre": "Cable de fibra óptica ADSS 24 fibras, vano 200m", "seccion": "CABLES"},
+    {"codigo": "67", "nombre": "Cable de fibra óptica ADSS 24 fibras, vano 100m", "seccion": "CABLES"},
+    {"codigo": "299344", "nombre": "Cable de fibra óptica ASU 12Fo, vano 100m", "seccion": "CABLES"},
+    {"codigo": "300378", "nombre": "Cable de fibra óptica ASU 4Fo, vano 100m", "seccion": "CABLES"},
+    {"codigo": "9266", "nombre": "Cable de fibra óptica ASU 4Fo, vano 100m - Flexible", "seccion": "CABLES"},
+    {"codigo": "300379", "nombre": "Cable de fibra óptica ASU 1Fo, vano 100m", "seccion": "CABLES"},
+    {"codigo": "294795", "nombre": "Fibra óptica preconectorizada de 12 núcleos 100m MPO/APC", "seccion": "CABLES"},
+    {"codigo": "294796", "nombre": "Fibra óptica preconectorizada de 12 núcleos 200m MPO/APC", "seccion": "CABLES"},
+    {"codigo": "296347", "nombre": "Fibra óptica preconectorizada de 12 núcleos 300m MPO/APC", "seccion": "CABLES"},
+    {"codigo": "294797", "nombre": "Fibra óptica preconectorizada de 12 núcleos 500m MPO/APC", "seccion": "CABLES"},
+    {"codigo": "294798", "nombre": "Fibra óptica preconectorizada de 12 núcleos 600m MPO/APC", "seccion": "CABLES"},
+    {"codigo": "294799", "nombre": "Fibra óptica preconectorizada de 12 núcleos 700m MPO/APC", "seccion": "CABLES"},
+    {"codigo": "294790", "nombre": "Fibra óptica preconectorizada de 1 núcleo 50m SC/APC", "seccion": "CABLES"},
+    {"codigo": "294791", "nombre": "Fibra óptica preconectorizada de 1 núcleo 100m SC/APC", "seccion": "CABLES"},
+    {"codigo": "294792", "nombre": "Fibra óptica preconectorizada de 1 núcleo 150m SC/APC", "seccion": "CABLES"},
+    {"codigo": "294793", "nombre": "Fibra óptica preconectorizada de 1 núcleo 200m SC/APC", "seccion": "CABLES"},
+    {"codigo": "294794", "nombre": "Fibra óptica preconectorizada de 1 núcleo 250m SC/APC", "seccion": "CABLES"},
+    {"codigo": "295995", "nombre": "Fibra óptica preconectorizada de 1 núcleo 300m SC/APC", "seccion": "CABLES"},
+    {"codigo": "299381", "nombre": "Cable de fibra óptica 1 hilo - Drop", "seccion": "CABLES"},
+    # Sección de Accesorios
+    {"codigo": "296348", "nombre": "ZTE_Patch Cord SC/APC 7m", "seccion": "ACCESORIOS"},
+    {"codigo": "306", "nombre": "Grapa de tensión para vano de 200m", "seccion": "ACCESORIOS"},
+    {"codigo": "305", "nombre": "Grapa de tensión para vano de 100m", "seccion": "ACCESORIOS"},
+    {"codigo": "313", "nombre": "Grapa de suspensión para vano de 100m", "seccion": "ACCESORIOS"},
+    {"codigo": "350", "nombre": "Abrazaderas para cable OPGW", "seccion": "ACCESORIOS"},
+    {"codigo": "298983", "nombre": "Retención preformada plástica para cable de 5mm-8mm", "seccion": "ACCESORIOS"},
+    {"codigo": "294929", "nombre": "Retención preformada para cable de 6.8mm (Cable MPO)", "seccion": "ACCESORIOS"},
+    {"codigo": "294928", "nombre": "Retención preformada para cable de 5mm (Cable preconectorizado)", "seccion": "ACCESORIOS"},
+    {"codigo": "299380", "nombre": "Templador para cable Drop", "seccion": "ACCESORIOS"},
+    {"codigo": "28497", "nombre": "Grillete tipo D", "seccion": "ACCESORIOS"},
+    {"codigo": "294898", "nombre": "Grillete tipo trébol", "seccion": "ACCESORIOS"},
+    {"codigo": "285043", "nombre": "Brazo de soporte 1.0m", "seccion": "ACCESORIOS"},
+    {"codigo": "295136", "nombre": "Brazo de soporte 0.6m", "seccion": "ACCESORIOS"},
+    {"codigo": "24941", "nombre": "Cruceta 60cm", "seccion": "ACCESORIOS"},
+    {"codigo": "295280", "nombre": "Cable de acero 4mm, con recubrimiento PVC", "seccion": "ACCESORIOS"},
+    {"codigo": "295360", "nombre": "Abrazadera colgante dieléctrica", "seccion": "ACCESORIOS"},
+    {"codigo": "20910", "nombre": "Candado de acero 3/8\" para cable de acero", "seccion": "ACCESORIOS"},
+    {"codigo": "8332", "nombre": "Cinta Bandit + juego de hebillas", "seccion": "ACCESORIOS"},
+    {"codigo": "294899", "nombre": "Fleje de acero para postes con diámetros de 100-200mm", "seccion": "ACCESORIOS"},
+    {"codigo": "295660", "nombre": "Cinta Bandit", "seccion": "ACCESORIOS"},
+    {"codigo": "295661", "nombre": "Juego de hebillas", "seccion": "ACCESORIOS"},
+    {"codigo": "Sin Código", "nombre": "Etiqueta para cable de fibra óptica", "seccion": "ACCESORIOS"},
+    {"codigo": "9610", "nombre": "Tubo corrugado de PVC ignífugo 25mm", "seccion": "ACCESORIOS"},
+    {"codigo": "Sin Código", "nombre": "Abrazadera tipo oreja para cable", "seccion": "ACCESORIOS"},
+    {"codigo": "Sin Código", "nombre": "Cintillo para cable 4x200mm", "seccion": "ACCESORIOS"}
+]
+
+@app.context_processor
+def utility_processor():
+    materiales_por_seccion = {}
+    for mat in MATERIALES_MASTER:
+        sec = mat["seccion"]
+        if sec not in materiales_por_seccion:
+            materiales_por_seccion[sec] = []
+        materiales_por_seccion[sec].append(mat)
+    return dict(materiales_por_seccion=materiales_por_seccion, MATERIALES_MASTER=MATERIALES_MASTER)
+
+def sincronizar_sites():
+    url_sites = "https://docs.google.com/spreadsheets/d/1eaNxCpm8JF1JcZS3_ldwMRINGYFaW6RsQQWybvRi_P8/export?format=csv&gid=894046404"
+    try:
+        response = requests.get(url_sites, timeout=15)
+        if response.status_code != 200:
+            return False, f"Error de conexión con pestaña SITES (Status: {response.status_code})"
+        
+        content = response.content.decode('utf-8')
+        f = io.StringIO(content)
+        reader = csv.reader(f)
+        
+        header = next(reader, None)
+        if not header:
+            return False, "La pestaña SITES está vacía."
+            
+        indices = {col.strip().upper(): i for i, col in enumerate(header)}
+        branch_idx = indices.get("BRANCH")
+        site_idx = indices.get("SITE LOGICAL")
+        
+        if branch_idx is None or site_idx is None:
+            return False, "Faltan columnas Branch o Site Logical en la pestaña SITES"
+            
+        sites_list = []
+        for row in reader:
+            if not row or len(row) <= max(branch_idx, site_idx):
+                continue
+            branch = row[branch_idx].strip().upper()
+            site = row[site_idx].strip().upper()
+            if branch and site and site != "SITE LOGICAL":
+                sites_list.append({
+                    "branch": branch,
+                    "site": site
+                })
+        
+        import os
+        import json
+        static_dir = os.path.join(app.root_path, "static")
+        os.makedirs(static_dir, exist_ok=True)
+        with open(os.path.join(static_dir, "sites.json"), "w", encoding="utf-8") as out:
+            json.dump(sites_list, out, ensure_ascii=False, indent=2)
+            
+        return True, f"Sincronizados {len(sites_list)} sites."
+    except Exception as e:
+        print("Error en sincronización de sites:", e)
+        return False, f"Error en sites: {str(e)}"
+
 
 def login_requerido(f):
     @wraps(f)
@@ -87,6 +231,7 @@ def asegurar_esquema():
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_mangas INTEGER DEFAULT 0",
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_acopladores INTEGER DEFAULT 0",
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_comentarios TEXT",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS materiales_json TEXT",
         
         "ALTER TABLE averias DROP CONSTRAINT IF EXISTS averias_cuenta_key",
         "ALTER TABLE averias ALTER COLUMN cuenta DROP NOT NULL"
@@ -287,6 +432,12 @@ def sincronizar_drive():
         
         db.session.commit()
         total_cerrados = len(cerrados_ext)
+        
+        # Sincronizar sites
+        success_sites, msg_sites = sincronizar_sites()
+        if not success_sites:
+            print("Advertencia en sincronización de sites:", msg_sites)
+            
         return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} cerrados externamente."
     except Exception as e:
         db.session.rollback()
@@ -586,22 +737,53 @@ def resolver_averia(id):
         return redirect(url_for("dashboard"))
         
     try:
-        cable_m = int(request.form.get("cable_m", 0) or 0)
-        conectores = int(request.form.get("conectores", 0) or 0)
-        rosetas = int(request.form.get("rosetas", 0) or 0)
-        mangas = int(request.form.get("mangas", 0) or 0)
-        acopladores = int(request.form.get("acopladores", 0) or 0)
+        import json
+        materiales_json_str = request.form.get("materiales_json", "{}")
         comentarios = request.form.get("comentarios", "").strip()
         
         averia.estado = "REPARADO"
         averia.fecha_resolucion = datetime.now()
         averia.tecnico_id = session.get("operador_id")
+        averia.materiales_json = materiales_json_str
+        averia.material_comentarios = comentarios or "Reparado desde el portal"
+        
+        # Calcular valores compatibles para las 5 columnas básicas
+        try:
+            mats = json.loads(materiales_json_str)
+        except Exception:
+            mats = {}
+            
+        cable_m = 0
+        conectores = 0
+        rosetas = 0
+        mangas = 0
+        acopladores = 0
+        
+        for key, cant in mats.items():
+            parts = key.split("|")
+            codigo = parts[0]
+            nombre = parts[1]
+            # Mapear cable drop
+            if "Drop" in nombre or codigo == "299381":
+                cable_m += cant
+            # Mapear conectores
+            elif "Conector" in nombre or codigo in ["299378", "299379"]:
+                conectores += cant
+            # Mapear rosetas
+            elif "Roseta" in nombre:
+                rosetas += cant
+            # Mapear mangas/cajas de empalme
+            elif "empalme" in nombre.lower() or "Caja de empalme" in nombre or codigo in ["299798", "299799", "424", "423", "8810", "262079"]:
+                mangas += cant
+            # Mapear acopladores
+            elif "Acoplador" in nombre or "Patch Cord" in nombre or "transceptor" in nombre.lower() or "módulo" in nombre.lower():
+                acopladores += cant
+                
         averia.material_cable_m = cable_m
         averia.material_conectores = conectores
         averia.material_rosetas = rosetas
         averia.material_mangas = mangas
         averia.material_acopladores = acopladores
-        averia.material_comentarios = comentarios or "Reparado desde el portal"
         
         db.session.commit()
         flash(f"Avería de cuenta {averia.cuenta} resuelta y materiales registrados.", "success")
@@ -735,23 +917,22 @@ def exportar_averias():
         "Origen",
         "Fecha Creación",
         "Fecha Resolución",
-        "Técnico que Resolvió",
-        "Cable Drop (m)",
-        "Conectores Mecánicos",
-        "Rosetas Ópticas",
-        "Mangas/Bandejas",
-        "Acopladores",
-        "Comentarios Solución"
+        "Técnico que Resolvió"
     ]
+
+    for m in MATERIALES_MASTER:
+        headers.append(f"[{m['codigo']}] {m['nombre']}")
+
+    headers.append("Comentarios Solución")
     sheet.append(headers)
 
     for av in averias:
         tecnico_nombre = av.tecnico.nombre if av.tecnico else ""
-        sheet.append([
+        row_data = [
             av.id,
             av.branch,
             av.codigo_wo or "",
-            av.cuenta,
+            av.cuenta or "",
             av.detalles or "",
             av.dias_pendientes or 0.0,
             av.estado,
@@ -762,14 +943,22 @@ def exportar_averias():
             av.origen,
             av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else "",
             av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else "Pendiente",
-            tecnico_nombre,
-            av.material_cable_m,
-            av.material_conectores,
-            av.material_rosetas,
-            av.material_mangas,
-            av.material_acopladores,
-            av.material_comentarios or ""
-        ])
+            tecnico_nombre
+        ]
+
+        mats_dict = av.materiales_dict
+        for m in MATERIALES_MASTER:
+            key = f"{m['codigo']}|{m['nombre']}"
+            cant = mats_dict.get(key)
+            if cant is None:
+                if m['codigo'] != "Sin Código":
+                    matching_cants = [c for k, c in mats_dict.items() if k.startswith(m['codigo'] + "|")]
+                    if len(matching_cants) == 1:
+                        cant = matching_cants[0]
+            row_data.append(cant if cant is not None else "")
+
+        row_data.append(av.material_comentarios or "")
+        sheet.append(row_data)
 
     header_fill = PatternFill("solid", fgColor="1D4ED8")
     header_font = Font(color="FFFFFF", bold=True)
@@ -914,6 +1103,13 @@ with app.app_context():
         db.create_all()
         asegurar_esquema()
         crear_operador_defecto()
+        # Verify if static/sites.json exists, otherwise fetch it
+        import os
+        sites_path = os.path.join(app.root_path, "static", "sites.json")
+        if not os.path.exists(sites_path):
+            print("SITES cache not found, fetching...")
+            sincronizar_sites()
+            
         print("Base de datos y esquemas inicializados correctamente.")
     except Exception as e:
         print("Error inicializando base de datos en arranque:", e)

@@ -277,12 +277,18 @@
                                 </td>
                                 <td>{{ av.tecnico.nombre if av.tecnico else '-' }}</td>
                                 <td>
-                                    <div style="font-size: 0.75rem; line-height: 1.3;">
-                                        {% if av.material_cable_m > 0 %}<div>⚡ Cable: <strong>{{ av.material_cable_m }}m</strong></div>{% endif %}
-                                        {% if av.material_conectores > 0 %}<div>🔌 Conectores: <strong>{{ av.material_conectores }} und</strong></div>{% endif %}
-                                        {% if av.material_rosetas > 0 %}<div>🏠 Rosetas: <strong>{{ av.material_rosetas }} und</strong></div>{% endif %}
-                                        {% if av.material_mangas > 0 %}<div>📦 Mangas: <strong>{{ av.material_mangas }} und</strong></div>{% endif %}
-                                        {% if av.material_acopladores > 0 %}<div>📡 Acopladores: <strong>{{ av.material_acopladores }} und</strong></div>{% endif %}
+                                    <div style="font-size: 0.75rem; line-height: 1.35;">
+                                        {% for key, cant in av.materiales_dict.items() %}
+                                            {% set parts = key.split('|') %}
+                                            {% set codigo = parts[0] %}
+                                            {% set nombre = parts[1] %}
+                                            {% if cant > 0 %}
+                                            <div style="margin-bottom: 0.1rem;">
+                                                <span class="badge bg-secondary-subtle text-secondary border px-1 py-0.5" style="font-size: 0.65rem;">{{ codigo }}</span>
+                                                <span class="text-dark">{{ nombre }}</span>: <strong>{{ cant }}</strong>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
                                     </div>
                                 </td>
                                 <td class="pe-4 text-wrap text-muted" style="max-width: 220px; font-size: 0.775rem;">

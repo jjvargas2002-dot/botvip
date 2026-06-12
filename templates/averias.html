@@ -207,13 +207,21 @@
                     </td>
                     <td>
                         {% if av.estado == 'REPARADO' %}
-                        <div style="font-size: 0.825rem; line-height: 1.35;">
-                            {% if av.material_cable_m > 0 %}<div>⚡ Cable: <strong class="text-slate-800">{{ av.material_cable_m }}m</strong></div>{% endif %}
-                            {% if av.material_conectores > 0 %}<div>🔌 Conectores: <strong class="text-slate-800">{{ av.material_conectores }} und</strong></div>{% endif %}
-                            {% if av.material_rosetas > 0 %}<div>🏠 Rosetas: <strong class="text-slate-800">{{ av.material_rosetas }} und</strong></div>{% endif %}
-                            {% if av.material_mangas > 0 %}<div>📦 Mangas: <strong class="text-slate-800">{{ av.material_mangas }} und</strong></div>{% endif %}
-                            {% if av.material_acopladores > 0 %}<div>📡 Acopladores: <strong class="text-slate-800">{{ av.material_acopladores }} und</strong></div>{% endif %}
-                            {% if av.material_cable_m == 0 and av.material_conectores == 0 and av.material_rosetas == 0 and av.material_mangas == 0 and av.material_acopladores == 0 %}
+                        <div style="font-size: 0.825rem; line-height: 1.4;">
+                            {% set count_mats = namespace(value=0) %}
+                            {% for key, cant in av.materiales_dict.items() %}
+                                {% set parts = key.split('|') %}
+                                {% set codigo = parts[0] %}
+                                {% set nombre = parts[1] %}
+                                {% if cant > 0 %}
+                                <div style="margin-bottom: 0.15rem;">
+                                    <span class="badge bg-secondary-subtle text-secondary border px-1 py-0.5 fs-9" style="font-size: 0.7rem;">{{ codigo }}</span>
+                                    <span class="text-dark">{{ nombre }}</span>: <strong class="text-primary">{{ cant }}</strong>
+                                </div>
+                                {% set count_mats.value = count_mats.value + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if count_mats.value == 0 %}
                             <span class="text-muted small"><em>Solo mano de obra</em></span>
                             {% endif %}
                         </div>

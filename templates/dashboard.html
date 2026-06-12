@@ -299,7 +299,10 @@
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label small fw-medium text-secondary">Site</label>
-                            <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="site" placeholder="Ej: ARE0071" required>
+                            <div class="position-relative">
+                                <input type="text" id="site_input_manual" class="form-control form-control-custom py-1.5 fs-7" name="site" placeholder="Ej: ARE0071" required autocomplete="off">
+                                <div id="site-suggestions" class="dropdown-menu w-100 shadow-sm" style="display: none; max-height: 200px; overflow-y: auto; position: absolute; z-index: 1050;"></div>
+                            </div>
                         </div>
                         <div class="col-6">
                             <label class="form-label small fw-medium text-secondary">Caja / HUBOX</label>
@@ -374,32 +377,59 @@
                 <div class="modal-body py-3">
                     <p class="text-muted small">Reporta los materiales que utilizaste en campo para resolver la avería de la cuenta <strong id="modal_cuenta_label"></strong>.</p>
                     
+                    <!-- Dynamic material selection -->
                     <div class="mb-3">
-                        <label class="form-label small fw-medium text-secondary">Metros de Cable Drop</label>
-                        <input type="number" class="form-control form-control-custom" name="cable_m" value="0" min="0" required>
+                        <label class="form-label small fw-medium text-secondary">Agregar Material Utilizado</label>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-8">
+                                <select id="select-material-input" class="form-select form-select-custom py-1.5 fs-7">
+                                    <option value="">-- Seleccionar Material --</option>
+                                    {% for seccion, items in materiales_por_seccion.items() %}
+                                    <optgroup label="Sección {{ seccion }}">
+                                        {% for item in items %}
+                                        <option value="{{ item.codigo }}|{{ item.nombre }}">
+                                            [{{ item.codigo }}] {{ item.nombre }}
+                                        </option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-3">
+                                <input type="number" id="cantidad-material-input" class="form-control form-control-custom py-1.5 fs-7" placeholder="Cant." min="1" value="1">
+                            </div>
+                            <div class="col-1">
+                                <button type="button" class="btn btn-primary btn-sm h-100 w-100 d-flex align-items-center justify-content-center" onclick="agregarMaterialALista()" style="min-height: 38px;">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label small fw-medium text-secondary">Conectores Mecánicos</label>
-                            <input type="number" class="form-control form-control-custom" name="conectores" value="0" min="0" required>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small fw-medium text-secondary">Rosetas Ópticas</label>
-                            <input type="number" class="form-control form-control-custom" name="rosetas" value="0" min="0" required>
+                    <!-- List of added materials -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium text-secondary">Materiales Registrados en Ticket</label>
+                        <div class="border rounded p-2 bg-light-subtle" style="max-height: 180px; overflow-y: auto;">
+                            <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 0.8rem;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Material</th>
+                                        <th style="width: 70px;">Cant.</th>
+                                        <th style="width: 35px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-materiales-cuerpo">
+                                    <tr id="sin-materiales-fila">
+                                        <td colspan="4" class="text-center text-muted py-2">No se han registrado materiales aún.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label small fw-medium text-secondary">Mangas de Empalme</label>
-                            <input type="number" class="form-control form-control-custom" name="mangas" value="0" min="0" required>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small fw-medium text-secondary">Acopladores Ópticos</label>
-                            <input type="number" class="form-control form-control-custom" name="acopladores" value="0" min="0" required>
-                        </div>
-                    </div>
+                    <!-- Hidden input to store JSON data -->
+                    <input type="hidden" name="materiales_json" id="materiales_json_input" value="{}">
 
                     <div class="mb-0">
                         <label class="form-label small fw-medium text-secondary">Comentarios/Observaciones</label>
@@ -655,19 +685,160 @@
     // Control del Modal de Resolución
     const resolverModal = new bootstrap.Modal(document.getElementById('resolverAveriaModal'));
     
+    let materialesAgregados = {};
+
     function abrirModalResolver(id, cuenta) {
         document.getElementById('modal_cuenta_label').innerText = cuenta;
-        // Cambiar dinámicamente el action del form con el id
         document.getElementById('formResolverAveria').action = `/averias/resolver/${id}`;
-        // Limpiar campos
-        document.getElementsByName('cable_m')[0].value = 0;
-        document.getElementsByName('conectores')[0].value = 0;
-        document.getElementsByName('rosetas')[0].value = 0;
-        document.getElementsByName('mangas')[0].value = 0;
-        document.getElementsByName('acopladores')[0].value = 0;
+        
+        materialesAgregados = {};
+        actualizarTablaMateriales();
+        
+        document.getElementById('select-material-input').value = "";
+        document.getElementById('cantidad-material-input').value = 1;
         document.getElementsByName('comentarios')[0].value = "";
         
         resolverModal.show();
+    }
+
+    window.agregarMaterialALista = function() {
+        const select = document.getElementById("select-material-input");
+        const cantidadInput = document.getElementById("cantidad-material-input");
+        
+        if (!select.value) {
+            alert("Por favor selecciona un material.");
+            return;
+        }
+        
+        const val = select.value;
+        const parts = val.split("|");
+        const codigo = parts[0];
+        const nombre = parts[1];
+        const cantidad = parseInt(cantidadInput.value);
+        
+        if (isNaN(cantidad) || cantidad <= 0) {
+            alert("Por favor ingresa una cantidad válida.");
+            return;
+        }
+        
+        const key = `${codigo}|${nombre}`;
+        
+        if (materialesAgregados[key]) {
+            materialesAgregados[key] += cantidad;
+        } else {
+            materialesAgregados[key] = cantidad;
+        }
+        
+        actualizarTablaMateriales();
+        
+        select.value = "";
+        cantidadInput.value = 1;
+    };
+
+    window.eliminarMaterialDeLista = function(key) {
+        delete materialesAgregados[key];
+        actualizarTablaMateriales();
+    };
+
+    function actualizarTablaMateriales() {
+        const tbody = document.getElementById("lista-materiales-cuerpo");
+        const hiddenInput = document.getElementById("materiales_json_input");
+        
+        tbody.innerHTML = "";
+        
+        const keys = Object.keys(materialesAgregados);
+        
+        if (keys.length === 0) {
+            tbody.innerHTML = `
+                <tr id="sin-materiales-fila">
+                    <td colspan="4" class="text-center text-muted py-2">No se han registrado materiales aún.</td>
+                </tr>
+            `;
+            hiddenInput.value = "{}";
+            return;
+        }
+        
+        keys.forEach(key => {
+            const parts = key.split("|");
+            const codigo = parts[0];
+            const nombre = parts[1];
+            const cantidad = materialesAgregados[key];
+            
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><span class="badge bg-secondary-subtle text-secondary border">${codigo}</span></td>
+                <td>${nombre}</td>
+                <td><strong>${cantidad}</strong></td>
+                <td class="text-end">
+                    <button type="button" class="btn btn-sm text-danger p-0" onclick="eliminarMaterialDeLista('${key.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        hiddenInput.value = JSON.stringify(materialesAgregados);
+    }
+
+    // --- OLT SITES AUTOCOMPLETE LOGIC ---
+    let cachedSites = [];
+    
+    // Fetch cached sites
+    fetch('/static/sites.json')
+        .then(res => res.json())
+        .then(data => {
+            cachedSites = data;
+        })
+        .catch(err => console.error("Error loading sites cache:", err));
+        
+    const siteInput = document.getElementById('site_input_manual');
+    const siteSuggestions = document.getElementById('site-suggestions');
+    const branchSelect = document.getElementsByName('branch')[0];
+    
+    if (siteInput && siteSuggestions) {
+        siteInput.addEventListener('input', function() {
+            const val = this.value.toUpperCase().trim();
+            const selectedBranch = branchSelect ? branchSelect.value : "";
+            
+            siteSuggestions.innerHTML = '';
+            
+            if (!val) {
+                siteSuggestions.style.display = 'none';
+                return;
+            }
+            
+            const filtered = cachedSites.filter(item => {
+                const matchesBranch = !selectedBranch || item.branch === selectedBranch;
+                const matchesSearch = item.site.includes(val);
+                return matchesBranch && matchesSearch;
+            });
+            
+            if (filtered.length === 0) {
+                siteSuggestions.style.display = 'none';
+                return;
+            }
+            
+            filtered.slice(0, 10).forEach(item => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'dropdown-item text-start';
+                btn.innerHTML = `<span class="badge bg-primary-subtle text-primary me-2">${item.branch}</span>${item.site}`;
+                btn.addEventListener('click', function() {
+                    siteInput.value = item.site;
+                    siteSuggestions.style.display = 'none';
+                });
+                siteSuggestions.appendChild(btn);
+            });
+            
+            siteSuggestions.style.display = 'block';
+        });
+        
+        document.addEventListener('click', function(e) {
+            if (e.target !== siteInput && e.target !== siteSuggestions) {
+                siteSuggestions.style.display = 'none';
+            }
+        });
     }
 
     // --- LOGICA DE ALERTAS Y NOTIFICACIONES PWA EN TIEMPO REAL ---
