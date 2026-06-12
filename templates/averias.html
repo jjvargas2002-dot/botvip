@@ -278,10 +278,10 @@
                             <button type="button" class="btn btn-sm btn-outline-success py-1 fs-8" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}', this)">
                                 <i class="bi bi-tools"></i> Materiales
                             </button>
-                            {% if av.estado == 'REPARADO' %}
                             <a href="{{ url_for('agrupar_clientes_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1 fs-8" title="Agrupar otros clientes de este site">
                                 <i class="bi bi-diagram-3"></i> Agrupar
                             </a>
+                            {% if av.estado == 'REPARADO' %}
                             <button type="button" class="btn btn-sm btn-outline-primary py-1 fs-8" onclick="compartirWhatsApp('{{ av.site or '' }}', '{{ (av.codigo_wo or av.detalles or '') | escape }}', '{{ av.detalles | escape }}', this)">
                                 <i class="bi bi-whatsapp"></i> Reportar
                             </button>
@@ -388,6 +388,7 @@
                             <option value="Caja robada">Caja robada</option>
                             <option value="Reemplazo de poste eléctrico">Reemplazo de poste eléctrico</option>
                             <option value="Conector roto">Conector roto</option>
+                            <option value="OLT caída">OLT caída</option>
                         </select>
                     </div>
 

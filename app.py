@@ -945,6 +945,27 @@ def agrupar_clientes_averia(id):
         
     site, xbox, hubox, subox = parse_caja(averia.caja, averia.site)
     
+    # Si la avería local está PENDIENTE, buscar el principal reparado de este site para redirigir
+    if averia.estado == "PENDIENTE":
+        from sqlalchemy import or_, func
+        site_clean = site.strip().upper() if site else ""
+        principal = Averia.query.filter(
+            func.upper(func.trim(Averia.site)) == site_clean,
+            Averia.estado == "REPARADO",
+            or_(
+                Averia.material_comentarios.is_(None),
+                Averia.material_comentarios == "",
+                ~Averia.material_comentarios.like("%Agrupado en la avería principal%")
+            )
+        ).order_by(Averia.id.desc()).first()
+        
+        if principal:
+            flash(f"Redirigido a la avería principal del SITE {site} (ID {principal.id}) para realizar la agrupación.", "info")
+            return redirect(url_for("agrupar_clientes_averia", id=principal.id))
+        else:
+            flash(f"No hay ninguna avería reparada (principal) en el SITE '{site}' para agrupar. Por favor resuelve el ticket principal primero.", "warning")
+            return redirect(url_for("dashboard"))
+
     if request.method == "POST":
         new_xbox = request.form.get("xbox", "").strip().upper()
         new_hubox = request.form.get("hubox", "").strip().upper()
@@ -973,10 +994,13 @@ def agrupar_clientes_averia(id):
         # Accounts to remove from group (old - new)
         to_remove = old_set - new_set
         
+        from sqlalchemy import func
+        site_clean = site.strip().upper() if site else ""
+        
         # For new ones, mark as REPARADO
         if to_add:
             averias_to_add = Averia.query.filter(
-                Averia.site == averia.site,
+                func.upper(func.trim(Averia.site)) == site_clean,
                 Averia.cuenta.in_(to_add),
                 Averia.id != averia.id
             ).all()
@@ -996,7 +1020,7 @@ def agrupar_clientes_averia(id):
         # For removed ones, revert back to PENDING
         if to_remove:
             averias_to_remove = Averia.query.filter(
-                Averia.site == averia.site,
+                func.upper(func.trim(Averia.site)) == site_clean,
                 Averia.cuenta.in_(to_remove),
                 Averia.id != averia.id
             ).all()
@@ -1019,12 +1043,13 @@ def agrupar_clientes_averia(id):
         return redirect(url_for("dashboard"))
         
     # GET: query accounts on the same site
+    from sqlalchemy import func
+    site_clean = site.strip().upper() if site else ""
     associated_list = [c.strip() for c in (averia.cuentas_asociadas or "").split(",") if c.strip()]
     
-    cuentas_query = db.session.query(
-        Averia.cuenta, Averia.caja, Averia.estado, Averia.id
-    ).filter(
-        Averia.site == averia.site,
+    # Query all other averias on the same site
+    cuentas_query = Averia.query.filter(
+        func.upper(func.trim(Averia.site)) == site_clean,
         Averia.id != averia.id
     ).all()
     
@@ -1035,8 +1060,21 @@ def agrupar_clientes_averia(id):
     for row in cuentas_query:
         if row.cuenta and row.cuenta not in vistas:
             is_associated = row.cuenta in associated_list
-            # Only show if PENDING or if already associated with this group
-            if row.estado == "PENDIENTE" or is_associated:
+            
+            # Check if this repaired account is already grouped to another main ticket
+            is_already_grouped = False
+            if row.estado == "REPARADO" and not is_associated:
+                if row.cuentas_asociadas:
+                    # It is a main ticket of another group
+                    is_already_grouped = True
+                elif row.material_comentarios and "Agrupado en la avería principal" in row.material_comentarios:
+                    if f"ID {averia.id}" not in row.material_comentarios:
+                        # It belongs to another group
+                        is_already_grouped = True
+            
+            # Show if: PENDING, or already associated with this group,
+            # or REPARADO but not associated with another group yet
+            if row.estado == "PENDIENTE" or is_associated or (row.estado == "REPARADO" and not is_already_grouped):
                 vistas.add(row.cuenta)
                 cl = clientes_dict.get(row.cuenta)
                 clientes_del_site.append({
@@ -1281,7 +1319,8 @@ def registrar_stock():
         "Cambio de caja",
         "Caja robada",
         "Reemplazo de poste eléctrico",
-        "Conector roto"
+        "Conector roto",
+        "OLT caída"
     ]
     tipificaciones_sede = []
     for typ in typifications:
@@ -1478,7 +1517,8 @@ def exportar_averias():
         "Cambio de caja",
         "Caja robada",
         "Reemplazo de poste eléctrico",
-        "Conector roto"
+        "Conector roto",
+        "OLT caída"
     ]
     
     headers_t2 = ["Tipificación"] + months_keys + ["Total Incidencias"]
@@ -1801,7 +1841,8 @@ def noc_dashboard():
         "Cambio de caja",
         "Caja robada",
         "Reemplazo de poste eléctrico",
-        "Conector roto"
+        "Conector roto",
+        "OLT caída"
     ]
     tipificaciones_data = []
     for typ in typifications:
