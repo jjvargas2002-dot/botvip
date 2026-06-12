@@ -298,7 +298,7 @@
                                     <button class="btn btn-sm btn-outline-primary py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
                                         <i class="bi bi-pencil-square"></i> Materiales
                                     </button>
-                                    <a href="{{ url_for('agrupar_clientes', id=av.id) }}" class="btn btn-sm btn-outline-info py-1" title="Agrupar otros clientes de este site">
+                                    <a href="{{ url_for('agrupar_clientes_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1" title="Agrupar otros clientes de este site">
                                         <i class="bi bi-diagram-3"></i> Agrupar
                                     </a>
                                     {% endif %}
