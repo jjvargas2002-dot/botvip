@@ -54,7 +54,7 @@ MATERIALES_MASTER = [
     {"codigo": "294766", "nombre": "ZTE_ODB, 10 puertos para adaptadores (END-BOX 50/50)", "seccion": "CAJAS"},
     {"codigo": "296345", "nombre": "ZTE_ODB, 9 puertos para adaptadores (EXP-BOX 50/50)", "seccion": "CAJAS"},
     # Sección de Conectores
-    {"codigo": "299379", "nombre": "Conector de campo impermeable para caja ZTE", "seccion": "CONECTORES"},
+    {"codigo": "299379", "nombre": "Conector Waterproof", "seccion": "CONECTORES"},
     {"codigo": "299378", "nombre": "Conector rápido SC/APC", "seccion": "CONECTORES"},
     {"codigo": "Sin Código", "nombre": "Splitter PLC 1x8 (Pigtail PLC 1x8)", "seccion": "CONECTORES"},
     # Sección de Cables
@@ -109,11 +109,32 @@ MATERIALES_MASTER = [
 @app.context_processor
 def utility_processor():
     materiales_por_seccion = {}
+    
+    # Materiales comunes
+    materiales_comunes_nombres = [
+        "Fibra óptica preconectorizada de 12 núcleos 200m MPO/APC",
+        "Caja de empalme plana 12Fo, 4 puertos",
+        "Tubo corrugado de PVC ignífugo 25mm",
+        "Conector Waterproof",
+        "Grapa de tensión para vano de 200m",
+        "Grapa de tensión para vano de 100m"
+    ]
+    
+    comunes = []
+    for nombre_comun in materiales_comunes_nombres:
+        found = next((m for m in MATERIALES_MASTER if m["nombre"] == nombre_comun), None)
+        if found:
+            comunes.append(found)
+            
+    if comunes:
+        materiales_por_seccion["MATERIALES COMUNES"] = comunes
+        
     for mat in MATERIALES_MASTER:
         sec = mat["seccion"]
         if sec not in materiales_por_seccion:
             materiales_por_seccion[sec] = []
         materiales_por_seccion[sec].append(mat)
+        
     return dict(materiales_por_seccion=materiales_por_seccion, MATERIALES_MASTER=MATERIALES_MASTER)
 
 def sincronizar_sites():
@@ -667,7 +688,9 @@ def dashboard():
                         "dias": av.dias_pendientes or 0,
                         "estado": av.estado,
                         "lat": lat,
-                        "lng": lng
+                        "lng": lng,
+                        "materiales_json": av.materiales_json or "{}",
+                        "comentarios": av.material_comentarios or ""
                     })
                 except ValueError:
                     continue

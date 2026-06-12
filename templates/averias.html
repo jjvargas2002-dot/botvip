@@ -160,6 +160,7 @@
                     <th scope="col">WO / Detalles</th>
                     <th scope="col">Estado</th>
                     <th scope="col">Materiales Consumidos</th>
+                    <th scope="col">Acciones</th>
                     <th scope="col" class="pe-4">Fecha Creación</th>
                 </tr>
             </thead>
@@ -175,7 +176,9 @@
                     data-conectores="{{ av.material_conectores or 0 }}"
                     data-rosetas="{{ av.material_rosetas or 0 }}"
                     data-mangas="{{ av.material_mangas or 0 }}"
-                    data-acopladores="{{ av.material_acopladores or 0 }}">
+                    data-acopladores="{{ av.material_acopladores or 0 }}"
+                    data-materials-json="{{ av.materiales_json or '{}' }}"
+                    data-comentarios="{{ av.material_comentarios or '' }}">
                     
                     <td class="ps-4">
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ av.branch }}</span>
@@ -229,6 +232,18 @@
                         <span class="text-muted small">-</span>
                         {% endif %}
                     </td>
+                    <td>
+                        <div class="d-inline-flex gap-1.5">
+                            <button type="button" class="btn btn-sm btn-outline-success py-1 fs-8" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}', this)">
+                                <i class="bi bi-tools"></i> Materiales
+                            </button>
+                            {% if av.estado == 'REPARADO' %}
+                            <button type="button" class="btn btn-sm btn-outline-primary py-1 fs-8" onclick="compartirWhatsApp('{{ av.site or '' }}', '{{ (av.codigo_wo or av.detalles or '') | escape }}', '{{ av.detalles | escape }}', this)">
+                                <i class="bi bi-whatsapp"></i> Reportar
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
                     <td class="pe-4 text-muted" style="font-size: 0.825rem;">
                         {{ av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else '-' }}
                     </td>
@@ -249,6 +264,85 @@
                 </tr>
             </tbody>
         </table>
+</div>
+
+<!-- Modal para resolver avería y reportar materiales -->
+<div class="modal fade" id="resolverAveriaModal" tabindex="-1" aria-labelledby="resolverAveriaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold" id="resolverAveriaModalLabel"><i class="bi bi-tools text-success me-2"></i>Reportar Solución y Materiales</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formResolverAveria" method="POST" action="">
+                <div class="modal-body py-3">
+                    <p class="text-muted small">Reporta los materiales que utilizaste en campo para resolver la avería de la cuenta <strong id="modal_cuenta_label"></strong>.</p>
+                    
+                    <!-- Dynamic material selection -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium text-secondary">Agregar Material Utilizado</label>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-8">
+                                <select id="select-material-input" class="form-select form-select-custom py-1.5 fs-7">
+                                    <option value="">-- Seleccionar Material --</option>
+                                    {% for seccion, items in materiales_por_seccion.items() %}
+                                    <optgroup label="Sección {{ seccion }}">
+                                        {% for item in items %}
+                                        <option value="{{ item.codigo }}|{{ item.nombre }}">
+                                            [{{ item.codigo }}] {{ item.nombre }}
+                                        </option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-3">
+                                <input type="number" id="cantidad-material-input" class="form-control form-control-custom py-1.5 fs-7" placeholder="Cant." min="1" value="1">
+                            </div>
+                            <div class="col-1">
+                                <button type="button" class="btn btn-primary btn-sm h-100 w-100 d-flex align-items-center justify-content-center" onclick="agregarMaterialALista()" style="min-height: 38px;">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- List of added materials -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium text-secondary">Materiales Registrados en Ticket</label>
+                        <div class="border rounded p-2 bg-light-subtle" style="max-height: 180px; overflow-y: auto;">
+                            <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 0.8rem;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Material</th>
+                                        <th style="width: 70px;">Cant.</th>
+                                        <th style="width: 35px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-materiales-cuerpo">
+                                    <tr id="sin-materiales-fila">
+                                        <td colspan="4" class="text-center text-muted py-2">No se han registrado materiales aún.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Hidden input to store JSON data -->
+                    <input type="hidden" name="materiales_json" id="materiales_json_input" value="{}">
+
+                    <div class="mb-0">
+                        <label class="form-label small fw-medium text-secondary">Comentarios/Observaciones</label>
+                        <textarea class="form-control form-control-custom" name="comentarios" rows="3" placeholder="Ej: Se empalmó acometida en poste, se solucionó problema de potencia..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success btn-sm px-3">Cerrar Ticket y Registrar</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -348,6 +442,159 @@
             originFilter.value = "";
             filterTable();
         });
+
+        // Control del Modal de Resolución
+        const resolverModal = new bootstrap.Modal(document.getElementById('resolverAveriaModal'));
+        let materialesAgregados = {};
+
+        window.abrirModalResolver = function(id, cuenta, btnElement) {
+            const row = btnElement.closest('.averia-row');
+            const materialesJson = row.getAttribute('data-materials-json') || '{}';
+            const comentarios = row.getAttribute('data-comentarios') || '';
+            
+            document.getElementById('modal_cuenta_label').innerText = cuenta;
+            document.getElementById('formResolverAveria').action = `/averias/resolver/${id}`;
+            
+            try {
+                materialesAgregados = JSON.parse(materialesJson);
+            } catch (e) {
+                materialesAgregados = {};
+            }
+            
+            actualizarTablaMateriales();
+            
+            document.getElementById('select-material-input').value = "";
+            document.getElementById('cantidad-material-input').value = 1;
+            document.getElementsByName('comentarios')[0].value = comentarios;
+            
+            resolverModal.show();
+        };
+
+        window.agregarMaterialALista = function() {
+            const select = document.getElementById("select-material-input");
+            const cantidadInput = document.getElementById("cantidad-material-input");
+            
+            if (!select.value) {
+                alert("Por favor selecciona un material.");
+                return;
+            }
+            
+            const key = select.value;
+            const cantidad = parseInt(cantidadInput.value);
+            
+            if (isNaN(cantidad) || cantidad <= 0) {
+                alert("Por favor ingresa una cantidad válida.");
+                return;
+            }
+            
+            if (materialesAgregados[key]) {
+                materialesAgregados[key] += cantidad;
+            } else {
+                materialesAgregados[key] = cantidad;
+            }
+            
+            actualizarTablaMateriales();
+            
+            select.value = "";
+            cantidadInput.value = 1;
+        };
+
+        window.eliminarMaterialDeLista = function(key) {
+            delete materialesAgregados[key];
+            actualizarTablaMateriales();
+        };
+
+        function actualizarTablaMateriales() {
+            const tbody = document.getElementById("lista-materiales-cuerpo");
+            const hiddenInput = document.getElementById("materiales_json_input");
+            
+            tbody.innerHTML = "";
+            
+            const keys = Object.keys(materialesAgregados);
+            
+            if (keys.length === 0) {
+                tbody.innerHTML = `
+                    <tr id="sin-materiales-fila">
+                        <td colspan="4" class="text-center text-muted py-2">No se han registrado materiales aún.</td>
+                    </tr>
+                `;
+                hiddenInput.value = "{}";
+                return;
+            }
+            
+            keys.forEach(key => {
+                const parts = key.split("|");
+                const codigo = parts[0];
+                const nombre = parts[1];
+                const cantidad = materialesAgregados[key];
+                
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><span class="badge bg-light text-secondary border">${codigo}</span></td>
+                    <td class="text-wrap">${nombre}</td>
+                    <td><strong>${cantidad}</strong></td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-link btn-sm text-danger p-0 border-0" onclick="eliminarMaterialDeLista('${key}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            hiddenInput.value = JSON.stringify(materialesAgregados);
+        }
+
+        window.compartirWhatsApp = function(site, details, causa, btnElement) {
+            const row = btnElement.closest('.averia-row');
+            const materialesJson = row.getAttribute('data-materials-json') || '{}';
+            const solucion = row.getAttribute('data-comentarios') || '';
+            
+            let materialsText = "";
+            try {
+                const mats = JSON.parse(materialesJson);
+                const keys = Object.keys(mats);
+                let count = 0;
+                keys.forEach(key => {
+                    const cant = mats[key];
+                    if (cant > 0) {
+                        const parts = key.split("|");
+                        const name = parts[1] || parts[0];
+                        materialsText += `• ${name} : ${cant}\n`;
+                        count++;
+                    }
+                });
+                if (count === 0) {
+                    materialsText = "• Ninguno (Mano de obra)\n";
+                }
+            } catch (e) {
+                materialsText = "• Ninguno\n";
+            }
+
+            const text = `${site || 'N/A'}
+  ${details || 'Sin descripción'}
+CAUSA
+  ${causa || 'N/A'}
+SOLUCIÓN
+  ${solucion || 'Pendiente de registrar'}
+MATERIALES
+${materialsText}Nota 
+LÍNEA con potencia 🆗`;
+
+            navigator.clipboard.writeText(text).then(function() {
+                const originalText = btnElement.innerHTML;
+                btnElement.innerHTML = '<i class="bi bi-check-lg"></i> ¡Copiado!';
+                btnElement.classList.remove('btn-outline-primary');
+                btnElement.classList.add('btn-success');
+                setTimeout(() => {
+                    btnElement.innerHTML = originalText;
+                    btnElement.classList.remove('btn-success');
+                    btnElement.classList.add('btn-outline-primary');
+                }, 2000);
+            }, function(err) {
+                alert("No se pudo copiar automáticamente. Copia el siguiente texto:\n\n" + text);
+            });
+        };
 
         // Ejecutar conteo de inicio al cargar la página
         filterTable();

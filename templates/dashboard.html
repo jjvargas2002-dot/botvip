@@ -148,11 +148,11 @@
 <div class="card card-premium mb-4">
     <div class="card-body p-3">
         <div class="row g-2 align-items-center">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="fw-bold text-slate-800"><i class="bi bi-funnel-fill text-primary me-2"></i>Filtrar en Mapa:</div>
             </div>
             {% if session.get('operador_rol') == 'admin' %}
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <select id="branchFilter" class="form-select form-select-custom py-1.5 fs-7" onchange="applyFilters()">
                     <option value="">Todas las Sedes</option>
                     <option value="LI1">LI1</option>
@@ -171,10 +171,13 @@
                 </select>
             </div>
             {% endif %}
-            <div class="{% if session.get('operador_rol') == 'admin' %}col-md-4{% else %}col-md-7{% endif %}">
+            <div class="{% if session.get('operador_rol') == 'admin' %}col-md-3{% else %}col-md-4{% endif %}">
                 <select id="siteFilter" class="form-select form-select-custom py-1.5 fs-7" onchange="applyFilters()">
                     <option value="">Todos los SITEs (Nodos)</option>
                 </select>
+            </div>
+            <div class="{% if session.get('operador_rol') == 'admin' %}col-md-3{% else %}col-md-4{% endif %}">
+                <input type="text" id="mapSearchInput" class="form-control form-control-custom py-1.5 fs-7" placeholder="Buscar por cuenta, caja, etc..." oninput="applyFilters()">
             </div>
             <div class="col-md-2">
                 <button class="btn btn-outline-secondary btn-sm w-100 py-1.5 fs-7" onclick="resetDashboardFilters()">
@@ -222,7 +225,7 @@
                     </thead>
                     <tbody>
                         {% for av in averias_list %}
-                        <tr class="pending-row" data-site="{{ av.site }}" data-branch="{{ av.branch }}">
+                        <tr class="pending-row" data-site="{{ av.site }}" data-branch="{{ av.branch }}" data-search="{{ av.cuenta }} {{ av.caja }} {{ av.site or '' }} {{ av.codigo_wo or '' }} {{ av.detalles or '' }} {{ av.contrata }}">
                             <td>
                                 <div class="fw-semibold">{{ av.cuenta }}</div>
                             </td>
@@ -497,11 +500,9 @@
             ? `<span class="badge bg-warning text-dark">${av.dias} días pendientes</span>` 
             : `<span class="badge bg-success text-white">Reparada</span>`;
             
-        const resolverBtn = esPendiente 
-            ? `<button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
-                    <i class="bi bi-check-circle-fill"></i> Resolver Avería
-               </button>`
-            : ``;
+        const resolverBtn = `<button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
+                    <i class="bi bi-check-circle-fill"></i> ${esPendiente ? 'Resolver Avería' : 'Editar/Registrar Materiales'}
+               </button>`;
 
         const popupContent = `
             <div style="font-family: 'Inter', sans-serif; min-width: 220px;">
@@ -553,6 +554,8 @@
         const selectedSite = document.getElementById('siteFilter').value;
         const branchSelect = document.getElementById('branchFilter');
         const selectedBranch = branchSelect ? branchSelect.value : '';
+        const searchInput = document.getElementById('mapSearchInput');
+        const searchText = searchInput ? searchInput.value.toLowerCase().trim() : '';
         
         let visibleBounds = [];
         
@@ -561,7 +564,13 @@
             const matchesSite = selectedSite === "" || item.data.site === selectedSite;
             const matchesBranch = selectedBranch === "" || item.data.branch === selectedBranch;
             
-            if (matchesSite && matchesBranch) {
+            let matchesSearch = true;
+            if (searchText !== "") {
+                const searchStr = `${item.data.cuenta} ${item.data.codigo_wo} ${item.data.caja} ${item.data.site} ${item.data.detalles} ${item.data.contrata}`.toLowerCase();
+                matchesSearch = searchStr.includes(searchText);
+            }
+            
+            if (matchesSite && matchesBranch && matchesSearch) {
                 if (!map.hasLayer(item.marker)) {
                     item.marker.addTo(map);
                 }
@@ -584,11 +593,17 @@
         rows.forEach(row => {
             const rowSite = row.getAttribute("data-site");
             const rowBranch = row.getAttribute("data-branch");
+            const rowSearchText = row.getAttribute("data-search") ? row.getAttribute("data-search").toLowerCase() : "";
             
             const matchesSite = selectedSite === "" || rowSite === selectedSite;
             const matchesBranch = selectedBranch === "" || rowBranch === selectedBranch;
             
-            if (matchesSite && matchesBranch) {
+            let matchesSearch = true;
+            if (searchText !== "") {
+                matchesSearch = rowSearchText.includes(searchText);
+            }
+            
+            if (matchesSite && matchesBranch && matchesSearch) {
                 row.style.display = "";
                 visibleCount++;
             } else {
@@ -607,6 +622,8 @@
         document.getElementById('siteFilter').value = "";
         const branchSelect = document.getElementById('branchFilter');
         if (branchSelect) branchSelect.value = "";
+        const searchInput = document.getElementById('mapSearchInput');
+        if (searchInput) searchInput.value = "";
         window.applyFilters();
     };
     
@@ -696,11 +713,27 @@
         document.getElementById('formResolverAveria').action = `/averias/resolver/${id}`;
         
         materialesAgregados = {};
+        let comentarios = "";
+        
+        if (typeof averias !== 'undefined') {
+            const av = averias.find(a => a.id === id);
+            if (av) {
+                if (av.materiales_json) {
+                    try {
+                        materialesAgregados = JSON.parse(av.materiales_json);
+                    } catch (e) {
+                        materialesAgregados = {};
+                    }
+                }
+                comentarios = av.comentarios || "";
+            }
+        }
+        
         actualizarTablaMateriales();
         
         document.getElementById('select-material-input').value = "";
         document.getElementById('cantidad-material-input').value = 1;
-        document.getElementsByName('comentarios')[0].value = "";
+        document.getElementsByName('comentarios')[0].value = comentarios;
         
         resolverModal.show();
     }
