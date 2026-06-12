@@ -78,6 +78,7 @@ class Averia(db.Model):
     material_comentarios = db.Column(db.Text)
     materiales_json = db.Column(db.Text)
     tipificacion = db.Column(db.String(100), nullable=True)
+    cuentas_asociadas = db.Column(db.Text, nullable=True)
 
     # Relación
     tecnico = db.relationship("Operador", backref="averias_resueltas", foreign_keys=[tecnico_id])

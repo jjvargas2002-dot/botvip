@@ -1,0 +1,143 @@
+{% extends "layout.html" %}
+
+{% block title %}Agrupar Clientes y Caja - BotVip{% endblock %}
+
+{% block extra_head %}
+<style>
+    .group-card {
+        border-radius: 1.25rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+    .group-header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        color: #ffffff;
+        padding: 1.5rem 2rem;
+    }
+    .client-item {
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s ease;
+    }
+    .client-item:hover {
+        background-color: #f8fafc;
+        border-color: #cbd5e1;
+    }
+    .client-item.selected {
+        background-color: rgba(37, 99, 235, 0.04);
+        border-color: rgba(37, 99, 235, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10 col-12">
+        <div class="group-card mb-4">
+            <div class="group-header">
+                <h3 class="h4 mb-1 fw-bold"><i class="bi bi-diagram-3-fill me-2 text-info"></i>Asociación de Clientes y Caja</h3>
+                <p class="mb-0 text-muted-light" style="font-size: 0.9rem; color: #cbd5e1;">
+                    Verifica la caja reparada y selecciona otros clientes del mismo site resueltos por esta reparación.
+                </p>
+            </div>
+
+            <form method="POST" action="{{ url_for('agrupar_clientes_averia', id=averia.id) }}">
+                <div class="p-4">
+                    <!-- Sección de Caja -->
+                    <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-box-seam-fill me-2"></i>Ubicación de Caja Reparada</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">SITE</label>
+                            <input type="text" class="form-control form-control-custom bg-light" value="{{ site }}" readonly>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">XBOX (Opcional)</label>
+                            <select name="xbox" class="form-select form-select-custom">
+                                <option value="">Ninguna</option>
+                                <option value="XB01" {% if xbox == 'XB01' %}selected{% endif %}>XB01</option>
+                                <option value="XB02" {% if xbox == 'XB02' %}selected{% endif %}>XB02</option>
+                                <option value="XB11" {% if xbox == 'XB11' %}selected{% endif %}>XB11</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">HUBOX (Opcional)</label>
+                            <select name="hubox" class="form-select form-select-custom">
+                                <option value="">Ninguna</option>
+                                <option value="HB01" {% if hubox == 'HB01' %}selected{% endif %}>HB01</option>
+                                <option value="HB02" {% if hubox == 'HB02' %}selected{% endif %}>HB02</option>
+                                <option value="HB03" {% if hubox == 'HB03' %}selected{% endif %}>HB03</option>
+                                <option value="HB04" {% if hubox == 'HB04' %}selected{% endif %}>HB04</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">CAJA (SUBOX/EBOX)</label>
+                            <input type="text" name="subox" class="form-control form-control-custom" placeholder="Ej: SB111" value="{{ subox }}" required>
+                        </div>
+                    </div>
+
+                    <!-- Sección de Clientes -->
+                    <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-people-fill me-2"></i>Clientes del Site: {{ site }}</h5>
+                    <p class="text-muted small mb-3">
+                        Selecciona los clientes que fueron restablecidos por esta misma reparación. Sus tickets se marcarán como reparados con consumo de material 0 para evitar duplicar reportes.
+                    </p>
+
+                    <div class="border rounded-3 p-3 bg-light" style="max-height: 320px; overflow-y: auto;">
+                        {% for c in clientes_del_site %}
+                        <div class="client-item d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <input class="form-check-input" type="checkbox" name="selected_clientes" value="{{ c.cuenta }}" id="chk-{{ c.cuenta }}">
+                                <label class="form-check-label" for="chk-{{ c.cuenta }}">
+                                    <span class="fw-semibold text-slate-800">{{ c.cuenta }}</span>
+                                    <span class="text-muted ms-2" style="font-size: 0.85rem;">- {{ c.nombre }}</span>
+                                </label>
+                            </div>
+                            <div>
+                                <span class="badge bg-light text-secondary border font-monospace px-2 py-1">{{ c.caja }}</span>
+                                {% if c.estado == 'REPARADO' %}
+                                <span class="badge bg-success-subtle text-success border px-2 py-0.5 ms-1">Reparado</span>
+                                {% else %}
+                                <span class="badge bg-warning-subtle text-warning border px-2 py-0.5 ms-1">Pendiente</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-info-circle fs-3 d-block mb-2"></i> No se encontraron otros clientes registrados en este site.
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Footer Acciones -->
+                <div class="p-3 bg-light border-top d-flex justify-content-end gap-2">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm px-4 py-2 rounded-3">Omitir y Volver</a>
+                    <button type="submit" class="btn btn-premium-primary btn-sm px-5 py-2 rounded-3 fw-semibold shadow-sm">Guardar y Finalizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Estilo interactivo para checkboxes seleccionados
+        const checkboxes = document.querySelectorAll('input[name="selected_clientes"]');
+        checkboxes.forEach(chk => {
+            chk.addEventListener('change', function() {
+                const item = this.closest('.client-item');
+                if (this.checked) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

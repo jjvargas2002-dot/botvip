@@ -258,6 +258,7 @@ def asegurar_esquema():
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS material_comentarios TEXT",
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS materiales_json TEXT",
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS tipificacion VARCHAR(100)",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS cuentas_asociadas TEXT",
         """
         CREATE TABLE IF NOT EXISTS stock_branch (
             id SERIAL PRIMARY KEY,
@@ -829,11 +830,129 @@ def resolver_averia(id):
         
         db.session.commit()
         flash(f"Avería de cuenta {averia.cuenta} resuelta y materiales registrados.", "success")
+        return redirect(url_for("agrupar_clientes_averia", id=averia.id))
     except Exception as e:
         db.session.rollback()
         flash(f"Error al resolver avería: {str(e)}", "danger")
+        return redirect(url_for("dashboard"))
+
+
+@app.route("/averias/agrupar/<int:id>", methods=["GET", "POST"])
+@login_requerido
+def agrupar_clientes_averia(id):
+    averia = db.session.get(Averia, id)
+    if not averia:
+        flash("La avería no existe.", "danger")
+        return redirect(url_for("dashboard"))
         
-    return redirect(request.referrer or url_for("dashboard"))
+    # parse caja values
+    def parse_caja(caja_str, site_val):
+        if not caja_str:
+            return site_val or "", "", "", ""
+        parts = [p.strip().upper() for p in caja_str.split("-") if p.strip()]
+        site = site_val or ""
+        xbox = ""
+        hubox = ""
+        subox = ""
+        
+        if len(parts) > 0:
+            site = parts[0]
+            
+        for p in parts[1:]:
+            if p.startswith("XB"):
+                xbox = p
+            elif p.startswith("HB"):
+                hubox = p
+            else:
+                subox = p
+                
+        return site, xbox, hubox, subox
+        
+    site, xbox, hubox, subox = parse_caja(averia.caja, averia.site)
+    
+    if request.method == "POST":
+        new_xbox = request.form.get("xbox", "").strip().upper()
+        new_hubox = request.form.get("hubox", "").strip().upper()
+        new_subox = request.form.get("subox", "").strip().upper()
+        
+        caja_parts = [averia.site or site]
+        if new_xbox:
+            caja_parts.append(new_xbox)
+        if new_hubox:
+            caja_parts.append(new_hubox)
+        if new_subox:
+            caja_parts.append(new_subox)
+            
+        caja_compuesta = "-".join(caja_parts)
+        averia.caja = caja_compuesta
+        
+        selected_accounts = request.form.getlist("selected_clientes")
+        averia.cuentas_asociadas = ", ".join(selected_accounts) if selected_accounts else None
+        
+        # Mark other pending averias on this site for selected accounts as REPARADO (with 0 materials)
+        if selected_accounts:
+            other_averias = Averia.query.filter(
+                Averia.site == averia.site,
+                Averia.cuenta.in_(selected_accounts),
+                Averia.id != averia.id,
+                Averia.estado == "PENDIENTE"
+            ).all()
+            
+            for av_g in other_averias:
+                av_g.estado = "REPARADO"
+                av_g.fecha_resolucion = datetime.now()
+                av_g.tecnico_id = session.get("operador_id")
+                av_g.material_comentarios = f"Agrupado en la avería principal (ID {averia.id})"
+                av_g.tipificacion = averia.tipificacion
+                av_g.material_cable_m = 0
+                av_g.material_conectores = 0
+                av_g.material_rosetas = 0
+                av_g.material_mangas = 0
+                av_g.material_acopladores = 0
+                av_g.materiales_json = "{}"
+                
+        try:
+            db.session.commit()
+            flash("Asociación de clientes y caja guardada con éxito.", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error al guardar agrupación: {str(e)}", "danger")
+            
+        return redirect(url_for("dashboard"))
+        
+    # GET: query accounts on the same site
+    cuentas_query = db.session.query(
+        Averia.cuenta, Averia.caja, Averia.estado, Averia.id
+    ).filter(
+        Averia.site == averia.site,
+        Averia.id != averia.id
+    ).all()
+    
+    clientes_dict = {c.codigo_cliente: c for c in Cliente.query.all()}
+    
+    clientes_del_site = []
+    vistas = set()
+    for row in cuentas_query:
+        if row.cuenta and row.cuenta not in vistas:
+            vistas.add(row.cuenta)
+            cl = clientes_dict.get(row.cuenta)
+            clientes_del_site.append({
+                "cuenta": row.cuenta,
+                "caja": row.caja or "",
+                "estado": row.estado,
+                "id": row.id,
+                "nombre": cl.nombre if cl else "Cliente de Sheet"
+            })
+            
+    return render_template(
+        "agrupar.html",
+        averia=averia,
+        site=site,
+        xbox=xbox,
+        hubox=hubox,
+        subox=subox,
+        clientes_del_site=clientes_del_site
+    )
 
 
 @app.route("/averias/crear", methods=["POST"])
@@ -1284,7 +1403,8 @@ def exportar_averias():
         "Fecha Creación",
         "Fecha Resolución",
         "Técnico que Resolvió",
-        "Tipificación"
+        "Tipificación",
+        "Cuentas Agrupadas"
     ]
     
     for m in MATERIALES_MASTER:
@@ -1311,7 +1431,8 @@ def exportar_averias():
             av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else "",
             av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else "Pendiente",
             tecnico_nombre,
-            av.tipificacion or ""
+            av.tipificacion or "",
+            av.cuentas_asociadas or ""
         ]
         
         mats_dict = av.materiales_dict

@@ -213,22 +213,34 @@
                     </td>
                     <td>
                         {% if av.estado == 'REPARADO' %}
-                        <div style="font-size: 0.825rem; line-height: 1.4;">
+                        <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fs-8 rounded-2" onclick="verDetallesMateriales({{ av.id }})">
+                            <i class="bi bi-eye-fill me-1"></i>Ver Detalles
+                        </button>
+                        <!-- Contenedor oculto de materiales -->
+                        <div id="mats-detail-{{ av.id }}" class="d-none">
                             {% set count_mats = namespace(value=0) %}
                             {% for key, cant in av.materiales_dict.items() %}
                                 {% set parts = key.split('|') %}
                                 {% set codigo = parts[0] %}
                                 {% set nombre = parts[1] %}
                                 {% if cant > 0 %}
-                                <div style="margin-bottom: 0.15rem;">
-                                    <span class="badge bg-secondary-subtle text-secondary border px-1 py-0.5 fs-9" style="font-size: 0.7rem;">{{ codigo }}</span>
-                                    <span class="text-dark">{{ nombre }}</span>: <strong class="text-primary">{{ cant }}</strong>
+                                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                    <div>
+                                        <span class="badge bg-secondary-subtle text-secondary border px-1.5 py-0.5 font-monospace" style="font-size: 0.75rem;">{{ codigo }}</span>
+                                        <span class="ms-2 fw-medium text-slate-800" style="font-size: 0.85rem;">{{ nombre }}</span>
+                                    </div>
+                                    <div>
+                                        <span class="badge bg-primary text-white px-2.5 py-1 fw-bold fs-7">{{ cant }}</span>
+                                    </div>
                                 </div>
                                 {% set count_mats.value = count_mats.value + 1 %}
                                 {% endif %}
                             {% endfor %}
                             {% if count_mats.value == 0 %}
-                            <span class="text-muted small"><em>Solo mano de obra</em></span>
+                            <div class="text-center py-4 text-muted">
+                                <i class="bi bi-info-circle fs-3 d-block mb-2"></i>
+                                Solo mano de obra (sin materiales utilizados)
+                            </div>
                             {% endif %}
                         </div>
                         {% else %}
@@ -360,6 +372,25 @@
                     <button type="submit" class="btn btn-success btn-sm px-3">Cerrar Ticket y Registrar</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Ver Detalles de Materiales -->
+<div class="modal fade" id="detallesMaterialesModal" tabindex="-1" aria-labelledby="detallesMaterialesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title font-semibold" id="detallesMaterialesLabel">
+                    <i class="bi bi-box-seam-fill text-primary me-2"></i>Materiales Usados</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3" id="detallesMaterialesBody">
+                <!-- Se poblará dinámicamente con JS -->
+            </div>
+            <div class="modal-footer bg-light border-top-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
     </div>
 </div>
@@ -621,6 +652,18 @@ ${materialsText}`;
             }, function(err) {
                 alert("No se pudo copiar automáticamente. Copia el siguiente texto:\n\n" + text);
             });
+        };
+
+        window.verDetallesMateriales = function(id) {
+            const sourceHtml = document.getElementById('mats-detail-' + id).innerHTML.trim();
+            const body = document.getElementById('detallesMaterialesBody');
+            if (sourceHtml === '') {
+                body.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-info-circle fs-3 d-block mb-2"></i>Solo mano de obra (sin materiales utilizados)</div>';
+            } else {
+                body.innerHTML = sourceHtml;
+            }
+            const modal = new bootstrap.Modal(document.getElementById('detallesMaterialesModal'));
+            modal.show();
         };
 
         // Ejecutar conteo de inicio al cargar la página

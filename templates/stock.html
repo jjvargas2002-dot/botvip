@@ -379,6 +379,28 @@
             });
         });
 
+        // --- AUTO-UPDATE STOCK ACTUAL WHEN STOCK ENVIADO NOC CHANGES ---
+        document.querySelectorAll('input[name="stock_enviado_noc"]').forEach(nocInput => {
+            const row = nocInput.closest('tr');
+            const actualInput = row.querySelector('input[name="stock_actual"]');
+            
+            nocInput.setAttribute('data-initial-noc', nocInput.value || '0');
+            actualInput.setAttribute('data-initial-actual', actualInput.value || '0');
+            
+            nocInput.addEventListener('input', function() {
+                const initNoc = parseInt(this.getAttribute('data-initial-noc')) || 0;
+                const currentNoc = parseInt(this.value) || 0;
+                const initActual = parseInt(actualInput.getAttribute('data-initial-actual')) || 0;
+                
+                const diff = currentNoc - initNoc;
+                if (diff > 0) {
+                    actualInput.value = initActual + diff;
+                } else {
+                    actualInput.value = initActual;
+                }
+            });
+        });
+
         // --- CHART INITIALIZATION FOR LOCAL SEDE DASHBOARD ---
         {% if total_reparadas_sede > 0 %}
         const tipDataSede = {{ tipificaciones_data|tojson }};
