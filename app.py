@@ -979,11 +979,21 @@ def agrupar_clientes_averia(id):
         
     site, xbox, hubox, subox = parse_caja(averia.caja, averia.site)
     
-    # Si la avería local está PENDIENTE, buscar el principal reparado de este site para redirigir
+    # 1. Si la avería (principal) está REPARADA y pasaron más de 7 días desde su resolución, bloquear la agrupación
+    if averia.estado == "REPARADO" and averia.fecha_resolucion:
+        import datetime
+        now = datetime.datetime.now()
+        ref_date = averia.fecha_resolucion.replace(tzinfo=None) if averia.fecha_resolucion.tzinfo else averia.fecha_resolucion
+        if (now - ref_date).days > 7:
+            flash(f"No hay ninguna avería reparada (principal) en el SITE '{site}' para agrupar. Por favor resuelve el ticket principal primero.", "warning")
+            return redirect(url_for("dashboard"))
+            
+    # 2. Si la avería local está PENDIENTE, buscar el principal reparado de este site para redirigir
     if averia.estado == "PENDIENTE":
+        import datetime
         from sqlalchemy import or_, func
         site_clean = site.strip().upper() if site else ""
-        principal = Averia.query.filter(
+        principales = Averia.query.filter(
             func.upper(func.trim(Averia.site)) == site_clean,
             Averia.estado == "REPARADO",
             or_(
@@ -991,11 +1001,20 @@ def agrupar_clientes_averia(id):
                 Averia.material_comentarios == "",
                 ~Averia.material_comentarios.like("%Agrupado en la avería principal%")
             )
-        ).order_by(Averia.id.desc()).first()
+        ).order_by(Averia.id.desc()).all()
         
-        if principal:
-            flash(f"Redirigido a la avería principal del SITE {site} (ID {principal.id}) para realizar la agrupación.", "info")
-            return redirect(url_for("agrupar_clientes_averia", id=principal.id))
+        principal_valido = None
+        now = datetime.datetime.now()
+        for p in principales:
+            if p.fecha_resolucion:
+                ref_date = p.fecha_resolucion.replace(tzinfo=None) if p.fecha_resolucion.tzinfo else p.fecha_resolucion
+                if (now - ref_date).days <= 7:
+                    principal_valido = p
+                    break
+                    
+        if principal_valido:
+            flash(f"Redirigido a la avería principal del SITE {site} (ID {principal_valido.id}) para realizar la agrupación.", "info")
+            return redirect(url_for("agrupar_clientes_averia", id=principal_valido.id))
         else:
             flash(f"No hay ninguna avería reparada (principal) en el SITE '{site}' para agrupar. Por favor resuelve el ticket principal primero.", "warning")
             return redirect(url_for("dashboard"))
@@ -1126,9 +1145,38 @@ def agrupar_clientes_averia(id):
         site=site,
         xbox=xbox,
         hubox=hubox,
-        subox=subox,
         clientes_del_site=clientes_del_site
     )
+
+
+@app.route("/averias/eliminar/<int:id>", methods=["POST"])
+@login_requerido
+def eliminar_averia(id):
+    es_fbb = (session.get("operador_nombre", "").upper() == "FBB" or 
+              session.get("operador_dni", "").upper() == "FBB")
+    if session.get("operador_rol") != "admin" or not es_fbb:
+        flash("No tienes permisos para eliminar registros. Solo la cuenta de FBB (Admin) puede realizar esta acción.", "danger")
+        return redirect(url_for("dashboard"))
+        
+    averia = Averia.query.get_or_404(id)
+    if averia.estado == "REPARADO" and averia.materiales_json:
+        try:
+            import json
+            mats = json.loads(averia.materiales_json)
+            # Devolvemos el stock: pasar mats como old_mats y un dict vacio como new_mats
+            ajustar_stock_por_consumo(averia.branch, mats, {})
+        except Exception as e:
+            print("Error devolviendo stock al eliminar averia:", e)
+            
+    try:
+        db.session.delete(averia)
+        db.session.commit()
+        flash(f"Avería ID {id} ({averia.cuenta or 'Sin Cuenta'}) eliminada correctamente y stock devuelto.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error al eliminar la avería: {str(e)}", "danger")
+        
+    return redirect(request.referrer or url_for("dashboard"))
 
 
 @app.route("/averias/crear", methods=["POST"])

@@ -303,6 +303,13 @@
                                         <a href="{{ url_for('agrupar_clientes_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1" title="Agrupar otros clientes de este site">
                                             <i class="bi bi-diagram-3"></i> Agrupar
                                         </a>
+                                        {% if session.get('operador_rol') == 'admin' and (session.get('operador_nombre', '').upper() == 'FBB' or session.get('operador_dni', '').upper() == 'FBB') %}
+                                        <form action="{{ url_for('eliminar_averia', id=av.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar esta avería permanentemente? Se devolverán los materiales al stock.');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger py-1" title="Eliminar Avería">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
                                     {% endif %}
                                 </div>
                             </td>
