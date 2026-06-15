@@ -1231,6 +1231,7 @@ def crear_averia_manual():
     
     try:
         cuenta = request.form.get("cuenta", "").strip()
+        accion = request.form.get("accion", "").strip()
         if not cuenta:
             import datetime
             now_str = datetime.datetime.now().strftime("%d%m%H%M")
@@ -1271,6 +1272,9 @@ def crear_averia_manual():
             existente = Averia.query.filter_by(cuenta=cuenta).first()
         if existente:
             if existente.estado == "PENDIENTE":
+                if accion == "registrar_y_reparar":
+                    flash(f"La cuenta {cuenta} ya tiene una avería pendiente activa. Redirigiendo a resolución.", "info")
+                    return redirect(url_for("dashboard", auto_resolver_id=existente.id, auto_resolver_cuenta=existente.cuenta))
                 flash(f"La cuenta {cuenta} ya tiene una avería pendiente activa.", "warning")
                 return redirect(url_for("dashboard"))
             else:
@@ -1288,6 +1292,8 @@ def crear_averia_manual():
                 existente.origen = "MANUAL"
                 db.session.commit()
                 flash(f"Se reactivó la avería para la cuenta {cuenta}.", "success")
+                if accion == "registrar_y_reparar":
+                    return redirect(url_for("dashboard", auto_resolver_id=existente.id, auto_resolver_cuenta=existente.cuenta))
                 return redirect(url_for("dashboard"))
         
         nueva = Averia(
@@ -1305,6 +1311,8 @@ def crear_averia_manual():
         db.session.add(nueva)
         db.session.commit()
         flash(f"Avería manual para cuenta {cuenta} creada con éxito.", "success")
+        if accion == "registrar_y_reparar":
+            return redirect(url_for("dashboard", auto_resolver_id=nueva.id, auto_resolver_cuenta=nueva.cuenta))
     except Exception as e:
         db.session.rollback()
         flash(f"Error al crear avería: {str(e)}", "danger")
