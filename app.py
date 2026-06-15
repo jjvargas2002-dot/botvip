@@ -1556,10 +1556,13 @@ def exportar_averias():
         cant = mats_dict.get(key)
         if cant is not None:
             return cant
-        if material_obj['codigo'] != "Sin Código":
+        if material_obj['codigo'] and material_obj['codigo'] != "Sin Código":
             matching_cants = [c for k, c in mats_dict.items() if k.startswith(material_obj['codigo'] + "|")]
-            if len(matching_cants) == 1:
-                return matching_cants[0]
+            if len(matching_cants) > 0:
+                try:
+                    return sum(int(c) for c in matching_cants if c is not None)
+                except Exception:
+                    pass
         return 0
 
     # 1. SUMMARY SHEET
