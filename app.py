@@ -18,7 +18,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 
-MATERIALES_MASTER = [
+MATERIALES_COMPLETO = [
     # Sección OLT
     {"codigo": "291368", "nombre": "OLT GPON ZTE C610 - 16 puertos DC", "seccion": "OLT"},
     {"codigo": "291368", "nombre": "Cable de alimentación OC para chasis C610 (15m)", "seccion": "OLT"},
@@ -106,6 +106,44 @@ MATERIALES_MASTER = [
     {"codigo": "Sin Código", "nombre": "Cintillo para cable 4x200mm", "seccion": "ACCESORIOS"}
 ]
 
+MATERIALES_MASTER = [
+    {"codigo": "283866", "nombre": "Cable Drop", "seccion": "CABLES"},
+    {"codigo": "299378", "nombre": "FAC", "seccion": "CONECTORES"},
+    {"codigo": "299379", "nombre": "Waterproof", "seccion": "CONECTORES"},
+    {"codigo": "299799", "nombre": "Mufas", "seccion": "CAJAS"},
+    {"codigo": "294790", "nombre": "Preconectorizado", "seccion": "CABLES"}
+]
+
+def obtener_material_mapeado(codigo, nombre):
+    nombre_lower = nombre.lower()
+    
+    # 1. Buscar en catálogo completo para obtener la sección si es necesario
+    master_item = next((m for m in MATERIALES_COMPLETO if m["codigo"] == codigo or m["nombre"].lower() == nombre_lower), None)
+    seccion = master_item["seccion"] if master_item else ""
+    
+    # 2. Cable Drop (código 283866)
+    if codigo == "283866" or "drop" in nombre_lower:
+        return "283866", "Cable Drop", "CABLES"
+        
+    # 3. FAC (código 299378)
+    elif codigo == "299378" or "fac" in nombre_lower or "conector rápido" in nombre_lower or "conector rapido" in nombre_lower:
+        return "299378", "FAC", "CONECTORES"
+        
+    # 4. Waterproof (código 299379)
+    elif codigo == "299379" or "waterproof" in nombre_lower:
+        return "299379", "Waterproof", "CONECTORES"
+        
+    # 5. Mufas (código 299799): agrupar todos los códigos de la sección "CAJAS"
+    elif seccion == "CAJAS" or "empalme" in nombre_lower or "caja de empalme" in nombre_lower or codigo in ["299798", "299799", "424", "423", "8810", "262079"] or "odb" in nombre_lower:
+        return "299799", "Mufas", "CAJAS"
+        
+    # 6. Preconectorizado (código 294790): agrupar todas las fibras que digan "Preconectorizado" de la "Sección CABLES"
+    elif (seccion == "CABLES" and "preconectoriza" in nombre_lower) or "preconectoriza" in nombre_lower:
+        return "294790", "Preconectorizado", "CABLES"
+        
+    # Fallback to original
+    return codigo, nombre, seccion
+
 @app.context_processor
 def utility_processor():
     materiales_por_seccion = {}
@@ -122,20 +160,20 @@ def utility_processor():
     
     comunes = []
     for nombre_comun in materiales_comunes_nombres:
-        found = next((m for m in MATERIALES_MASTER if m["nombre"] == nombre_comun), None)
+        found = next((m for m in MATERIALES_COMPLETO if m["nombre"] == nombre_comun), None)
         if found:
             comunes.append(found)
             
     if comunes:
         materiales_por_seccion["MATERIALES COMUNES"] = comunes
         
-    for mat in MATERIALES_MASTER:
+    for mat in MATERIALES_COMPLETO:
         sec = mat["seccion"]
         if sec not in materiales_por_seccion:
             materiales_por_seccion[sec] = []
         materiales_por_seccion[sec].append(mat)
         
-    return dict(materiales_por_seccion=materiales_por_seccion, MATERIALES_MASTER=MATERIALES_MASTER)
+    return dict(materiales_por_seccion=materiales_por_seccion, MATERIALES_MASTER=MATERIALES_MASTER, MATERIALES_COMPLETO=MATERIALES_COMPLETO)
 
 def sincronizar_sites():
     url_sites = "https://docs.google.com/spreadsheets/d/1eaNxCpm8JF1JcZS3_ldwMRINGYFaW6RsQQWybvRi_P8/export?format=csv&gid=894046404"
@@ -794,27 +832,49 @@ def ajustar_stock_por_consumo(branch, old_mats_dict, new_mats_dict):
     Compara old_mats_dict y new_mats_dict, calcula la diferencia (new_qty - old_qty)
     y descuenta esa diferencia de StockBranch.stock_actual para la sede dada.
     """
-    all_keys = set(list(old_mats_dict.keys()) + list(new_mats_dict.keys()))
-    for key in all_keys:
+    # Mapear old_mats_dict a las 5 categorías principales
+    old_mapped = {}
+    for key, cant in old_mats_dict.items():
         parts = key.split("|")
         if len(parts) < 2:
             continue
         codigo = parts[0]
         nombre = parts[1]
         
-        old_qty = old_mats_dict.get(key, 0)
-        new_qty = new_mats_dict.get(key, 0)
+        m_cod, m_nom, _ = obtener_material_mapeado(codigo, nombre)
+        mapped_key = f"{m_cod}|{m_nom}"
+        try:
+            qty = int(cant or 0)
+        except (ValueError, TypeError):
+            qty = 0
+        old_mapped[mapped_key] = old_mapped.get(mapped_key, 0) + qty
         
+    # Mapear new_mats_dict a las 5 categorías principales
+    new_mapped = {}
+    for key, cant in new_mats_dict.items():
+        parts = key.split("|")
+        if len(parts) < 2:
+            continue
+        codigo = parts[0]
+        nombre = parts[1]
+        
+        m_cod, m_nom, _ = obtener_material_mapeado(codigo, nombre)
+        mapped_key = f"{m_cod}|{m_nom}"
         try:
-            old_qty = int(old_qty)
+            qty = int(cant or 0)
         except (ValueError, TypeError):
-            old_qty = 0
-            
-        try:
-            new_qty = int(new_qty)
-        except (ValueError, TypeError):
-            new_qty = 0
-            
+            qty = 0
+        new_mapped[mapped_key] = new_mapped.get(mapped_key, 0) + qty
+        
+    all_keys = set(list(old_mapped.keys()) + list(new_mapped.keys()))
+    for key in all_keys:
+        parts = key.split("|")
+        codigo = parts[0]
+        nombre = parts[1]
+        
+        old_qty = old_mapped.get(key, 0)
+        new_qty = new_mapped.get(key, 0)
+        
         diff = new_qty - old_qty
         if diff == 0:
             continue
@@ -835,6 +895,10 @@ def ajustar_stock_por_consumo(branch, old_mats_dict, new_mats_dict):
 @app.route("/averias/resolver/<int:id>", methods=["POST"])
 @login_requerido
 def resolver_averia(id):
+    if session.get("operador_rol") == "noc":
+        flash("No tienes permisos para realizar esta acción.", "danger")
+        return redirect(url_for("dashboard"))
+        
     averia = db.session.get(Averia, id)
     if not averia:
         flash("La avería no existe.", "danger")
@@ -879,21 +943,19 @@ def resolver_averia(id):
         for key, cant in mats.items():
             parts = key.split("|")
             codigo = parts[0]
-            nombre = parts[1]
-            # Mapear cable drop
-            if "Drop" in nombre or codigo == "299381":
+            nombre = parts[1] if len(parts) > 1 else ""
+            
+            m_cod, m_nom, m_sec = obtener_material_mapeado(codigo, nombre)
+            
+            if m_nom == "Cable Drop":
                 cable_m += cant
-            # Mapear conectores
-            elif "Conector" in nombre or codigo in ["299378", "299379"]:
+            elif m_nom == "FAC":
                 conectores += cant
-            # Mapear rosetas
-            elif "Roseta" in nombre:
+            elif m_nom == "Waterproof":
                 rosetas += cant
-            # Mapear mangas/cajas de empalme
-            elif "empalme" in nombre.lower() or "Caja de empalme" in nombre or codigo in ["299798", "299799", "424", "423", "8810", "262079"]:
+            elif m_nom == "Mufas":
                 mangas += cant
-            # Mapear acopladores
-            elif "Acoplador" in nombre or "Patch Cord" in nombre or "transceptor" in nombre.lower() or "módulo" in nombre.lower():
+            elif m_nom == "Preconectorizado":
                 acopladores += cant
                 
         averia.material_cable_m = cable_m
@@ -915,6 +977,10 @@ def resolver_averia(id):
 @app.route("/averias/agrupar/<int:id>", methods=["GET", "POST"])
 @login_requerido
 def agrupar_clientes_averia(id):
+    if session.get("operador_rol") == "noc":
+        flash("No tienes permisos para realizar esta acción.", "danger")
+        return redirect(url_for("dashboard"))
+        
     averia = db.session.get(Averia, id)
     if not averia:
         flash("La avería no existe.", "danger")
@@ -1337,6 +1403,94 @@ def registrar_stock():
         consumo_materiales=consumo_materiales,
         tipificaciones_data=tipificaciones_sede,
         total_reparadas_sede=len(reparadas_sede)
+    )
+
+
+@app.route("/stock/exportar/<branch>", methods=["GET"])
+@login_requerido
+def exportar_inventario_sede(branch):
+    user_branch = session.get("operador_branch")
+    es_admin = session.get("operador_rol") == "admin"
+    es_noc = session.get("operador_rol") == "noc"
+    
+    branch = branch.strip().upper()
+    if not es_admin and not es_noc and user_branch != branch:
+        flash("No tienes permisos para descargar el inventario de esta sede.", "danger")
+        return redirect(url_for("registrar_stock", branch=user_branch))
+        
+    stock_regs = StockBranch.query.filter_by(branch=branch).all()
+    stock_dict = {r.material_nombre: r for r in stock_regs}
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Inventario - {branch}"
+    
+    header_fill = PatternFill(start_color="0EA5E9", end_color="0EA5E9", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    regular_font = Font(name="Calibri", size=11)
+    
+    headers = [
+        "Sección",
+        "Código",
+        "Material",
+        "Stock Actual",
+        "Último Stock Enviado NOC",
+        "Último Fecha Envío NOC"
+    ]
+    
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        
+    row_idx = 2
+    for m in MATERIALES_MASTER:
+        reg = stock_dict.get(m["nombre"])
+        stock_actual = reg.stock_actual if reg else 0
+        enviado_noc = reg.stock_enviado_noc if reg else 0
+        fecha_noc = reg.fecha_envio_noc.strftime("%Y-%m-%d") if reg and reg.fecha_envio_noc else ""
+        
+        row_values = [
+            m["seccion"],
+            m["codigo"],
+            m["nombre"],
+            stock_actual,
+            enviado_noc,
+            fecha_noc
+        ]
+        
+        for col_idx, val in enumerate(row_values, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = regular_font
+            if col_idx in [1, 2, 4, 5, 6]:
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            else:
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+                
+        row_idx += 1
+        
+    for col in ws.columns:
+        max_len = 0
+        for cell in col:
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        
+    ws.row_dimensions[1].height = 28
+    
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    
+    filename = f"inventario_{branch.lower()}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return send_file(
+        out,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
     )
 
 

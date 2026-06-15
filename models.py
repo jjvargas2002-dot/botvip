@@ -95,15 +95,15 @@ class Averia(db.Model):
         # Fallback para compatibilidad con registros antiguos
         res = {}
         if self.material_cable_m:
-            res["299381|Cable de fibra óptica 1 hilo - Drop"] = self.material_cable_m
+            res["283866|Cable Drop"] = self.material_cable_m
         if self.material_conectores:
-            res["299378|Conector rápido SC/APC"] = self.material_conectores
+            res["299378|FAC"] = self.material_conectores
         if self.material_rosetas:
-            res["Sin Código|Roseta Óptica"] = self.material_rosetas
+            res["299379|Waterproof"] = self.material_rosetas
         if self.material_mangas:
-            res["299799|Caja de empalme tipo domo 24Fo, 8 puertos"] = self.material_mangas
+            res["299799|Mufas"] = self.material_mangas
         if self.material_acopladores:
-            res["Sin Código|Acoplador Óptico"] = self.material_acopladores
+            res["294790|Preconectorizado"] = self.material_acopladores
         return res
 
 

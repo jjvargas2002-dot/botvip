@@ -113,7 +113,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;" id="sum-conectores">0 ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Conectores</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">FAC</div>
             </div>
         </div>
     </div>
@@ -124,7 +124,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;" id="sum-rosetas">0 ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Rosetas</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Waterproof</div>
             </div>
         </div>
     </div>
@@ -135,7 +135,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;" id="sum-mangas">0 ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Mangas</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Mufas</div>
             </div>
         </div>
     </div>
@@ -146,7 +146,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;" id="sum-acopladores">0 ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Acopladores</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Preconectorizado</div>
             </div>
         </div>
     </div>
@@ -275,6 +275,7 @@
                     </td>
                     <td>
                         <div class="d-inline-flex gap-1.5">
+                            {% if session.get('operador_rol') != 'noc' %}
                             <button type="button" class="btn btn-sm btn-outline-success py-1 fs-8" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}', this)">
                                 <i class="bi bi-tools"></i> Materiales
                             </button>
@@ -285,6 +286,9 @@
                             <button type="button" class="btn btn-sm btn-outline-primary py-1 fs-8" onclick="compartirWhatsApp('{{ av.site or '' }}', '{{ (av.codigo_wo or av.detalles or '') | escape }}', '{{ av.detalles | escape }}', this)">
                                 <i class="bi bi-whatsapp"></i> Reportar
                             </button>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-muted small">Sin acciones</span>
                             {% endif %}
                         </div>
                     </td>
@@ -327,18 +331,14 @@
                         <label class="form-label small fw-medium text-secondary">Agregar Material Utilizado</label>
                         <div class="row g-2 align-items-center">
                             <div class="col-8">
-                                <select id="select-material-input" class="form-select form-select-custom py-1.5 fs-7">
-                                    <option value="">-- Seleccionar Material --</option>
+                                <input type="text" id="select-material-search" class="form-control form-control-custom py-1.5 fs-7" list="materiales-datalist" placeholder="Escribe para buscar material (código o nombre)...">
+                                <datalist id="materiales-datalist">
                                     {% for seccion, items in materiales_por_seccion.items() %}
-                                    <optgroup label="Sección {{ seccion }}">
                                         {% for item in items %}
-                                        <option value="{{ item.codigo }}|{{ item.nombre }}">
-                                            [{{ item.codigo }}] {{ item.nombre }}
-                                        </option>
+                                        <option value="{{ item.codigo }}|{{ item.nombre }}">[{{ item.codigo }}] {{ item.nombre }} ({{ seccion }})</option>
                                         {% endfor %}
-                                    </optgroup>
                                     {% endfor %}
-                                </select>
+                                </datalist>
                             </div>
                             <div class="col-3">
                                 <input type="number" id="cantidad-material-input" class="form-control form-control-custom py-1.5 fs-7" placeholder="Cant." min="1" value="1">
@@ -571,7 +571,8 @@
             
             actualizarTablaMateriales();
             
-            document.getElementById('select-material-input').value = "";
+            const searchInput = document.getElementById('select-material-search');
+            if (searchInput) searchInput.value = "";
             document.getElementById('cantidad-material-input').value = 1;
             document.getElementsByName('comentarios')[0].value = comentarios;
             document.getElementsByName('tipificacion')[0].value = tipificacion;
@@ -580,15 +581,24 @@
         };
 
         window.agregarMaterialALista = function() {
-            const select = document.getElementById("select-material-input");
+            const input = document.getElementById("select-material-search");
             const cantidadInput = document.getElementById("cantidad-material-input");
             
-            if (!select.value) {
+            if (!input.value) {
                 alert("Por favor selecciona un material.");
                 return;
             }
             
-            const key = select.value;
+            const key = input.value.trim();
+            
+            // Validar que el valor ingresado esté en las opciones del datalist
+            const datalist = document.getElementById("materiales-datalist");
+            const options = Array.from(datalist.options).map(opt => opt.value);
+            if (!options.includes(key)) {
+                alert("Por favor selecciona un material válido de la lista predictiva.");
+                return;
+            }
+            
             const cantidad = parseInt(cantidadInput.value);
             
             if (isNaN(cantidad) || cantidad <= 0) {
@@ -604,7 +614,7 @@
             
             actualizarTablaMateriales();
             
-            select.value = "";
+            input.value = "";
             cantidadInput.value = 1;
         };
 

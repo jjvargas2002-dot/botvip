@@ -90,7 +90,7 @@
     <div class="col-6 col-sm-4 col-md-3 col-lg">
         <div class="metric-card-noc">
             <div class="metric-icon-noc bg-metric-blue">
-                <i class="bi bi-lightning-charge-fill"></i>
+                <i class="bi bi-broadcast"></i>
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ materials.cable }} m</div>
@@ -105,7 +105,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ materials.conectores }} ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Conectores</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">FAC</div>
             </div>
         </div>
     </div>
@@ -116,7 +116,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ materials.rosetas }} ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Rosetas</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Waterproof</div>
             </div>
         </div>
     </div>
@@ -127,7 +127,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ materials.mangas }} ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Mangas</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Mufas</div>
             </div>
         </div>
     </div>
@@ -138,7 +138,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ materials.acopladores }} ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Acopladores</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Preconectorizado</div>
             </div>
         </div>
     </div>
@@ -290,18 +290,20 @@
                                         <i class="bi bi-geo-alt-fill text-danger"></i>
                                     </a>
                                     {% endif %}
-                                    {% if av.estado == 'PENDIENTE' %}
-                                    <button class="btn btn-sm btn-success py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
-                                        <i class="bi bi-check-circle"></i> Resolver
-                                    </button>
-                                    {% else %}
-                                    <button class="btn btn-sm btn-outline-primary py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
-                                        <i class="bi bi-pencil-square"></i> Materiales
-                                    </button>
+                                    {% if session.get('operador_rol') != 'noc' %}
+                                        {% if av.estado == 'PENDIENTE' %}
+                                        <button class="btn btn-sm btn-success py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
+                                            <i class="bi bi-check-circle"></i> Resolver
+                                        </button>
+                                        {% else %}
+                                        <button class="btn btn-sm btn-outline-primary py-1" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}')">
+                                            <i class="bi bi-pencil-square"></i> Materiales
+                                        </button>
+                                        {% endif %}
+                                        <a href="{{ url_for('agrupar_clientes_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1" title="Agrupar otros clientes de este site">
+                                            <i class="bi bi-diagram-3"></i> Agrupar
+                                        </a>
                                     {% endif %}
-                                    <a href="{{ url_for('agrupar_clientes_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1" title="Agrupar otros clientes de este site">
-                                        <i class="bi bi-diagram-3"></i> Agrupar
-                                    </a>
                                 </div>
                             </td>
                         </tr>
@@ -449,18 +451,14 @@
                         <label class="form-label small fw-medium text-secondary">Agregar Material Utilizado</label>
                         <div class="row g-2 align-items-center">
                             <div class="col-8">
-                                <select id="select-material-input" class="form-select form-select-custom py-1.5 fs-7">
-                                    <option value="">-- Seleccionar Material --</option>
+                                <input type="text" id="select-material-search" class="form-control form-control-custom py-1.5 fs-7" list="materiales-datalist" placeholder="Escribe para buscar material (código o nombre)...">
+                                <datalist id="materiales-datalist">
                                     {% for seccion, items in materiales_por_seccion.items() %}
-                                    <optgroup label="Sección {{ seccion }}">
                                         {% for item in items %}
-                                        <option value="{{ item.codigo }}|{{ item.nombre }}">
-                                            [{{ item.codigo }}] {{ item.nombre }}
-                                        </option>
+                                        <option value="{{ item.codigo }}|{{ item.nombre }}">[{{ item.codigo }}] {{ item.nombre }} ({{ seccion }})</option>
                                         {% endfor %}
-                                    </optgroup>
                                     {% endfor %}
-                                </select>
+                                </datalist>
                             </div>
                             <div class="col-3">
                                 <input type="number" id="cantidad-material-input" class="form-control form-control-custom py-1.5 fs-7" placeholder="Cant." min="1" value="1">
@@ -534,6 +532,7 @@
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
+    const esNoc = {{ (session.get('operador_rol') == 'noc') | tojson }};
     // Variables y datos dinámicos inyectados desde Flask
     const averias = {{ map_json | safe }};
     
@@ -647,7 +646,7 @@
             ? `<span class="badge bg-warning text-dark">${av.dias} días pendientes</span>` 
             : `<span class="badge bg-success text-white">Reparada</span>`;
             
-        const resolverBtn = `<button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
+        const resolverBtn = esNoc ? '' : `<button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
                     <i class="bi bi-check-circle-fill"></i> ${esPendiente ? 'Resolver Avería' : 'Editar/Registrar Materiales'}
                </button>`;
 
@@ -815,15 +814,15 @@
             const valueEl = card.querySelector(".metric-value");
             if (labelEl && valueEl) {
                 const label = labelEl.innerText.trim().toLowerCase();
-                if (label.includes("cable")) {
+                if (label.includes("cable") || label.includes("drop")) {
                     valueEl.innerText = `${sumCable} m`;
-                } else if (label.includes("conector")) {
+                } else if (label.includes("conector") || label.includes("fac")) {
                     valueEl.innerText = `${sumConectores} ud`;
-                } else if (label.includes("roseta")) {
+                } else if (label.includes("roseta") || label.includes("waterproof")) {
                     valueEl.innerText = `${sumRosetas} ud`;
-                } else if (label.includes("manga")) {
+                } else if (label.includes("manga") || label.includes("mufa")) {
                     valueEl.innerText = `${sumMangas} ud`;
-                } else if (label.includes("acoplador")) {
+                } else if (label.includes("acoplador") || label.includes("preconectorizado")) {
                     valueEl.innerText = `${sumAcopladores} ud`;
                 }
             }
@@ -979,7 +978,8 @@
         
         actualizarTablaMateriales();
         
-        document.getElementById('select-material-input').value = "";
+        const searchInput = document.getElementById('select-material-search');
+        if (searchInput) searchInput.value = "";
         document.getElementById('cantidad-material-input').value = 1;
         document.getElementsByName('comentarios')[0].value = comentarios;
         document.getElementsByName('tipificacion')[0].value = tipificacion;
@@ -988,15 +988,24 @@
     }
 
     window.agregarMaterialALista = function() {
-        const select = document.getElementById("select-material-input");
+        const input = document.getElementById("select-material-search");
         const cantidadInput = document.getElementById("cantidad-material-input");
         
-        if (!select.value) {
+        if (!input.value) {
             alert("Por favor selecciona un material.");
             return;
         }
         
-        const val = select.value;
+        const val = input.value.trim();
+        
+        // Validar que el valor ingresado esté en las opciones del datalist
+        const datalist = document.getElementById("materiales-datalist");
+        const options = Array.from(datalist.options).map(opt => opt.value);
+        if (!options.includes(val)) {
+            alert("Por favor selecciona un material válido de la lista predictiva.");
+            return;
+        }
+        
         const parts = val.split("|");
         const codigo = parts[0];
         const nombre = parts[1];
@@ -1017,7 +1026,7 @@
         
         actualizarTablaMateriales();
         
-        select.value = "";
+        input.value = "";
         cantidadInput.value = 1;
     };
 
@@ -1210,9 +1219,11 @@
                                                 <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" class="btn btn-outline-danger btn-sm text-start py-1" style="font-size: 0.75rem;">
                                                     <i class="bi bi-geo-alt-fill"></i> Abrir en Google Maps
                                                 </a>
+                                                ${esNoc ? '' : `
                                                 <button class="btn btn-success btn-sm text-start py-1" style="font-size: 0.75rem;" onclick="abrirModalResolver(${av.id}, '${av.cuenta}')">
                                                     <i class="bi bi-check-circle-fill"></i> Resolver Avería
                                                 </button>
+                                                `}
                                             </div>
                                         </div>
                                     `;

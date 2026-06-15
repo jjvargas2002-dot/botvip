@@ -119,13 +119,16 @@
         <div class="stock-card mb-4">
             <div class="stock-header d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
-                    <h2 class="h4 mb-1 fw-bold"><i class="bi bi-box-seam-fill me-2 text-info"></i>Inventario y Control</h2>
+                    <h2 class="h4 mb-1 fw-bold"><i class="bi bi-box-seam-fill me-2 text-info"></i>{% if es_noc %}Branch STOCK{% else %}Inventario y Control{% endif %}</h2>
                     <p class="mb-0 text-muted-light" style="font-size: 0.9rem; color: #94a3b8;">
-                        Registra el stock de materiales y visualiza estadísticas de consumo para esta sucursal.
+                        {% if es_noc %}Visualiza el stock de materiales y estadísticas de consumo para esta sucursal.{% else %}Registra el stock de materiales y visualiza estadísticas de consumo para esta sucursal.{% endif %}
                     </p>
                 </div>
                 
                 <div class="d-flex align-items-center gap-3">
+                    <a href="{{ url_for('exportar_inventario_sede', branch=sede_actual) }}" class="btn btn-sm btn-success d-flex align-items-center gap-2 px-3 py-1.5 rounded-3 fw-semibold shadow-sm text-white">
+                        <i class="bi bi-file-earmark-excel-fill"></i> Descargar Excel
+                    </a>
                     {% if es_admin_or_noc %}
                     <form method="GET" class="d-flex align-items-center gap-2 mb-0">
                         <span class="text-nowrap" style="color: #cbd5e1; font-weight: 500;">Sede Consultada:</span>
@@ -148,7 +151,7 @@
                 <ul class="nav nav-tabs nav-tabs-premium border-0" id="stockTabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#registerStockPane" type="button" role="tab" aria-controls="registerStockPane" aria-selected="true">
-                            <i class="bi bi-pencil-square me-1.5"></i>Registrar Inventario
+                            <i class="bi bi-pencil-square me-1.5"></i>{% if es_noc %}Stock por Sede{% else %}Registrar Inventario{% endif %}
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
