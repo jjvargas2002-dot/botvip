@@ -449,20 +449,23 @@
                     <!-- Dynamic material selection -->
                     <div class="mb-3">
                         <label class="form-label small fw-medium text-secondary">Agregar Material Utilizado</label>
-                        <div class="mb-2">
-                            <input type="text" id="select-material-search" class="form-control form-control-custom py-1.5 fs-7" placeholder="🔍 Escribe para filtrar materiales..." oninput="filtrarMateriales()">
-                        </div>
                         <div class="row g-2 align-items-center">
                             <div class="col-8">
-                                <select id="select-material-input" class="form-select form-select-custom py-1.5 fs-7">
-                                    {% for seccion, items in materiales_por_seccion.items() %}
-                                        <optgroup label="{{ seccion }}">
-                                            {% for item in items %}
-                                                <option value="{{ item.codigo }}|{{ item.nombre }}">[{{ item.codigo }}] {{ item.nombre }}</option>
-                                            {% endfor %}
-                                        </optgroup>
-                                    {% endfor %}
-                                </select>
+                                <div class="position-relative" id="custom-select-container">
+                                    <input type="text" id="select-material-search" class="form-control form-control-custom py-1.5 fs-7" placeholder="🔍 Escribe para buscar o haz clic para ver materiales..." autocomplete="off">
+                                    <div id="select-material-dropdown" class="dropdown-menu shadow w-100 p-0 overflow-auto border border-light-subtle" style="max-height: 250px; display: none; position: absolute; z-index: 1055; background: var(--bs-body-bg);">
+                                        {% for seccion, items in materiales_por_seccion.items() %}
+                                            <div class="dropdown-header fw-bold text-uppercase bg-light py-1 px-3 fs-8 text-primary" style="font-size: 0.7rem;" data-section="{{ seccion }}">{{ seccion }}</div>
+                                            <div class="dropdown-section-items" data-section="{{ seccion }}">
+                                                {% for item in items %}
+                                                    <button type="button" class="dropdown-item py-1 px-3 fs-7 text-start" style="font-size: 0.75rem;" data-value="{{ item.codigo }}|{{ item.nombre }}" onclick="seleccionarMaterialCustom('{{ item.codigo }}|{{ item.nombre }}')">
+                                                        <span class="text-secondary small me-1">[{{ item.codigo }}]</span> {{ item.nombre }}
+                                                    </button>
+                                                {% endfor %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-3">
                                 <input type="number" id="cantidad-material-input" class="form-control form-control-custom py-1.5 fs-7" placeholder="Cant." min="1" value="1">
@@ -983,9 +986,11 @@
         actualizarTablaMateriales();
         
         const searchInput = document.getElementById('select-material-search');
-        if (searchInput) searchInput.value = "";
-        inicializarFiltroMateriales();
-        filtrarMateriales();
+        if (searchInput) {
+            searchInput.value = "";
+            searchInput.removeAttribute("data-value");
+        }
+        filtrarMaterialesCustom();
         
         document.getElementById('cantidad-material-input').value = 1;
         document.getElementsByName('comentarios')[0].value = comentarios;
@@ -994,65 +999,70 @@
         resolverModal.show();
     }
 
-    let originalMaterials = [];
-    window.inicializarFiltroMateriales = function() {
-        const select = document.getElementById("select-material-input");
-        if (!select) return;
-        originalMaterials = [];
-        const optgroups = select.querySelectorAll("optgroup");
-        optgroups.forEach(group => {
-            const label = group.getAttribute("label");
-            const options = [];
-            group.querySelectorAll("option").forEach(opt => {
-                options.push({
-                    value: opt.value,
-                    text: opt.textContent
-                });
-            });
-            originalMaterials.push({
-                label: label,
-                options: options
-            });
-        });
+    window.seleccionarMaterialCustom = function(value) {
+        const parts = value.split("|");
+        const codigo = parts[0];
+        const nombre = parts[1];
+        
+        const input = document.getElementById("select-material-search");
+        input.value = `[${codigo}] ${nombre}`;
+        input.setAttribute("data-value", value);
+        
+        // Ocultar dropdown
+        document.getElementById("select-material-dropdown").style.display = "none";
     };
 
-    window.filtrarMateriales = function() {
-        const searchVal = document.getElementById("select-material-search").value.toLowerCase().trim();
-        const select = document.getElementById("select-material-input");
-        if (!select) return;
+    window.filtrarMaterialesCustom = function() {
+        const input = document.getElementById("select-material-search");
+        const query = input.value.toLowerCase().trim();
+        const dropdown = document.getElementById("select-material-dropdown");
+        if (!dropdown) return;
         
-        select.innerHTML = "";
-        originalMaterials.forEach(group => {
-            const filteredOptions = group.options.filter(opt => {
-                return opt.text.toLowerCase().includes(searchVal) || opt.value.split("|")[0].includes(searchVal);
+        // Si el usuario edita o borra el texto de una selección previa (que empieza con '['), limpiamos el data-value
+        if (!input.value.startsWith("[")) {
+            input.removeAttribute("data-value");
+        }
+        
+        const headers = dropdown.querySelectorAll(".dropdown-header");
+        headers.forEach(header => {
+            const section = header.getAttribute("data-section");
+            const itemsDiv = dropdown.querySelector(`.dropdown-section-items[data-section="${section}"]`);
+            if (!itemsDiv) return;
+            
+            const items = itemsDiv.querySelectorAll(".dropdown-item");
+            let visibleCount = 0;
+            
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                const val = item.getAttribute("data-value").toLowerCase();
+                
+                if (query === "" || query.startsWith("[") || text.includes(query) || val.split("|")[0].includes(query)) {
+                    item.style.display = "block";
+                    visibleCount++;
+                } else {
+                    item.style.display = "none";
+                }
             });
             
-            if (filteredOptions.length > 0) {
-                const optgroup = document.createElement("optgroup");
-                optgroup.setAttribute("label", group.label);
-                filteredOptions.forEach(opt => {
-                    const option = document.createElement("option");
-                    option.value = opt.value;
-                    option.textContent = opt.text;
-                    optgroup.appendChild(option);
-                });
-                select.appendChild(optgroup);
+            if (visibleCount > 0) {
+                header.style.display = "block";
+            } else {
+                header.style.display = "none";
             }
         });
     };
 
     window.agregarMaterialALista = function() {
-        const select = document.getElementById("select-material-input");
+        const input = document.getElementById("select-material-search");
         const cantidadInput = document.getElementById("cantidad-material-input");
         
-        if (!select.value) {
-            alert("Por favor selecciona un material.");
+        const key = input.getAttribute("data-value");
+        if (!key) {
+            alert("Por favor selecciona un material válido de la lista.");
             return;
         }
         
-        const key = select.value.trim();
         const cantidad = parseInt(cantidadInput.value);
-        
         if (isNaN(cantidad) || cantidad <= 0) {
             alert("Por favor ingresa una cantidad válida.");
             return;
@@ -1066,9 +1076,9 @@
         
         actualizarTablaMateriales();
         
-        // Reestablecer filtros
-        document.getElementById("select-material-search").value = "";
-        filtrarMateriales();
+        // Limpiar entrada
+        input.value = "";
+        input.removeAttribute("data-value");
         cantidadInput.value = 1;
     };
 
@@ -1317,5 +1327,32 @@
 
     // Iniciar consulta cada 30 segundos
     setInterval(comprobarNuevasAverias, 30000);
+
+    const matSearch = document.getElementById("select-material-search");
+    const matDropdown = document.getElementById("select-material-dropdown");
+    
+    if (matSearch && matDropdown) {
+        matSearch.addEventListener("focus", () => {
+            matDropdown.style.display = "block";
+            filtrarMaterialesCustom();
+        });
+        matSearch.addEventListener("input", () => {
+            matDropdown.style.display = "block";
+            filtrarMaterialesCustom();
+        });
+        matSearch.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+            }
+        });
+    }
+    
+    document.addEventListener("click", (e) => {
+        const container = document.getElementById("custom-select-container");
+        const matDropdown = document.getElementById("select-material-dropdown");
+        if (container && matDropdown && !container.contains(e.target)) {
+            matDropdown.style.display = "none";
+        }
+    });
 </script>
 {% endblock %}
