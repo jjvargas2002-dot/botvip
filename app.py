@@ -21,8 +21,6 @@ db.init_app(app)
 MATERIALES_MASTER = [
     # Sección OLT
     {"codigo": "291368", "nombre": "OLT GPON ZTE C610 - 16 puertos DC", "seccion": "OLT"},
-    {"codigo": "291368", "nombre": "Cable de alimentación OC para chasis C610 (15m)", "seccion": "OLT"},
-    {"codigo": "291368", "nombre": "Cable de puesta a tierra de protección (10m)", "seccion": "OLT"},
     {"codigo": "294701", "nombre": "Transceptor óptico bidireccional monofibra SFP GPON-OLT clase C+", "seccion": "OLT"},
     {"codigo": "283866", "nombre": "Módulo óptico bidireccional de doble fibra y canal único ZTE 10Km/1.25Gb", "seccion": "OLT"},
     # Sección ODF
