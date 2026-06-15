@@ -18,7 +18,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 
-MATERIALES_COMPLETO = [
+MATERIALES_MASTER = [
     # Sección OLT
     {"codigo": "291368", "nombre": "OLT GPON ZTE C610 - 16 puertos DC", "seccion": "OLT"},
     {"codigo": "291368", "nombre": "Cable de alimentación OC para chasis C610 (15m)", "seccion": "OLT"},
@@ -106,19 +106,11 @@ MATERIALES_COMPLETO = [
     {"codigo": "Sin Código", "nombre": "Cintillo para cable 4x200mm", "seccion": "ACCESORIOS"}
 ]
 
-MATERIALES_MASTER = [
-    {"codigo": "283866", "nombre": "Cable Drop", "seccion": "CABLES"},
-    {"codigo": "299378", "nombre": "FAC", "seccion": "CONECTORES"},
-    {"codigo": "299379", "nombre": "Waterproof", "seccion": "CONECTORES"},
-    {"codigo": "299799", "nombre": "Mufas", "seccion": "CAJAS"},
-    {"codigo": "294790", "nombre": "Preconectorizado", "seccion": "CABLES"}
-]
-
 def obtener_material_mapeado(codigo, nombre):
     nombre_lower = nombre.lower()
     
     # 1. Buscar en catálogo completo para obtener la sección si es necesario
-    master_item = next((m for m in MATERIALES_COMPLETO if m["codigo"] == codigo or m["nombre"].lower() == nombre_lower), None)
+    master_item = next((m for m in MATERIALES_MASTER if m["codigo"] == codigo or m["nombre"].lower() == nombre_lower), None)
     seccion = master_item["seccion"] if master_item else ""
     
     # 2. Cable Drop (código 283866)
@@ -160,20 +152,20 @@ def utility_processor():
     
     comunes = []
     for nombre_comun in materiales_comunes_nombres:
-        found = next((m for m in MATERIALES_COMPLETO if m["nombre"] == nombre_comun), None)
+        found = next((m for m in MATERIALES_MASTER if m["nombre"] == nombre_comun), None)
         if found:
             comunes.append(found)
             
     if comunes:
         materiales_por_seccion["MATERIALES COMUNES"] = comunes
         
-    for mat in MATERIALES_COMPLETO:
+    for mat in MATERIALES_MASTER:
         sec = mat["seccion"]
         if sec not in materiales_por_seccion:
             materiales_por_seccion[sec] = []
         materiales_por_seccion[sec].append(mat)
         
-    return dict(materiales_por_seccion=materiales_por_seccion, MATERIALES_MASTER=MATERIALES_MASTER, MATERIALES_COMPLETO=MATERIALES_COMPLETO)
+    return dict(materiales_por_seccion=materiales_por_seccion, MATERIALES_MASTER=MATERIALES_MASTER)
 
 def sincronizar_sites():
     url_sites = "https://docs.google.com/spreadsheets/d/1eaNxCpm8JF1JcZS3_ldwMRINGYFaW6RsQQWybvRi_P8/export?format=csv&gid=894046404"
@@ -832,49 +824,27 @@ def ajustar_stock_por_consumo(branch, old_mats_dict, new_mats_dict):
     Compara old_mats_dict y new_mats_dict, calcula la diferencia (new_qty - old_qty)
     y descuenta esa diferencia de StockBranch.stock_actual para la sede dada.
     """
-    # Mapear old_mats_dict a las 5 categorías principales
-    old_mapped = {}
-    for key, cant in old_mats_dict.items():
-        parts = key.split("|")
-        if len(parts) < 2:
-            continue
-        codigo = parts[0]
-        nombre = parts[1]
-        
-        m_cod, m_nom, _ = obtener_material_mapeado(codigo, nombre)
-        mapped_key = f"{m_cod}|{m_nom}"
-        try:
-            qty = int(cant or 0)
-        except (ValueError, TypeError):
-            qty = 0
-        old_mapped[mapped_key] = old_mapped.get(mapped_key, 0) + qty
-        
-    # Mapear new_mats_dict a las 5 categorías principales
-    new_mapped = {}
-    for key, cant in new_mats_dict.items():
-        parts = key.split("|")
-        if len(parts) < 2:
-            continue
-        codigo = parts[0]
-        nombre = parts[1]
-        
-        m_cod, m_nom, _ = obtener_material_mapeado(codigo, nombre)
-        mapped_key = f"{m_cod}|{m_nom}"
-        try:
-            qty = int(cant or 0)
-        except (ValueError, TypeError):
-            qty = 0
-        new_mapped[mapped_key] = new_mapped.get(mapped_key, 0) + qty
-        
-    all_keys = set(list(old_mapped.keys()) + list(new_mapped.keys()))
+    all_keys = set(list(old_mats_dict.keys()) + list(new_mats_dict.keys()))
     for key in all_keys:
         parts = key.split("|")
+        if len(parts) < 2:
+            continue
         codigo = parts[0]
         nombre = parts[1]
         
-        old_qty = old_mapped.get(key, 0)
-        new_qty = new_mapped.get(key, 0)
+        old_qty = old_mats_dict.get(key, 0)
+        new_qty = new_mats_dict.get(key, 0)
         
+        try:
+            old_qty = int(old_qty)
+        except (ValueError, TypeError):
+            old_qty = 0
+            
+        try:
+            new_qty = int(new_qty)
+        except (ValueError, TypeError):
+            new_qty = 0
+            
         diff = new_qty - old_qty
         if diff == 0:
             continue
