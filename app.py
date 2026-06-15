@@ -1061,7 +1061,7 @@ def agrupar_clientes_averia(id):
                 av_g.estado = "REPARADO"
                 av_g.fecha_resolucion = datetime.now()
                 av_g.tecnico_id = session.get("operador_id")
-                av_g.material_comentarios = f"Agrupado en la avería principal (ID {averia.id})"
+                av_g.material_comentarios = f"Agrupado en la avería principal (Cuenta {averia.cuenta})"
                 av_g.tipificacion = averia.tipificacion
                 av_g.material_cable_m = 0
                 av_g.material_conectores = 0
@@ -1121,7 +1121,7 @@ def agrupar_clientes_averia(id):
                     # It is a main ticket of another group
                     is_already_grouped = True
                 elif row.material_comentarios and "Agrupado en la avería principal" in row.material_comentarios:
-                    if f"ID {averia.id}" not in row.material_comentarios:
+                    if f"Cuenta {averia.cuenta}" not in row.material_comentarios and f"ID {averia.id}" not in row.material_comentarios:
                         # It belongs to another group
                         is_already_grouped = True
             
