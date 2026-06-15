@@ -449,16 +449,20 @@
                     <!-- Dynamic material selection -->
                     <div class="mb-3">
                         <label class="form-label small fw-medium text-secondary">Agregar Material Utilizado</label>
+                        <div class="mb-2">
+                            <input type="text" id="select-material-search" class="form-control form-control-custom py-1.5 fs-7" placeholder="🔍 Escribe para filtrar materiales..." oninput="filtrarMateriales()">
+                        </div>
                         <div class="row g-2 align-items-center">
                             <div class="col-8">
-                                <input type="text" id="select-material-search" class="form-control form-control-custom py-1.5 fs-7" list="materiales-datalist" placeholder="Escribe para buscar material (código o nombre)...">
-                                <datalist id="materiales-datalist">
+                                <select id="select-material-input" class="form-select form-select-custom py-1.5 fs-7">
                                     {% for seccion, items in materiales_por_seccion.items() %}
-                                        {% for item in items %}
-                                        <option value="{{ item.codigo }}|{{ item.nombre }}">[{{ item.codigo }}] {{ item.nombre }} ({{ seccion }})</option>
-                                        {% endfor %}
+                                        <optgroup label="{{ seccion }}">
+                                            {% for item in items %}
+                                                <option value="{{ item.codigo }}|{{ item.nombre }}">[{{ item.codigo }}] {{ item.nombre }}</option>
+                                            {% endfor %}
+                                        </optgroup>
                                     {% endfor %}
-                                </datalist>
+                                </select>
                             </div>
                             <div class="col-3">
                                 <input type="number" id="cantidad-material-input" class="form-control form-control-custom py-1.5 fs-7" placeholder="Cant." min="1" value="1">
@@ -980,6 +984,9 @@
         
         const searchInput = document.getElementById('select-material-search');
         if (searchInput) searchInput.value = "";
+        inicializarFiltroMateriales();
+        filtrarMateriales();
+        
         document.getElementById('cantidad-material-input').value = 1;
         document.getElementsByName('comentarios')[0].value = comentarios;
         document.getElementsByName('tipificacion')[0].value = tipificacion;
@@ -987,36 +994,69 @@
         resolverModal.show();
     }
 
+    let originalMaterials = [];
+    window.inicializarFiltroMateriales = function() {
+        const select = document.getElementById("select-material-input");
+        if (!select) return;
+        originalMaterials = [];
+        const optgroups = select.querySelectorAll("optgroup");
+        optgroups.forEach(group => {
+            const label = group.getAttribute("label");
+            const options = [];
+            group.querySelectorAll("option").forEach(opt => {
+                options.push({
+                    value: opt.value,
+                    text: opt.textContent
+                });
+            });
+            originalMaterials.push({
+                label: label,
+                options: options
+            });
+        });
+    };
+
+    window.filtrarMateriales = function() {
+        const searchVal = document.getElementById("select-material-search").value.toLowerCase().trim();
+        const select = document.getElementById("select-material-input");
+        if (!select) return;
+        
+        select.innerHTML = "";
+        originalMaterials.forEach(group => {
+            const filteredOptions = group.options.filter(opt => {
+                return opt.text.toLowerCase().includes(searchVal) || opt.value.split("|")[0].includes(searchVal);
+            });
+            
+            if (filteredOptions.length > 0) {
+                const optgroup = document.createElement("optgroup");
+                optgroup.setAttribute("label", group.label);
+                filteredOptions.forEach(opt => {
+                    const option = document.createElement("option");
+                    option.value = opt.value;
+                    option.textContent = opt.text;
+                    optgroup.appendChild(option);
+                });
+                select.appendChild(optgroup);
+            }
+        });
+    };
+
     window.agregarMaterialALista = function() {
-        const input = document.getElementById("select-material-search");
+        const select = document.getElementById("select-material-input");
         const cantidadInput = document.getElementById("cantidad-material-input");
         
-        if (!input.value) {
+        if (!select.value) {
             alert("Por favor selecciona un material.");
             return;
         }
         
-        const val = input.value.trim();
-        
-        // Validar que el valor ingresado esté en las opciones del datalist
-        const datalist = document.getElementById("materiales-datalist");
-        const options = Array.from(datalist.options).map(opt => opt.value);
-        if (!options.includes(val)) {
-            alert("Por favor selecciona un material válido de la lista predictiva.");
-            return;
-        }
-        
-        const parts = val.split("|");
-        const codigo = parts[0];
-        const nombre = parts[1];
+        const key = select.value.trim();
         const cantidad = parseInt(cantidadInput.value);
         
         if (isNaN(cantidad) || cantidad <= 0) {
             alert("Por favor ingresa una cantidad válida.");
             return;
         }
-        
-        const key = `${codigo}|${nombre}`;
         
         if (materialesAgregados[key]) {
             materialesAgregados[key] += cantidad;
@@ -1026,7 +1066,9 @@
         
         actualizarTablaMateriales();
         
-        input.value = "";
+        // Reestablecer filtros
+        document.getElementById("select-material-search").value = "";
+        filtrarMateriales();
         cantidadInput.value = 1;
     };
 
