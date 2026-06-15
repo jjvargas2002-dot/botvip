@@ -981,8 +981,7 @@ def agrupar_clientes_averia(id):
     
     # 1. Si la avería (principal) está REPARADA y pasaron más de 7 días desde su resolución, bloquear la agrupación
     if averia.estado == "REPARADO" and averia.fecha_resolucion:
-        import datetime
-        now = datetime.datetime.now()
+        now = datetime.now()
         ref_date = averia.fecha_resolucion.replace(tzinfo=None) if averia.fecha_resolucion.tzinfo else averia.fecha_resolucion
         if (now - ref_date).days > 7:
             flash(f"No hay ninguna avería reparada (principal) en el SITE '{site}' para agrupar. Por favor resuelve el ticket principal primero.", "warning")
@@ -990,7 +989,6 @@ def agrupar_clientes_averia(id):
             
     # 2. Si la avería local está PENDIENTE, buscar el principal reparado de este site para redirigir
     if averia.estado == "PENDIENTE":
-        import datetime
         from sqlalchemy import or_, func
         site_clean = site.strip().upper() if site else ""
         principales = Averia.query.filter(
@@ -1004,7 +1002,7 @@ def agrupar_clientes_averia(id):
         ).order_by(Averia.id.desc()).all()
         
         principal_valido = None
-        now = datetime.datetime.now()
+        now = datetime.now()
         for p in principales:
             if p.fecha_resolucion:
                 ref_date = p.fecha_resolucion.replace(tzinfo=None) if p.fecha_resolucion.tzinfo else p.fecha_resolucion
@@ -1233,8 +1231,7 @@ def crear_averia_manual():
         cuenta = request.form.get("cuenta", "").strip()
         accion = request.form.get("accion", "").strip()
         if not cuenta:
-            import datetime
-            now_str = datetime.datetime.now().strftime("%d%m%H%M")
+            now_str = datetime.now().strftime("%d%m%H%M")
             cuenta = f"AVERÍA_ODN_{now_str}"
             
         site = request.form["site"].strip().upper()
