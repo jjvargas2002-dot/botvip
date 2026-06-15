@@ -288,6 +288,13 @@
                             </button>
                             {% endif %}
                             {% if session.get('operador_rol') == 'admin' and (session.get('operador_nombre', '').upper() == 'FBB' or session.get('operador_dni', '').upper() == 'FBB') %}
+                            {% if av.estado == 'REPARADO' %}
+                            <form action="{{ url_for('deshacer_resolucion_averia', id=av.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de deshacer la resolución de esta avería? Volverá a estar pendiente y se devolverán los materiales al stock.');">
+                                <button type="submit" class="btn btn-sm btn-outline-warning py-1 fs-8" title="Reabrir / Deshacer Resolución">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Reabrir
+                                </button>
+                            </form>
+                            {% endif %}
                             <form action="{{ url_for('eliminar_averia', id=av.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar esta avería permanentemente? Se devolverán los materiales al stock.');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger py-1 fs-8" title="Eliminar Avería">
                                     <i class="bi bi-trash"></i>
@@ -761,7 +768,7 @@
             if (caja) {
                 headerText += `Caja: ${caja}\n`;
             }
-            if (cuenta && !cuenta.startsWith('SIN_CUENTA_')) {
+            if (cuenta && !cuenta.startsWith('SIN_CUENTA_') && !cuenta.startsWith('AVERÍA_ODN_')) {
                 headerText += `Cuenta: ${cuenta}\n`;
             }
 

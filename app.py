@@ -1179,6 +1179,50 @@ def eliminar_averia(id):
     return redirect(request.referrer or url_for("dashboard"))
 
 
+@app.route("/averias/deshacer/<int:id>", methods=["POST"])
+@login_requerido
+def deshacer_resolucion_averia(id):
+    es_fbb = (session.get("operador_nombre", "").upper() == "FBB" or 
+              session.get("operador_dni", "").upper() == "FBB")
+    if session.get("operador_rol") != "admin" or not es_fbb:
+        flash("No tienes permisos para deshacer resoluciones. Solo la cuenta de FBB (Admin) puede realizar esta acción.", "danger")
+        return redirect(url_for("dashboard"))
+        
+    averia = Averia.query.get_or_404(id)
+    if averia.estado != "REPARADO":
+        flash("Esta avería ya se encuentra pendiente.", "warning")
+        return redirect(request.referrer or url_for("dashboard"))
+        
+    if averia.materiales_json:
+        try:
+            import json
+            mats = json.loads(averia.materiales_json)
+            # Reintegrar materiales al stock
+            ajustar_stock_por_consumo(averia.branch, mats, {})
+        except Exception as e:
+            print("Error devolviendo stock al deshacer resolucion:", e)
+            
+    try:
+        averia.estado = "PENDIENTE"
+        averia.fecha_resolucion = None
+        averia.material_cable_m = 0
+        averia.material_conectores = 0
+        averia.material_rosetas = 0
+        averia.material_mangas = 0
+        averia.material_acopladores = 0
+        averia.materiales_json = "{}"
+        averia.tipificacion = None
+        averia.material_comentarios = None
+        
+        db.session.commit()
+        flash(f"Resolución de avería ID {id} deshecha correctamente. El ticket vuelve a estar PENDIENTE y se reintegró el stock.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error al deshacer la resolución: {str(e)}", "danger")
+        
+    return redirect(request.referrer or url_for("dashboard"))
+
+
 @app.route("/averias/crear", methods=["POST"])
 @login_requerido
 def crear_averia_manual():
@@ -1188,8 +1232,9 @@ def crear_averia_manual():
     try:
         cuenta = request.form.get("cuenta", "").strip()
         if not cuenta:
-            import uuid
-            cuenta = f"SIN_CUENTA_{uuid.uuid4().hex[:8].upper()}"
+            import datetime
+            now_str = datetime.datetime.now().strftime("%d%m%H%M")
+            cuenta = f"AVERÍA_ODN_{now_str}"
             
         site = request.form["site"].strip().upper()
         xbox = request.form.get("xbox", "").strip().upper()
@@ -1222,7 +1267,7 @@ def crear_averia_manual():
         
         # Validar si ya existe la cuenta (solo si no es un placeholder autogenerado)
         existente = None
-        if not cuenta.startswith("SIN_CUENTA_"):
+        if not cuenta.startswith("SIN_CUENTA_") and not cuenta.startswith("AVERÍA_ODN_"):
             existente = Averia.query.filter_by(cuenta=cuenta).first()
         if existente:
             if existente.estado == "PENDIENTE":
