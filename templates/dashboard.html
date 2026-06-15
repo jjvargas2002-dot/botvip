@@ -233,12 +233,11 @@
                     <p class="mb-0">No hay averías registradas activas.</p>
                 </div>
                 {% else %}
-                <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem; min-width: 750px;">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem; min-width: 650px;">
                     <thead class="table-light">
                         <tr>
                             <th>Cuenta</th>
-                            <th>Detalles</th>
-                            <th>Caja</th>
+                            <th>Caja/Detalles</th>
                             <th>WO / Contrata</th>
                             <th>Días / Fecha</th>
                             <th class="text-end">Acciones</th>
@@ -267,10 +266,10 @@
                                 {% endif %}
                             </td>
                             <td>
+                                <div class="mb-1">
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</span>
+                                </div>
                                 <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
-                            </td>
-                            <td>
-                                <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</span>
                             </td>
                             <td>
                                 <div class="fw-medium text-slate-700">{{ av.codigo_wo or 'N/A' }}</div>

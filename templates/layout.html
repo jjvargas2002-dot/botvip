@@ -256,31 +256,42 @@
 
         /* PC / Desktop styles to prevent horizontal scroll by compacting columns and buttons */
         @media (min-width: 992px) {
-            .table-responsive table {
+            .table-responsive table, .table-custom {
                 width: 100% !important;
+                font-size: 0.8rem !important;
+            }
+            .table-responsive th, .table-custom th {
+                font-size: 0.75rem !important;
+                padding: 0.4rem 0.3rem !important;
             }
             /* Compact padding and fonts for action buttons on PC */
             .table-responsive td .btn, .table-custom td .btn {
-                padding: 0.2rem 0.45rem !important;
-                font-size: 0.725rem !important;
+                padding: 0.2rem 0.4rem !important;
+                font-size: 0.7rem !important;
             }
             /* Reduce cell padding to make things fit horizontally */
             .table-responsive td, .table-responsive th,
             .table-custom td, .table-custom th {
-                padding: 0.5rem 0.35rem !important;
+                padding: 0.4rem 0.3rem !important;
             }
             .table-responsive td:first-child, .table-responsive th:first-child,
             .table-custom td:first-child, .table-custom th:first-child {
-                padding-left: 0.75rem !important;
+                padding-left: 0.6rem !important;
             }
             .table-responsive td:last-child, .table-responsive th:last-child,
             .table-custom td:last-child, .table-custom th:last-child {
-                padding-right: 0.75rem !important;
+                padding-right: 0.6rem !important;
             }
             /* Restrict details max-width on PC so it wraps and prevents table expansion */
             .table-responsive td .text-wrap, .table-custom td .text-wrap {
                 max-width: 180px !important;
                 word-break: break-word;
+                font-size: 0.75rem !important;
+            }
+            /* Badge size inside table */
+            .table-responsive td .badge, .table-custom td .badge {
+                font-size: 0.7rem !important;
+                padding: 0.15rem 0.3rem !important;
             }
         }
     </style>

@@ -1061,7 +1061,7 @@ def agrupar_clientes_averia(id):
                 av_g.estado = "REPARADO"
                 av_g.fecha_resolucion = datetime.now()
                 av_g.tecnico_id = session.get("operador_id")
-                av_g.material_comentarios = f"Agrupado en la avería principal (Cuenta {averia.cuenta})"
+                av_g.material_comentarios = f"Agrupado en la avería principal ({averia.cuenta})"
                 av_g.tipificacion = averia.tipificacion
                 av_g.material_cable_m = 0
                 av_g.material_conectores = 0
@@ -1121,7 +1121,7 @@ def agrupar_clientes_averia(id):
                     # It is a main ticket of another group
                     is_already_grouped = True
                 elif row.material_comentarios and "Agrupado en la avería principal" in row.material_comentarios:
-                    if f"Cuenta {averia.cuenta}" not in row.material_comentarios and f"ID {averia.id}" not in row.material_comentarios:
+                    if f"({averia.cuenta})" not in row.material_comentarios and f"Cuenta {averia.cuenta}" not in row.material_comentarios and f"ID {averia.id}" not in row.material_comentarios:
                         # It belongs to another group
                         is_already_grouped = True
             
@@ -2080,11 +2080,48 @@ def noc_dashboard():
     )
 
 
+def migrar_comentarios_agrupacion():
+    try:
+        averias_agrupadas = Averia.query.filter(
+            Averia.material_comentarios.like("Agrupado en la avería principal%")
+        ).all()
+        
+        migrated_count = 0
+        import re
+        for av in averias_agrupadas:
+            comm = av.material_comentarios
+            m_id = re.search(r"ID\s+(\d+)", comm)
+            m_cuenta = re.search(r"Cuenta\s+([^)]+)", comm)
+            
+            main_cuenta = None
+            if m_id:
+                main_id = int(m_id.group(1))
+                main_av = db.session.get(Averia, main_id)
+                if main_av:
+                    main_cuenta = main_av.cuenta
+            elif m_cuenta:
+                main_cuenta = m_cuenta.group(1).strip()
+                
+            if main_cuenta:
+                new_comm = f"Agrupado en la avería principal ({main_cuenta})"
+                if comm != new_comm:
+                    av.material_comentarios = new_comm
+                    migrated_count += 1
+                    
+        if migrated_count > 0:
+            db.session.commit()
+            print(f"Migración de comentarios de agrupación completada. Se actualizaron {migrated_count} registros.")
+    except Exception as e:
+        db.session.rollback()
+        print("Error en migración de comentarios de agrupación:", e)
+
+
 with app.app_context():
     try:
         db.create_all()
         asegurar_esquema()
         crear_operador_defecto()
+        migrar_comentarios_agrupacion()
         # Verify if static/sites.json exists, otherwise fetch it
         import os
         sites_path = os.path.join(app.root_path, "static", "sites.json")
