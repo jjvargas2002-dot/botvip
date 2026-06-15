@@ -2124,12 +2124,71 @@ def migrar_comentarios_agrupacion():
         print("Error en migración de comentarios de agrupación:", e)
 
 
+def migrar_materiales_mapeados():
+    try:
+        reparadas = Averia.query.filter_by(estado="REPARADO").all()
+        migrated_count = 0
+        import json
+        for av in reparadas:
+            if av.materiales_json and av.materiales_json != "{}":
+                try:
+                    mats = json.loads(av.materiales_json)
+                except Exception:
+                    continue
+                
+                cable_m = 0
+                conectores = 0
+                rosetas = 0
+                mangas = 0
+                acopladores = 0
+                
+                for key, cant in mats.items():
+                    parts = key.split("|")
+                    codigo = parts[0]
+                    nombre = parts[1] if len(parts) > 1 else ""
+                    
+                    m_cod, m_nom, m_sec = obtener_material_mapeado(codigo, nombre)
+                    
+                    if m_nom == "Cable Drop":
+                        cable_m += cant
+                    elif m_nom == "FAC":
+                        conectores += cant
+                    elif m_nom == "Waterproof":
+                        rosetas += cant
+                    elif m_nom == "Mufas":
+                        mangas += cant
+                    elif m_nom == "Preconectorizado":
+                        acopladores += cant
+                
+                # Verificar si los valores actuales difieren
+                if (av.material_cable_m != cable_m or 
+                    av.material_conectores != conectores or 
+                    av.material_rosetas != rosetas or 
+                    av.material_mangas != mangas or 
+                    av.material_acopladores != acopladores):
+                    
+                    av.material_cable_m = cable_m
+                    av.material_conectores = conectores
+                    av.material_rosetas = rosetas
+                    av.material_mangas = mangas
+                    av.material_acopladores = acopladores
+                    migrated_count += 1
+                    
+        if migrated_count > 0:
+            db.session.commit()
+            print(f"Migración de mapeo de materiales completada. Se actualizaron {migrated_count} registros.")
+    except Exception as e:
+        db.session.rollback()
+        print("Error en migración de mapeo de materiales:", e)
+
+
 with app.app_context():
     try:
         db.create_all()
         asegurar_esquema()
         crear_operador_defecto()
         migrar_comentarios_agrupacion()
+        migrar_materiales_mapeados()
         # Verify if static/sites.json exists, otherwise fetch it
         import os
         sites_path = os.path.join(app.root_path, "static", "sites.json")
