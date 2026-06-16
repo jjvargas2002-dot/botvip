@@ -84,7 +84,7 @@
                         <h6 class="fw-bold text-primary mb-2">
                             <i class="bi bi-person-fill-check me-1"></i> Cliente Principal (Avería Resuelta)
                         </h6>
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
                             <div>
                                 <span class="fw-bold text-dark fs-6">{{ averia.cuenta }}</span>
                                 <small class="text-muted d-block" style="font-size: 0.75rem;">WO: {{ averia.codigo_wo or 'N/A' }} | Caja inicial: {{ averia.caja or 'N/A' }}</small>
@@ -93,6 +93,23 @@
                                 <span class="badge bg-primary text-white px-2.5 py-1">Principal</span>
                             </div>
                         </div>
+                        
+                        {% if materiales_principal %}
+                        <div class="mt-2 pt-2 border-top border-primary-subtle">
+                            <button class="btn btn-sm btn-outline-primary py-1 px-3 fs-8" type="button" data-bs-toggle="collapse" data-bs-target="#mat-principal">
+                                <i class="bi bi-box-seam me-1"></i> Ver Materiales Consumidos
+                            </button>
+                            <div class="collapse mt-2" id="mat-principal">
+                                <div class="card card-body p-2 bg-white border-0 small">
+                                    <ul class="mb-0 ps-3 text-slate-700">
+                                        {% for m in materiales_principal %}
+                                        <li>{{ m }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
 
                     <!-- Sección de Clientes -->
@@ -130,7 +147,7 @@
 
                 <!-- Footer Acciones -->
                 <div class="p-3 bg-light border-top d-flex justify-content-end gap-2">
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm px-4 py-2 rounded-3">Omitir y Volver</a>
+                    <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm px-4 py-2 rounded-3">Omitir y Volver</a>
                     <button type="submit" class="btn btn-premium-primary btn-sm px-5 py-2 rounded-3 fw-semibold shadow-sm">Guardar y Finalizar</button>
                 </div>
             </form>

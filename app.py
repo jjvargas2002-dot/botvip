@@ -1000,7 +1000,7 @@ def agrupar_clientes_averia(id):
             or_(
                 Averia.material_comentarios.is_(None),
                 Averia.material_comentarios == "",
-                ~Averia.material_comentarios.like("%Agrupado en la avería principal%")
+                ~Averia.material_comentarios.ilike("%Agrupado%principal%")
             )
         ).order_by(Averia.fecha_resolucion.desc()).all()
         
@@ -1065,13 +1065,23 @@ def agrupar_clientes_averia(id):
             principales_display = []
             for p in validos:
                 cl = clientes_dict.get(p.cuenta)
+                
+                # Format materials list
+                materiales_list = []
+                for key, val in p.materiales_dict.items():
+                    if val and val > 0:
+                        parts = key.split("|")
+                        name = parts[1] if len(parts) > 1 else parts[0]
+                        materiales_list.append(f"{val} {name}")
+                        
                 principales_display.append({
                     "id": p.id,
                     "cuenta": p.cuenta or p.codigo_wo or f"Manual {p.id}",
                     "nombre": cl.nombre if cl else "Cliente de Sheet",
                     "caja": p.caja or "N/A",
                     "fecha_resolucion": p.fecha_resolucion.strftime("%d/%m/%Y %H:%M") if p.fecha_resolucion else "N/A",
-                    "dias_pendientes": p.dias_pendientes or 0
+                    "dias_pendientes": p.dias_pendientes or 0,
+                    "materiales": materiales_list
                 })
                 
             return render_template(
@@ -1182,8 +1192,8 @@ def agrupar_clientes_averia(id):
                 if row.cuentas_asociadas:
                     # It is a main ticket of another group
                     is_already_grouped = True
-                elif row.material_comentarios and "Agrupado en la avería principal" in row.material_comentarios:
-                    if f"({averia.cuenta})" not in row.material_comentarios and f"Cuenta {averia.cuenta}" not in row.material_comentarios and f"ID {averia.id}" not in row.material_comentarios:
+                elif row.material_comentarios and "agrupado" in row.material_comentarios.lower() and "principal" in row.material_comentarios.lower():
+                    if f"({averia.cuenta})" not in row.material_comentarios and f"cuenta {averia.cuenta}" not in row.material_comentarios.lower() and f"id {averia.id}" not in row.material_comentarios.lower():
                         # It belongs to another group
                         is_already_grouped = True
             
@@ -1204,13 +1214,22 @@ def agrupar_clientes_averia(id):
                     "seleccionado": is_associated
                 })
             
+    # Format materials list for principal ticket
+    materiales_principal = []
+    for key, val in averia.materiales_dict.items():
+        if val and val > 0:
+            parts = key.split("|")
+            name = parts[1] if len(parts) > 1 else parts[0]
+            materiales_principal.append(f"{val} {name}")
+            
     return render_template(
         "agrupar.html",
         averia=averia,
         site=site,
         xbox=xbox,
         hubox=hubox,
-        clientes_del_site=clientes_del_site
+        clientes_del_site=clientes_del_site,
+        materiales_principal=materiales_principal
     )
 
 
