@@ -1123,9 +1123,12 @@ def agrupar_clientes_averia(id):
                         # It belongs to another group
                         is_already_grouped = True
             
-            # Show if: PENDING, or already associated with this group,
-            # or REPARADO but not associated with another group yet
-            if row.estado == "PENDIENTE" or is_associated or (row.estado == "REPARADO" and not is_already_grouped):
+            # 7 days pending window check (7 days more or 7 days less than the main ticket)
+            dias_diff = abs((row.dias_pendientes or 0.0) - (averia.dias_pendientes or 0.0))
+            matches_days_window = dias_diff <= 7
+            
+            # Show if already associated, or if it meets the days window, is not grouped to another ticket and is PENDING/REPARADO
+            if is_associated or (matches_days_window and not is_already_grouped and (row.estado == "PENDIENTE" or row.estado == "REPARADO")):
                 vistas.add(row.cuenta)
                 cl = clientes_dict.get(row.cuenta)
                 clientes_del_site.append({
