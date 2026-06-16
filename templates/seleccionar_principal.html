@@ -89,6 +89,11 @@
 
                 <!-- Footer Acciones -->
                 <div class="p-3 bg-light border-top d-flex justify-content-end gap-2">
+                    {% if averia.estado == 'REPARADO' %}
+                    <a href="{{ url_for('agrupar_clientes_averia', id=averia.id) }}?manage_principal=true" class="btn btn-outline-primary btn-sm px-4 py-2 rounded-3">
+                        <i class="bi bi-star-fill me-1"></i> Usar como Principal
+                    </a>
+                    {% endif %}
                     <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm px-4 py-2 rounded-3">Cancelar y Volver</a>
                     <button type="submit" class="btn btn-premium-primary btn-sm px-5 py-2 rounded-3 fw-semibold shadow-sm">Continuar Agrupación</button>
                 </div>

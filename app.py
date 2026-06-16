@@ -987,13 +987,16 @@ def agrupar_clientes_averia(id):
             flash(f"No hay ninguna avería reparada (principal) en el SITE '{site}' para agrupar. Por favor resuelve el ticket principal primero.", "warning")
             return redirect(url_for("dashboard"))
             
-    # 2. Si la avería local está PENDIENTE, permitir seleccionar el principal reparado de los últimos 30 días (antes o después)
-    if averia.estado == "PENDIENTE":
+    # 2. Si la avería local está PENDIENTE o REPARADA, permitir seleccionar el principal reparado de los últimos 30 días (antes o después)
+    manage_principal = request.args.get("manage_principal") == "true"
+    
+    if not manage_principal:
         from sqlalchemy import or_, func
         site_clean = site.strip().upper() if site else ""
         principales = Averia.query.filter(
             func.upper(func.trim(Averia.site)) == site_clean,
             Averia.estado == "REPARADO",
+            Averia.id != averia.id,
             or_(
                 Averia.material_comentarios.is_(None),
                 Averia.material_comentarios == "",
@@ -1003,50 +1006,80 @@ def agrupar_clientes_averia(id):
         
         validos = []
         now = datetime.now()
+        ref_av = averia.fecha_resolucion or averia.fecha_creacion
+        ref_av_clean = ref_av.replace(tzinfo=None) if ref_av else None
+        
         for p in principales:
             if not p.fecha_resolucion:
                 continue
             ref_p = p.fecha_resolucion.replace(tzinfo=None) if p.fecha_resolucion.tzinfo else p.fecha_resolucion
             in_last_30_days_now = (now - ref_p).days <= 30
-            in_last_30_days_pending = False
-            if averia.fecha_creacion:
-                ref_av = averia.fecha_creacion.replace(tzinfo=None) if averia.fecha_creacion.tzinfo else averia.fecha_creacion
-                in_last_30_days_pending = abs((ref_p - ref_av).days) <= 30
+            in_last_30_days_ref = False
+            if ref_av_clean:
+                in_last_30_days_ref = abs((ref_p - ref_av_clean).days) <= 30
             else:
-                in_last_30_days_pending = True
+                in_last_30_days_ref = True
                 
-            if in_last_30_days_now or in_last_30_days_pending:
+            if in_last_30_days_now or in_last_30_days_ref:
                 validos.append(p)
                 
-        if not validos:
+        if averia.estado == "PENDIENTE" and not validos:
             flash(f"No hay ninguna avería reparada (principal) en el SITE '{site}' para agrupar. Por favor resuelve el ticket principal primero.", "warning")
             return redirect(url_for("dashboard"))
             
-        if request.method == "POST":
-            selected_principal_id = request.form.get("principal_id")
-            if selected_principal_id:
-                return redirect(url_for("agrupar_clientes_averia", id=int(selected_principal_id)))
+        if validos and (averia.estado == "PENDIENTE" or averia.estado == "REPARADO"):
+            if request.method == "POST":
+                selected_principal_id = request.form.get("principal_id")
+                if selected_principal_id:
+                    principal = db.session.get(Averia, int(selected_principal_id))
+                    if principal:
+                        old_list = [c.strip() for c in (principal.cuentas_asociadas or "").split(",") if c.strip()]
+                        if averia.cuenta and averia.cuenta not in old_list:
+                            old_list.append(averia.cuenta)
+                            principal.cuentas_asociadas = ", ".join(old_list)
+                        
+                        averia.estado = "REPARADO"
+                        if not averia.fecha_resolucion:
+                            averia.fecha_resolucion = datetime.now()
+                        averia.tecnico_id = session.get("operador_id")
+                        averia.material_comentarios = f"Agrupado en la avería principal ({principal.cuenta})"
+                        averia.tipificacion = principal.tipificacion
+                        averia.material_cable_m = 0
+                        averia.material_conectores = 0
+                        averia.material_rosetas = 0
+                        averia.material_mangas = 0
+                        averia.material_acopladores = 0
+                        averia.materiales_json = "{}"
+                        
+                        try:
+                            db.session.commit()
+                            flash(f"Avería {averia.cuenta} agrupada con éxito bajo la avería principal {principal.cuenta}.", "success")
+                        except Exception as e:
+                            db.session.rollback()
+                            flash(f"Error al agrupar automáticamente: {str(e)}", "danger")
+                            
+                    return redirect(url_for("agrupar_clientes_averia", id=int(selected_principal_id)))
+                    
+            # GET: render the selection template
+            clientes_dict = {c.codigo_cliente: c for c in Cliente.query.all()}
+            principales_display = []
+            for p in validos:
+                cl = clientes_dict.get(p.cuenta)
+                principales_display.append({
+                    "id": p.id,
+                    "cuenta": p.cuenta or p.codigo_wo or f"Manual {p.id}",
+                    "nombre": cl.nombre if cl else "Cliente de Sheet",
+                    "caja": p.caja or "N/A",
+                    "fecha_resolucion": p.fecha_resolucion.strftime("%d/%m/%Y %H:%M") if p.fecha_resolucion else "N/A",
+                    "dias_pendientes": p.dias_pendientes or 0
+                })
                 
-        # GET: render the selection template
-        clientes_dict = {c.codigo_cliente: c for c in Cliente.query.all()}
-        principales_display = []
-        for p in validos:
-            cl = clientes_dict.get(p.cuenta)
-            principales_display.append({
-                "id": p.id,
-                "cuenta": p.cuenta or p.codigo_wo or f"Manual {p.id}",
-                "nombre": cl.nombre if cl else "Cliente de Sheet",
-                "caja": p.caja or "N/A",
-                "fecha_resolucion": p.fecha_resolucion.strftime("%d/%m/%Y %H:%M") if p.fecha_resolucion else "N/A",
-                "dias_pendientes": p.dias_pendientes or 0
-            })
-            
-        return render_template(
-            "seleccionar_principal.html",
-            averia=averia,
-            site=site,
-            principales=principales_display
-        )
+            return render_template(
+                "seleccionar_principal.html",
+                averia=averia,
+                site=site,
+                principales=principales_display
+            )
 
     if request.method == "POST":
         new_xbox = request.form.get("xbox", "").strip().upper()
