@@ -1,0 +1,114 @@
+{% extends "layout.html" %}
+
+{% block title %}Seleccionar Avería Principal - BotVip{% endblock %}
+
+{% block extra_head %}
+<style>
+    .selection-card {
+        border-radius: 1.25rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+    .selection-header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        color: #ffffff;
+        padding: 1.5rem 2rem;
+    }
+    .principal-item {
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    .principal-item:hover {
+        background-color: #f8fafc;
+        border-color: var(--primary);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    .principal-item.selected {
+        background-color: rgba(37, 99, 235, 0.04);
+        border-color: var(--primary);
+        border-width: 2px;
+    }
+    .radio-hidden {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10 col-12">
+        <div class="selection-card mb-4">
+            <div class="selection-header">
+                <h3 class="h4 mb-1 fw-bold"><i class="bi bi-diagram-3-fill me-2 text-info"></i>Agrupar con Avería Principal</h3>
+                <p class="mb-0 text-muted-light" style="font-size: 0.9rem; color: #cbd5e1;">
+                    El ticket actual (cuenta: <strong>{{ averia.cuenta or averia.codigo_wo }}</strong>) está <strong>PENDIENTE</strong>. Selecciona la avería ya resuelta (principal) en el SITE <strong>{{ site }}</strong> para agruparlo.
+                </p>
+            </div>
+
+            <form method="POST" action="{{ url_for('agrupar_clientes_averia', id=averia.id) }}">
+                <div class="p-4">
+                    <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-list-check me-2"></i>Averías Resueltas en el SITE {{ site }} (Últimos 30 días)</h5>
+                    <p class="text-muted small mb-4">
+                        Elige una de las averías reparadas recientemente para que actúe como ticket principal de este grupo.
+                    </p>
+
+                    <div class="principales-list">
+                        {% for p in principales %}
+                        <div class="principal-item position-relative d-flex justify-content-between align-items-center" onclick="selectPrincipal(this, '{{ p.id }}')">
+                            <input type="radio" name="principal_id" value="{{ p.id }}" class="radio-hidden" id="p-{{ p.id }}" required>
+                            
+                            <div class="d-flex flex-column gap-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="fw-bold text-slate-800 fs-5">{{ p.cuenta }}</span>
+                                    <span class="badge bg-success text-white px-2 py-0.5" style="font-size: 0.75rem;">Resuelta</span>
+                                </div>
+                                <span class="text-slate-600 fw-semibold">{{ p.nombre }}</span>
+                                <small class="text-muted" style="font-size: 0.8rem;">
+                                    <i class="bi bi-calendar-event me-1"></i>Resuelto: {{ p.fecha_resolucion }}
+                                </small>
+                            </div>
+                            
+                            <div class="text-end">
+                                <span class="badge bg-light text-secondary border font-monospace px-2.5 py-1.5 d-block mb-1">Caja: {{ p.caja }}</span>
+                                <small class="text-muted d-block" style="font-size: 0.75rem;">Días pend: {{ p.dias_pendientes }} d</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Footer Acciones -->
+                <div class="p-3 bg-light border-top d-flex justify-content-end gap-2">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm px-4 py-2 rounded-3">Cancelar y Volver</a>
+                    <button type="submit" class="btn btn-premium-primary btn-sm px-5 py-2 rounded-3 fw-semibold shadow-sm">Continuar Agrupación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function selectPrincipal(element, id) {
+        // Remove selected class from all items
+        document.querySelectorAll('.principal-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        // Add selected class to clicked item
+        element.classList.add('selected');
+        // Check the radio button
+        document.getElementById('p-' + id).checked = true;
+    }
+</script>
+{% endblock %}
