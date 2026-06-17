@@ -476,6 +476,32 @@ def sincronizar_drive():
                         averia.caja = caja
                         averia.coordenadas = coordenadas
                     actualizados += 1
+                elif averia.estado == "REPARADO":
+                    # Si ya está reparada en BD pero no por un técnico de la web (no tiene tecnico_id y no tiene materiales)
+                    # y el drive ahora dice que no está resuelto (es_resuelto_drive == False), entonces revertir a PENDIENTE
+                    tiene_materiales = (
+                        (averia.material_cable_m or 0) > 0 or
+                        (averia.material_conectores or 0) > 0 or
+                        (averia.material_rosetas or 0) > 0 or
+                        (averia.material_mangas or 0) > 0 or
+                        (averia.material_acopladores or 0) > 0 or
+                        (averia.materiales_json and averia.materiales_json != "{}")
+                    )
+                    if not averia.tecnico_id and not tiene_materiales and not es_resuelto_drive:
+                        averia.estado = "PENDIENTE"
+                        averia.fecha_resolucion = None
+                        averia.material_comentarios = None
+                        averia.branch = branch
+                        averia.codigo_wo = codigo_wo
+                        averia.detalles = detalles
+                        averia.dias_pendientes = dias_pendientes
+                        averia.status_caja = status_caja if status_caja else status_ont
+                        averia.contrata = contrata
+                        averia.periodo_pendiente = periodo_pendiente
+                        averia.site = site
+                        averia.caja = caja
+                        averia.coordenadas = coordenadas
+                        actualizados += 1
             else:
                 # Crear nueva avería
                 nueva = Averia(
