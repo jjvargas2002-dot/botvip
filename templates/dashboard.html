@@ -707,25 +707,85 @@
         map.fitBounds(bounds, { padding: [50, 50] });
     }
 
-    // Autopopular dinámicamente los SITEs únicos en el dropdown de filtros del mapa
-    const siteSelect = document.getElementById('siteFilter');
-    if (siteSelect) {
-        const uniqueSites = [...new Set(averias.map(av => av.site).filter(s => s && s.trim() !== ''))].sort();
-        uniqueSites.forEach(site => {
-            const option = document.createElement('option');
-            option.value = site;
-            option.innerText = site;
-            siteSelect.appendChild(option);
-        });
-    }
-
     window.applyFilters = function() {
-        const selectedSite = document.getElementById('siteFilter').value;
         const branchSelect = document.getElementById('branchFilter');
         const selectedBranch = branchSelect ? branchSelect.value : '';
         const searchInput = document.getElementById('mapSearchInput');
         const searchText = searchInput ? searchInput.value.toLowerCase().trim() : '';
         const statusFilter = document.getElementById('statusFilter').value;
+        
+        // 1. Calcular los SITEs únicos que coinciden con los demás filtros (excluyendo el de SITE)
+        let matchingSites = new Set();
+        window.mapMarkers.forEach(item => {
+            const av = item.data;
+            const matchesBranch = selectedBranch === "" || av.branch === selectedBranch;
+            
+            let matchesSearch = true;
+            if (searchText !== "") {
+                const searchStr = `${av.cuenta} ${av.codigo_wo} ${av.caja} ${av.site} ${av.detalles} ${av.contrata} ${av.estado}`.toLowerCase();
+                matchesSearch = searchStr.includes(searchText);
+            }
+            
+            let matchesMonth = true;
+            if (selectedMonths.length > 0) {
+                matchesMonth = selectedMonths.includes(av.monthKey);
+            } else {
+                if (av.estado === 'REPARADO') {
+                    if (av.fecha_resolucion) {
+                        const resDate = new Date(av.fecha_resolucion);
+                        const today = new Date();
+                        const diffTime = Math.abs(today - resDate);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        matchesMonth = diffDays <= 30;
+                    } else {
+                        matchesMonth = false;
+                    }
+                }
+            }
+            
+            let matchesStatus = true;
+            if (statusFilter === 'PENDIENTE') {
+                matchesStatus = av.estado === 'PENDIENTE';
+            } else if (statusFilter === 'REPARADO') {
+                matchesStatus = av.estado === 'REPARADO';
+            }
+            
+            if (matchesBranch && matchesSearch && matchesMonth && matchesStatus) {
+                if (av.site && av.site.trim() !== "") {
+                    matchingSites.add(av.site.trim().toUpperCase());
+                }
+            }
+        });
+        
+        // 2. Re-popular el select de SITEs
+        const siteSelect = document.getElementById('siteFilter');
+        let selectedSite = "";
+        if (siteSelect) {
+            const previousValue = siteSelect.value;
+            
+            // Limpiar opciones actuales excepto la primera
+            while (siteSelect.options.length > 1) {
+                siteSelect.remove(1);
+            }
+            
+            const sortedSites = Array.from(matchingSites).sort();
+            sortedSites.forEach(site => {
+                const option = document.createElement('option');
+                option.value = site;
+                option.innerText = site;
+                if (site.toUpperCase() === previousValue.toUpperCase()) {
+                    option.selected = true;
+                }
+                siteSelect.appendChild(option);
+            });
+            
+            if (previousValue !== "" && matchingSites.has(previousValue.toUpperCase())) {
+                selectedSite = previousValue;
+            } else {
+                siteSelect.value = "";
+                selectedSite = "";
+            }
+        }
         
         let visibleBounds = [];
         
@@ -743,7 +803,7 @@
         // Filtrar marcadores en el mapa y filas de la tabla
         window.mapMarkers.forEach(item => {
             const av = item.data;
-            const matchesSite = selectedSite === "" || av.site === selectedSite;
+            const matchesSite = selectedSite === "" || (av.site && av.site.toUpperCase() === selectedSite.toUpperCase());
             const matchesBranch = selectedBranch === "" || av.branch === selectedBranch;
             
             let matchesSearch = true;
