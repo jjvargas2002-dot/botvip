@@ -172,7 +172,7 @@ def sincronizar_sites():
         if response.status_code != 200:
             return False, f"Error de conexión con pestaña SITES (Status: {response.status_code})"
         
-        content = response.content.decode('utf-8')
+        content = response.content.decode('utf-8-sig')
         f = io.StringIO(content)
         reader = csv.reader(f)
         
@@ -392,7 +392,7 @@ def sincronizar_drive():
         if response.status_code != 200:
             return False, f"Error de conexión con Google Sheets (Status: {response.status_code})"
         
-        content = response.content.decode('utf-8')
+        content = response.content.decode('utf-8-sig')
         f = io.StringIO(content)
         reader = csv.reader(f)
         
