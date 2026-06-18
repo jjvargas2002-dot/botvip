@@ -279,9 +279,11 @@
                             <button type="button" class="btn btn-sm btn-outline-success py-1 fs-8" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}', this)">
                                 <i class="bi bi-tools"></i> Materiales
                             </button>
+                            {% if av.branch not in ["ARE", "JUN", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS"] %}
                             <a href="{{ url_for('agrupar_clientes_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1 fs-8" title="Agrupar otros clientes de este site">
                                 <i class="bi bi-diagram-3"></i> Agrupar
                             </a>
+                            {% endif %}
                             {% if av.estado == 'REPARADO' %}
                             <button type="button" class="btn btn-sm btn-outline-primary py-1 fs-8" onclick="compartirWhatsApp('{{ av.site or '' }}', '{{ (av.codigo_wo or av.detalles or '') | escape }}', '{{ av.detalles | escape }}', this)">
                                 <i class="bi bi-whatsapp"></i> Reportar

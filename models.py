@@ -122,4 +122,14 @@ class StockBranch(db.Model):
     __table_args__ = (db.UniqueConstraint("branch", "material_nombre", name="uq_branch_material_nombre"),)
 
 
+class Box(db.Model):
+    __tablename__ = "boxes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    caja = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    latitud = db.Column(db.String(50))
+    longitud = db.Column(db.String(50))
+
+
+
 

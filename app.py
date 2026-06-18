@@ -5,14 +5,14 @@ import io
 import requests
 from datetime import datetime
 
-from flask import Flask, render_template, request, send_file, redirect, url_for, session, flash
+from flask import Flask, render_template, request, send_file, redirect, url_for, session, flash, jsonify
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import Config
-from models import db, Cliente, Caso, Operador, Averia, StockBranch
+from models import db, Cliente, Caso, Operador, Averia, StockBranch, Box
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -214,6 +214,64 @@ def sincronizar_sites():
     except Exception as e:
         print("Error en sincronización de sites:", e)
         return False, f"Error en sites: {str(e)}"
+
+
+def sincronizar_boxes():
+    url_boxes = "https://docs.google.com/spreadsheets/d/1eaNxCpm8JF1JcZS3_ldwMRINGYFaW6RsQQWybvRi_P8/export?format=csv&gid=1980704985"
+    try:
+        response = requests.get(url_boxes, timeout=30)
+        if response.status_code != 200:
+            return False, f"Error de conexión con pestaña List of Boxes (Status: {response.status_code})"
+        
+        content = response.content.decode('utf-8-sig')
+        f = io.StringIO(content)
+        reader = csv.reader(f)
+        
+        # Skip report headers to find actual headers
+        header = None
+        indices = {}
+        for row in reader:
+            row_upper = [col.strip().upper() for col in row]
+            if "NODE CODE" in row_upper or "LATITUDE" in row_upper:
+                header = row
+                indices = {col.strip().upper(): i for i, col in enumerate(row)}
+                break
+                
+        if not header:
+            return False, "Faltan columnas críticas en la pestaña List of Boxes"
+            
+        node_idx = indices.get("NODE CODE")
+        lat_idx = indices.get("LATITUDE")
+        lng_idx = indices.get("LONGITUDE")
+        
+        if node_idx is None or lat_idx is None or lng_idx is None:
+            return False, "Columnas Node code, Latitude o Longitude no encontradas en List of Boxes"
+            
+        box_mappings = []
+        for row in reader:
+            if not row or len(row) <= max(node_idx, lat_idx, lng_idx):
+                continue
+            caja_val = row[node_idx].strip().upper()
+            lat_val = row[lat_idx].strip().replace(",", ".").strip()
+            lng_val = row[lng_idx].strip().replace(",", ".").strip()
+            
+            if caja_val and lat_val and lng_val:
+                box_mappings.append({
+                    "caja": caja_val,
+                    "latitud": lat_val,
+                    "longitud": lng_val
+                })
+        
+        if box_mappings:
+            db.session.query(Box).delete()
+            db.session.bulk_insert_mappings(Box, box_mappings)
+            db.session.commit()
+            
+        return True, f"Sincronizados {len(box_mappings)} boxes."
+    except Exception as e:
+        db.session.rollback()
+        print("Error en sincronización de boxes:", e)
+        return False, f"Error en boxes: {str(e)}"
 
 
 def login_requerido(f):
@@ -547,7 +605,12 @@ def sincronizar_drive():
         if not success_sites:
             print("Advertencia en sincronización de sites:", msg_sites)
             
-        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} cerrados externamente."
+        # Sincronizar boxes
+        success_boxes, msg_boxes = sincronizar_boxes()
+        if not success_boxes:
+            print("Advertencia en sincronización de boxes:", msg_boxes)
+            
+        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados, {total_cerrados} cerrados y boxes sincronizados."
     except Exception as e:
         db.session.rollback()
         print("Error en sincronización de drive:", e)
@@ -564,6 +627,25 @@ def serve_sw():
     response = app.send_static_file("sw.js")
     response.headers["Service-Worker-Allowed"] = "/"
     return response
+
+
+@app.route("/api/caja_coordenadas", methods=["GET"])
+@login_requerido
+def get_caja_coordenadas():
+    caja_code = request.args.get("caja", "").strip().upper()
+    if not caja_code:
+        return jsonify({"success": False, "message": "No se especificó el código de caja"}), 400
+        
+    box = Box.query.filter_by(caja=caja_code).first()
+    if box:
+        return jsonify({
+            "success": True,
+            "caja": box.caja,
+            "lat": box.latitud,
+            "lng": box.longitud
+        })
+    else:
+        return jsonify({"success": False, "message": "Coordenadas no encontradas para la caja especificada"}), 404
 
 
 @app.route("/api/averias/alertas", methods=["GET"])
@@ -960,6 +1042,8 @@ def resolver_averia(id):
         
         db.session.commit()
         flash(f"Avería de cuenta {averia.cuenta} resuelta y materiales registrados.", "success")
+        if averia.branch in ["ARE", "JUN", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS"]:
+            return redirect(url_for("dashboard"))
         return redirect(url_for("agrupar_clientes_averia", id=averia.id))
     except Exception as e:
         db.session.rollback()
@@ -978,6 +1062,10 @@ def agrupar_clientes_averia(id):
     averia = db.session.get(Averia, id)
     if not averia:
         flash("La avería no existe.", "danger")
+        return redirect(url_for("dashboard"))
+        
+    if averia.branch in ["ARE", "JUN", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS"]:
+        flash("La agrupación de averías no está permitida para esta sede.", "warning")
         return redirect(url_for("dashboard"))
         
     # parse caja values
@@ -1254,6 +1342,7 @@ def agrupar_clientes_averia(id):
         site=site,
         xbox=xbox,
         hubox=hubox,
+        subox=subox,
         clientes_del_site=clientes_del_site,
         materiales_principal=materiales_principal
     )
@@ -2304,6 +2393,14 @@ with app.app_context():
         if not os.path.exists(sites_path):
             print("SITES cache not found, fetching...")
             sincronizar_sites()
+            
+        # Verify if boxes table has records, otherwise fetch it
+        try:
+            if Box.query.first() is None:
+                print("Boxes table is empty, fetching from Google Sheets...")
+                sincronizar_boxes()
+        except Exception as box_err:
+            print("Error checking or populating boxes on startup:", box_err)
             
         print("Base de datos y esquemas inicializados correctamente.")
     except Exception as e:

@@ -299,9 +299,11 @@
                                             <i class="bi bi-pencil-square"></i> Materiales
                                         </button>
                                         {% endif %}
+                                        {% if av.branch not in ["ARE", "JUN", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS"] %}
                                         <a href="{{ url_for('agrupar_clientes_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1" title="Agrupar otros clientes de este site">
                                             <i class="bi bi-diagram-3"></i> Agrupar
                                         </a>
+                                        {% endif %}
                                         {% if session.get('operador_rol') == 'admin' and (session.get('operador_nombre', '').upper() == 'FBB' or session.get('operador_dni', '').upper() == 'FBB') %}
                                         {% if av.estado == 'REPARADO' %}
                                         <form action="{{ url_for('deshacer_resolucion_averia', id=av.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de deshacer la resolución de esta avería? Volverá a estar pendiente y se devolverán los materiales al stock.');">
@@ -408,8 +410,11 @@
                         <label class="form-label small fw-medium text-secondary">Coordenadas</label>
                         <div class="input-group">
                             <input type="text" id="coordenadas_input" class="form-control form-control-custom py-1.5 fs-7" name="coordenadas" placeholder="Ej: -16.3988,-71.5369" required style="border-radius: 0.5rem 0 0 0.5rem;">
-                            <button type="button" id="btn-gps" class="btn btn-outline-primary fs-7" onclick="obtenerUbicacionGPS()" style="border-radius: 0 0.5rem 0.5rem 0;">
+                            <button type="button" id="btn-gps" class="btn btn-outline-primary fs-7" onclick="obtenerUbicacionGPS()" style="border-radius: 0;">
                                 <i class="bi bi-geo-fill"></i> GPS
+                            </button>
+                            <button type="button" id="btn-box" class="btn btn-outline-success fs-7" onclick="obtenerUbicacionBox()" style="border-radius: 0 0.5rem 0.5rem 0;">
+                                <i class="bi bi-box-seam"></i> BOX
                             </button>
                         </div>
                     </div>
@@ -1029,6 +1034,78 @@
         } else {
             alert("Tu navegador no soporta geolocalización.");
         }
+    };
+
+    // Función de geolocalización por Código de Caja
+    window.obtenerUbicacionBox = function() {
+        const siteInput = document.getElementById('site_input_manual');
+        const xboxSelect = document.querySelector('select[name="xbox"]');
+        const huboxSelect = document.querySelector('select[name="hubox"]');
+        const cajaInput = document.querySelector('input[name="caja"]');
+        const coordenadasInput = document.getElementById('coordenadas_input');
+        
+        if (!siteInput || !siteInput.value.trim()) {
+            alert("Por favor, ingresa el SITE primero.");
+            return;
+        }
+        
+        const site = siteInput.value.trim().toUpperCase();
+        const xbox = xboxSelect ? xboxSelect.value.trim().toUpperCase() : "";
+        const hubox = huboxSelect ? huboxSelect.value.trim().toUpperCase() : "";
+        const caja = cajaInput ? cajaInput.value.trim().toUpperCase() : "";
+        
+        let boxParts = [site];
+        if (xbox) boxParts.push(xbox);
+        if (hubox) boxParts.push(hubox);
+        if (caja) boxParts.push(caja);
+        const boxCode = boxParts.join('-');
+        
+        const btn = document.getElementById("btn-box");
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> BOX';
+        btn.disabled = true;
+        
+        fetch(`/api/caja_coordenadas?caja=${encodeURIComponent(boxCode)}`)
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error("No se encontraron coordenadas para esta caja.");
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (data.success && data.lat && data.lng) {
+                    const lat = parseFloat(data.lat);
+                    const lng = parseFloat(data.lng);
+                    if (isNaN(lat) || isNaN(lng)) {
+                        throw new Error("Las coordenadas de la caja no tienen un formato válido.");
+                    }
+                    coordenadasInput.value = `${lat},${lng}`;
+                    
+                    // Centrar mapa
+                    map.setView([lat, lng], 16);
+                    
+                    // Dibujar marcador
+                    if (window.markerTemporal) {
+                        map.removeLayer(window.markerTemporal);
+                    }
+                    window.markerTemporal = L.marker([lat, lng], { draggable: true }).addTo(map);
+                    window.markerTemporal.bindPopup(`<b>Caja ${data.caja}</b><br>Ubicación cargada con éxito.`).openPopup();
+                    
+                    window.markerTemporal.on('dragend', function(evt) {
+                        const newLatLng = evt.target.getLatLng();
+                        coordenadasInput.value = `${newLatLng.lat.toFixed(7)},${newLatLng.lng.toFixed(7)}`;
+                    });
+                } else {
+                    alert(data.message || "Error al buscar coordenadas.");
+                }
+            })
+            .catch(err => {
+                alert(err.message || "Error al conectar con el servidor.");
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
     };
 
     // Control del Modal de Resolución
