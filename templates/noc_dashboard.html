@@ -109,7 +109,12 @@
 <div class="row g-4 mb-4">
     <div class="col-md-6">
         <div class="card card-premium p-3 h-100">
-            <h5 class="fw-bold mb-3"><i class="bi bi-graph-up text-primary me-2"></i>Evolución Mensual (Cable y Conectores)</h5>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold mb-0" style="font-size: 1rem;"><i class="bi bi-graph-up text-primary me-2"></i>Evolución Diaria (Cable y Conectores)</h5>
+                <select id="chartMonthSelector" class="form-select form-select-custom py-1 px-2.5 fs-8" style="width: auto;">
+                    <!-- Month options populated dynamically -->
+                </select>
+            </div>
             <div class="chart-container">
                 <canvas id="monthlyChart"></canvas>
             </div>
@@ -459,34 +464,43 @@
     document.addEventListener("DOMContentLoaded", function() {
         // --- CHARTS CONFIGURATION ---
         
-        // 1. Monthly Chart
-        const monthsData = {{ por_mes|tojson }}.reverse(); // Reverse to keep chronological order
-        const labelsMonthly = monthsData.map(m => m.label);
-        const cableMonthly = monthsData.map(m => m.cable);
-        const connectorsMonthly = monthsData.map(m => m.conectores);
+        // Raw resolved tickets data for dynamic daily chart
+        const reparadasRaw = [
+            {% for av in reparadas %}
+            {
+                id: {{ av.id }},
+                fecha: "{{ av.fecha_resolucion.strftime('%Y-%m-%d') if av.fecha_resolucion else '' }}",
+                cable: {{ av.material_cable_m or 0 }},
+                conectores: {{ av.material_conectores or 0 }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
 
+        // 1. Daily Chart Initialization
         const ctxMonthly = document.getElementById('monthlyChart').getContext('2d');
-        new Chart(ctxMonthly, {
+        const monthlyChart = new Chart(ctxMonthly, {
             type: 'line',
             data: {
-                labels: labelsMonthly,
+                labels: [],
                 datasets: [
                     {
                         label: 'Cable Drop (m)',
-                        data: cableMonthly,
+                        data: [],
                         borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        backgroundColor: 'rgba(37, 99, 235, 0.05)',
                         borderWidth: 3,
+                        pointRadius: 2,
                         tension: 0.3,
                         fill: true,
                         yAxisID: 'y'
                     },
                     {
                         label: 'Conectores (und)',
-                        data: connectorsMonthly,
+                        data: [],
                         borderColor: '#f59e0b',
-                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        backgroundColor: 'rgba(245, 158, 11, 0.05)',
                         borderWidth: 3,
+                        pointRadius: 2,
                         tension: 0.3,
                         fill: true,
                         yAxisID: 'y1'
@@ -498,7 +512,8 @@
                 maintainAspectRatio: false,
                 scales: {
                     x: {
-                        grid: { display: false }
+                        grid: { display: false },
+                        title: { display: true, text: 'Día del Mes' }
                     },
                     y: {
                         type: 'linear',
@@ -520,6 +535,78 @@
                 }
             }
         });
+
+        function updateDailyChart(selectedMonth) {
+            const parts = selectedMonth.split("-");
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]);
+            
+            const daysInMonth = new Date(year, month, 0).getDate();
+            
+            let dailyCable = Array(daysInMonth).fill(0);
+            let dailyConnectors = Array(daysInMonth).fill(0);
+            
+            reparadasRaw.forEach(av => {
+                if (!av.fecha) return;
+                const avParts = av.fecha.split("-");
+                const avYear = parseInt(avParts[0]);
+                const avMonth = parseInt(avParts[1]);
+                const avDay = parseInt(avParts[2]);
+                
+                if (avYear === year && avMonth === month) {
+                    dailyCable[avDay - 1] += av.cable;
+                    dailyConnectors[avDay - 1] += av.conectores;
+                }
+            });
+            
+            let labels = [];
+            for (let i = 1; i <= daysInMonth; i++) {
+                labels.push(`${i}`);
+            }
+            
+            monthlyChart.data.labels = labels;
+            monthlyChart.data.datasets[0].data = dailyCable;
+            monthlyChart.data.datasets[1].data = dailyConnectors;
+            monthlyChart.update();
+        }
+
+        // Populate Month Selector for Daily Chart
+        const monthSelector = document.getElementById('chartMonthSelector');
+        if (monthSelector) {
+            const monthsSet = new Set();
+            reparadasRaw.forEach(av => {
+                if (av.fecha) {
+                    monthsSet.add(av.fecha.substring(0, 7)); // "YYYY-MM"
+                }
+            });
+            
+            const sortedMonths = Array.from(monthsSet).sort().reverse();
+            
+            const MESES_NOMBRES = {
+                "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
+                "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
+                "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
+            };
+            
+            sortedMonths.forEach(mKey => {
+                const parts = mKey.split("-");
+                const name = MESES_NOMBRES[parts[1]] || "Mes";
+                const option = document.createElement('option');
+                option.value = mKey;
+                option.innerText = `${name} ${parts[0]}`;
+                monthSelector.appendChild(option);
+            });
+            
+            if (sortedMonths.length > 0) {
+                const defaultMonth = sortedMonths[0];
+                monthSelector.value = defaultMonth;
+                updateDailyChart(defaultMonth);
+            }
+            
+            monthSelector.addEventListener('change', function() {
+                updateDailyChart(this.value);
+            });
+        }
 
         // 2. Branch Chart
         const branchData = {{ por_branch|tojson }};
