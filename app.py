@@ -832,6 +832,37 @@ def debug_ticket():
     return jsonify(results)
 
 
+@app.route("/debug_map_json")
+def debug_map_json():
+    averias = Averia.query.filter(Averia.cuenta.ilike('%19061621%')).all()
+    results = []
+    for av in averias:
+        lat = None
+        lng = None
+        if av.coordenadas:
+            coords = av.coordenadas.split(",")
+            if len(coords) == 2:
+                try:
+                    lat = float(coords[0].strip())
+                    lng = float(coords[1].strip())
+                except ValueError:
+                    pass
+        results.append({
+            "id": av.id,
+            "branch": av.branch,
+            "cuenta": av.cuenta,
+            "estado": av.estado,
+            "lat": lat,
+            "lng": lng,
+            "cable": av.material_cable_m or 0,
+            "conectores": av.material_conectores or 0,
+            "rosetas": av.material_rosetas or 0,
+            "mangas": av.material_mangas or 0,
+            "acopladores": av.material_acopladores or 0
+        })
+    return jsonify(results)
+
+
 @app.route("/manifest.json")
 def serve_manifest():
     return app.send_static_file("manifest.json")
