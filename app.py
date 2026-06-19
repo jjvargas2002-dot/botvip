@@ -59,13 +59,13 @@ MATERIALES_MASTER = [
     {"codigo": "299378", "nombre": "Conector rápido SC/APC", "seccion": "CONECTORES"},
     {"codigo": "Sin Código", "nombre": "Splitter PLC 1x8 (Pigtail PLC 1x8)", "seccion": "CONECTORES"},
     # Sección de Cables
-    {"codigo": "43978", "nombre": "Cable de fibra óptica ADSS 48 fibras, vano 100m", "seccion": "CABLES"},
-    {"codigo": "63004", "nombre": "Cable de fibra óptica ADSS 24 fibras, vano 200m", "seccion": "CABLES"},
-    {"codigo": "67", "nombre": "Cable de fibra óptica ADSS 24 fibras, vano 100m", "seccion": "CABLES"},
-    {"codigo": "299344", "nombre": "Cable de fibra óptica ASU 12Fo, vano 100m", "seccion": "CABLES"},
-    {"codigo": "300378", "nombre": "Cable de fibra óptica ASU 4Fo, vano 100m", "seccion": "CABLES"},
-    {"codigo": "9266", "nombre": "Cable de fibra óptica ASU 4Fo, vano 100m - Flexible", "seccion": "CABLES"},
-    {"codigo": "300379", "nombre": "Cable de fibra óptica ASU 1Fo, vano 100m", "seccion": "CABLES"},
+    {"codigo": "43978", "nombre": "Fibra óptica ADSS 48 fibras, SPAN 100m", "seccion": "CABLES"},
+    {"codigo": "63004", "nombre": "Fibra óptica ADSS 24 fibras, SPAN 200m", "seccion": "CABLES"},
+    {"codigo": "67", "nombre": "Fibra óptica ADSS 24 fibras, SPAN 100m", "seccion": "CABLES"},
+    {"codigo": "299344", "nombre": "Fibra óptica ASU 12Fo, SPAN 100m", "seccion": "CABLES"},
+    {"codigo": "300378", "nombre": "Fibra óptica ASU 4Fo, SPAN 100m", "seccion": "CABLES"},
+    {"codigo": "9266", "nombre": "Fibra óptica ASU 4Fo, SPAN 100m - Flexible", "seccion": "CABLES"},
+    {"codigo": "300379", "nombre": "Fibra óptica ASU 1Fo, SPAN 100m", "seccion": "CABLES"},
     {"codigo": "294795", "nombre": "Fibra óptica preconectorizada de 12 núcleos 100m MPO/APC", "seccion": "CABLES"},
     {"codigo": "294796", "nombre": "Fibra óptica preconectorizada de 12 núcleos 200m MPO/APC", "seccion": "CABLES"},
     {"codigo": "296347", "nombre": "Fibra óptica preconectorizada de 12 núcleos 300m MPO/APC", "seccion": "CABLES"},
@@ -78,12 +78,12 @@ MATERIALES_MASTER = [
     {"codigo": "294793", "nombre": "Fibra óptica preconectorizada de 1 núcleo 200m SC/APC", "seccion": "CABLES"},
     {"codigo": "294794", "nombre": "Fibra óptica preconectorizada de 1 núcleo 250m SC/APC", "seccion": "CABLES"},
     {"codigo": "295995", "nombre": "Fibra óptica preconectorizada de 1 núcleo 300m SC/APC", "seccion": "CABLES"},
-    {"codigo": "299381", "nombre": "Cable de fibra óptica 1 hilo - Drop", "seccion": "CABLES"},
+    {"codigo": "299381", "nombre": "Fibra óptica 1 hilo - Drop", "seccion": "CABLES"},
     # Sección de Accesorios
     {"codigo": "296348", "nombre": "ZTE_Patch Cord SC/APC 7m", "seccion": "ACCESORIOS"},
-    {"codigo": "306", "nombre": "Grapa de tensión para vano de 200m", "seccion": "ACCESORIOS"},
-    {"codigo": "305", "nombre": "Grapa de tensión para vano de 100m", "seccion": "ACCESORIOS"},
-    {"codigo": "313", "nombre": "Grapa de suspensión para vano de 100m", "seccion": "ACCESORIOS"},
+    {"codigo": "306", "nombre": "Grapa de tensión para SPAN de 200m", "seccion": "ACCESORIOS"},
+    {"codigo": "305", "nombre": "Grapa de tensión para SPAN de 100m", "seccion": "ACCESORIOS"},
+    {"codigo": "313", "nombre": "Grapa de suspensión para SPAN de 100m", "seccion": "ACCESORIOS"},
     {"codigo": "350", "nombre": "Abrazaderas para cable OPGW", "seccion": "ACCESORIOS"},
     {"codigo": "298983", "nombre": "Retención preformada plástica para cable de 5mm-8mm", "seccion": "ACCESORIOS"},
     {"codigo": "294929", "nombre": "Retención preformada para cable de 6.8mm (Cable MPO)", "seccion": "ACCESORIOS"},
@@ -101,7 +101,7 @@ MATERIALES_MASTER = [
     {"codigo": "294899", "nombre": "Fleje de acero para postes con diámetros de 100-200mm", "seccion": "ACCESORIOS"},
     {"codigo": "295660", "nombre": "Cinta Bandit", "seccion": "ACCESORIOS"},
     {"codigo": "295661", "nombre": "Juego de hebillas", "seccion": "ACCESORIOS"},
-    {"codigo": "Sin Código", "nombre": "Etiqueta para cable de fibra óptica", "seccion": "ACCESORIOS"},
+    {"codigo": "Sin Código", "nombre": "Etiqueta para fibra óptica", "seccion": "ACCESORIOS"},
     {"codigo": "9610", "nombre": "Tubo corrugado de PVC ignífugo 25mm", "seccion": "ACCESORIOS"},
     {"codigo": "Sin Código", "nombre": "Abrazadera tipo oreja para cable", "seccion": "ACCESORIOS"},
     {"codigo": "Sin Código", "nombre": "Cintillo para cable 4x200mm", "seccion": "ACCESORIOS"}
@@ -147,8 +147,8 @@ def utility_processor():
         "Caja de empalme plana 12Fo, 4 puertos",
         "Tubo corrugado de PVC ignífugo 25mm",
         "Conector Waterproof",
-        "Grapa de tensión para vano de 200m",
-        "Grapa de tensión para vano de 100m"
+        "Grapa de tensión para SPAN de 200m",
+        "Grapa de tensión para SPAN de 100m"
     ]
     
     comunes = []
@@ -2626,6 +2626,81 @@ def migrar_recuperar_materiales_perdidos():
         print("Error en migración de recuperación de materiales perdidos:", e)
 
 
+def migrar_nombres_vano_span():
+    try:
+        import json
+        mapping_names = {
+            "Cable de fibra óptica ADSS 48 fibras, vano 100m": "Fibra óptica ADSS 48 fibras, SPAN 100m",
+            "Cable de fibra óptica ADSS 24 fibras, vano 200m": "Fibra óptica ADSS 24 fibras, SPAN 200m",
+            "Cable de fibra óptica ADSS 24 fibras, vano 100m": "Fibra óptica ADSS 24 fibras, SPAN 100m",
+            "Cable de fibra óptica ASU 12Fo, vano 100m": "Fibra óptica ASU 12Fo, SPAN 100m",
+            "Cable de fibra óptica ASU 4Fo, vano 100m": "Fibra óptica ASU 4Fo, SPAN 100m",
+            "Cable de fibra óptica ASU 4Fo, vano 100m - Flexible": "Fibra óptica ASU 4Fo, SPAN 100m - Flexible",
+            "Cable de fibra óptica ASU 1Fo, vano 100m": "Fibra óptica ASU 1Fo, SPAN 100m",
+            "Cable de fibra óptica 1 hilo - Drop": "Fibra óptica 1 hilo - Drop",
+            "Grapa de tensión para vano de 200m": "Grapa de tensión para SPAN de 200m",
+            "Grapa de tensión para vano de 100m": "Grapa de tensión para SPAN de 100m",
+            "Grapa de suspensión para vano de 100m": "Grapa de suspensión para SPAN de 100m",
+            "Etiqueta para cable de fibra óptica": "Etiqueta para fibra óptica",
+        }
+        
+        # 1. Migrar StockBranch
+        stock_updated = 0
+        stock_deleted = 0
+        for old_name, new_name in mapping_names.items():
+            records = StockBranch.query.filter_by(material_nombre=old_name).all()
+            for rec in records:
+                # Verificar si ya existe un registro con el nuevo nombre para esta misma sede
+                exist_rec = StockBranch.query.filter_by(branch=rec.branch, material_nombre=new_name).first()
+                if exist_rec:
+                    exist_rec.stock_actual += rec.stock_actual
+                    exist_rec.stock_enviado_noc += rec.stock_enviado_noc
+                    db.session.delete(rec)
+                    stock_deleted += 1
+                else:
+                    rec.material_nombre = new_name
+                    stock_updated += 1
+                    
+        # 2. Migrar Averia.materiales_json
+        averia_updated = 0
+        averias = Averia.query.all()
+        for av in averias:
+            if av.materiales_json:
+                try:
+                    mats = json.loads(av.materiales_json)
+                    new_mats = {}
+                    changed = False
+                    for key, val in mats.items():
+                        if "|" in key:
+                            parts = key.split("|", 1)
+                            code = parts[0]
+                            name = parts[1]
+                            if name in mapping_names:
+                                new_key = f"{code}|{mapping_names[name]}"
+                                new_mats[new_key] = val
+                                changed = True
+                            else:
+                                new_mats[key] = val
+                        else:
+                            if key in mapping_names:
+                                new_mats[mapping_names[key]] = val
+                                changed = True
+                            else:
+                                new_mats[key] = val
+                    if changed:
+                        av.materiales_json = json.dumps(new_mats)
+                        averia_updated += 1
+                except Exception:
+                    pass
+                    
+        if stock_updated > 0 or stock_deleted > 0 or averia_updated > 0:
+            db.session.commit()
+            print(f"Migración SPAN/Fibra: {stock_updated} stocks actualizados, {stock_deleted} fusionados, {averia_updated} averías migradas.")
+    except Exception as e:
+        db.session.rollback()
+        print("Error en migración de nombres SPAN/Fibra:", e)
+
+
 with app.app_context():
     try:
         db.create_all()
@@ -2634,6 +2709,7 @@ with app.app_context():
         migrar_comentarios_agrupacion()
         migrar_materiales_mapeados()
         migrar_recuperar_materiales_perdidos()
+        migrar_nombres_vano_span()
         # Verify if static/sites.json exists, otherwise fetch it
         import os
         sites_path = os.path.join(app.root_path, "static", "sites.json")
