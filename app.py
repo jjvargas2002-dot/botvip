@@ -1033,38 +1033,40 @@ def dashboard():
     # Serializar datos para Leaflet map
     map_data = []
     for av in averias_totales:
+        lat = None
+        lng = None
         if av.coordenadas:
             coords = av.coordenadas.split(",")
             if len(coords) == 2:
                 try:
                     lat = float(coords[0].strip())
                     lng = float(coords[1].strip())
-                    map_data.append({
-                        "id": av.id,
-                        "branch": av.branch,
-                        "cuenta": av.cuenta or "Sin cuenta",
-                        "codigo_wo": av.codigo_wo or "N/A",
-                        "detalles": av.detalles or "Sin descripción",
-                        "contrata": av.contrata or "Sin contrata",
-                        "site": av.site or "N/A",
-                        "caja": av.caja or "N/A",
-                        "dias": av.dias_pendientes or 0,
-                        "estado": av.estado,
-                        "lat": lat,
-                        "lng": lng,
-                        "materiales_json": av.materiales_json or "{}",
-                        "comentarios": av.material_comentarios or "",
-                        "tipificacion": av.tipificacion or "",
-                        "fecha_creacion": av.fecha_creacion.strftime("%Y-%m-%d") if av.fecha_creacion else "",
-                        "fecha_resolucion": av.fecha_resolucion.strftime("%Y-%m-%d") if av.fecha_resolucion else "",
-                        "cable": av.material_cable_m or 0,
-                        "conectores": av.material_conectores or 0,
-                        "rosetas": av.material_rosetas or 0,
-                        "mangas": av.material_mangas or 0,
-                        "acopladores": av.material_acopladores or 0
-                    })
                 except ValueError:
-                    continue
+                    pass
+        map_data.append({
+            "id": av.id,
+            "branch": av.branch,
+            "cuenta": av.cuenta or "Sin cuenta",
+            "codigo_wo": av.codigo_wo or "N/A",
+            "detalles": av.detalles or "Sin descripción",
+            "contrata": av.contrata or "Sin contrata",
+            "site": av.site or "N/A",
+            "caja": av.caja or "N/A",
+            "dias": av.dias_pendientes or 0,
+            "estado": av.estado,
+            "lat": lat,
+            "lng": lng,
+            "materiales_json": av.materiales_json or "{}",
+            "comentarios": av.material_comentarios or "",
+            "tipificacion": av.tipificacion or "",
+            "fecha_creacion": av.fecha_creacion.strftime("%Y-%m-%d") if av.fecha_creacion else "",
+            "fecha_resolucion": av.fecha_resolucion.strftime("%Y-%m-%d") if av.fecha_resolucion else "",
+            "cable": av.material_cable_m or 0,
+            "conectores": av.material_conectores or 0,
+            "rosetas": av.material_rosetas or 0,
+            "mangas": av.material_mangas or 0,
+            "acopladores": av.material_acopladores or 0
+        })
                     
     # Habilitar formulario manual para todos
     es_provincia = True
@@ -2728,6 +2730,19 @@ def migrar_recuperar_materiales_perdidos():
         print("Error en migración de recuperación de materiales perdidos:", e)
 
 
+def limpiar_contrata_tgi():
+    try:
+        updated = Averia.query.filter(
+            (Averia.contrata == "TGI") | (Averia.contrata == "Sin contrata")
+        ).update({"contrata": ""}, synchronize_session=False)
+        if updated > 0:
+            db.session.commit()
+            print(f"Migración: Se limpiaron {updated} averías que tenían contrata 'TGI' o 'Sin contrata'.")
+    except Exception as e:
+        db.session.rollback()
+        print("Error en migración limpiar_contrata_tgi:", e)
+
+
 def migrar_nombres_vano_span():
     try:
         import json
@@ -2808,6 +2823,7 @@ with app.app_context():
         db.create_all()
         asegurar_esquema()
         crear_operador_defecto()
+        limpiar_contrata_tgi()
         migrar_comentarios_agrupacion()
         migrar_materiales_mapeados()
         migrar_recuperar_materiales_perdidos()

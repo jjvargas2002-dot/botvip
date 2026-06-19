@@ -240,6 +240,7 @@
                             <th>Caja/Detalles</th>
                             <th>WO / Contrata</th>
                             <th>Días / Fecha</th>
+                            <th>Materiales</th>
                             <th class="text-end">Acciones</th>
                         </tr>
                     </thead>
@@ -272,10 +273,10 @@
                                 <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
                             </td>
                             <td>
-                                {% if av.codigo_wo and av.codigo_wo != 'N/A' %}
+                                {% if av.codigo_wo and av.codigo_wo != 'N/A' and av.codigo_wo != 'Sin WO' and av.codigo_wo.strip() != '' %}
                                 <div class="fw-medium text-slate-800">{{ av.codigo_wo }}</div>
                                 {% endif %}
-                                {% if av.contrata %}
+                                {% if av.contrata and av.contrata != 'Sin contrata' and av.contrata != 'TGI' and av.contrata != 'None' and av.contrata.strip() != '' %}
                                 <small class="text-muted d-block">{{ av.contrata }}</small>
                                 {% endif %}
                             </td>
@@ -284,6 +285,42 @@
                                 <span class="badge bg-warning text-dark">{{ av.dias_pendientes or 0 }} d</span>
                                 {% else %}
                                 <small class="text-muted">{{ av.fecha_resolucion.strftime('%d/%m/%Y') if av.fecha_resolucion else '' }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if av.estado == 'REPARADO' %}
+                                <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fs-8 rounded-2" onclick="verDetallesMateriales({{ av.id }})">
+                                    <i class="bi bi-eye-fill me-1"></i>Ver Detalles
+                                </button>
+                                <!-- Contenedor oculto de materiales -->
+                                <div id="mats-detail-{{ av.id }}" class="d-none">
+                                    {% set count_mats = namespace(value=0) %}
+                                    {% for key, cant in av.materiales_dict.items() %}
+                                        {% set parts = key.split('|') %}
+                                        {% set codigo = parts[0] %}
+                                        {% set nombre = parts[1] %}
+                                        {% if cant > 0 %}
+                                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                            <div>
+                                                <span class="badge bg-secondary-subtle text-secondary border px-1.5 py-0.5 font-monospace" style="font-size: 0.75rem;">{{ codigo }}</span>
+                                                <span class="ms-2 fw-medium text-slate-800" style="font-size: 0.85rem;">{{ nombre }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="badge bg-primary text-white px-2.5 py-1 fw-bold fs-7">{{ cant }}</span>
+                                            </div>
+                                        </div>
+                                        {% set count_mats.value = count_mats.value + 1 %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if count_mats.value == 0 %}
+                                    <div class="text-center py-4 text-muted">
+                                        <i class="bi bi-info-circle fs-3 d-block mb-2"></i>
+                                        Solo mano de obra (sin materiales utilizados)
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% else %}
+                                <span class="text-muted small">-</span>
                                 {% endif %}
                             </td>
                             <td class="text-end">
@@ -433,7 +470,7 @@
 
                     <div class="mb-3">
                         <label class="form-label small fw-medium text-secondary">Contrata Asignada</label>
-                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="contrata" placeholder="Ej: TGI (Omitir si no aplica)">
+                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="contrata" placeholder="Omitir si no aplica" autocomplete="off">
                     </div>
 
                     <button type="submit" class="btn btn-premium-primary w-100 py-2 fs-7 mb-2">
@@ -646,7 +683,7 @@
 
                     <div class="mb-2">
                         <label class="form-label small fw-medium text-secondary">Contrata Asignada</label>
-                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="contrata" id="edit_contrata" placeholder="Ej: TGI">
+                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="contrata" id="edit_contrata" placeholder="Omitir si no aplica" autocomplete="off">
                     </div>
 
                     <div class="mb-0">
@@ -659,6 +696,25 @@
                     <button type="submit" class="btn btn-primary btn-sm px-3">Guardar Cambios</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Ver Detalles de Materiales -->
+<div class="modal fade" id="detallesMaterialesModal" tabindex="-1" aria-labelledby="detallesMaterialesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-3 border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title font-semibold" id="detallesMaterialesLabel">
+                    <i class="bi bi-box-seam-fill text-white me-2"></i>Materiales Usados</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3" id="detallesMaterialesBody">
+                <!-- Se rellena dinámicamente -->
+            </div>
+            <div class="modal-footer bg-light border-top-0 py-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
     </div>
 </div>
@@ -795,7 +851,7 @@
             ? `<div style="margin-bottom: 0.25rem;"><strong>WO:</strong> <span class="leaflet-popup-content-value">${av.codigo_wo}</span></div>` 
             : '';
             
-        let contrataRow = (av.contrata && av.contrata !== "Sin contrata" && av.contrata.trim() !== "") 
+        let contrataRow = (av.contrata && av.contrata !== "Sin contrata" && av.contrata !== "TGI" && av.contrata !== "None" && av.contrata.trim() !== "") 
             ? `<div style="margin-bottom: 0.25rem;"><strong>Contrata:</strong> <span class="leaflet-popup-content-value">${av.contrata}</span></div>` 
             : '';
 
@@ -818,15 +874,17 @@
             </div>
         `;
         
-        const marker = L.marker([av.lat, av.lng], { icon: iconToUse }).addTo(map);
-        marker.bindPopup(popupContent);
+        let marker = null;
+        if (av.lat !== null && av.lng !== null) {
+            marker = L.marker([av.lat, av.lng], { icon: iconToUse }).addTo(map);
+            marker.bindPopup(popupContent);
+            bounds.push([av.lat, av.lng]);
+        }
         
         window.mapMarkers.push({
             marker: marker,
             data: av
         });
-        
-        bounds.push([av.lat, av.lng]);
     });
     
     // Auto-ajustar mapa a los marcadores si existen
@@ -968,10 +1026,12 @@
             const isVisible = matchesSite && matchesBranch && matchesSearch && matchesMonth && matchesStatus;
             
             if (isVisible) {
-                if (!map.hasLayer(item.marker)) {
-                    item.marker.addTo(map);
+                if (item.marker) {
+                    if (!map.hasLayer(item.marker)) {
+                        item.marker.addTo(map);
+                    }
+                    visibleBounds.push(item.marker.getLatLng());
                 }
-                visibleBounds.push(item.marker.getLatLng());
                 
                 countTotal++;
                 if (av.estado === 'PENDIENTE') {
@@ -985,7 +1045,7 @@
                     sumAcopladores += parseInt(av.acopladores) || 0;
                 }
             } else {
-                if (map.hasLayer(item.marker)) {
+                if (item.marker && map.hasLayer(item.marker)) {
                     map.removeLayer(item.marker);
                 }
             }
@@ -1260,6 +1320,18 @@
                 console.error(err);
                 alert("Error al conectar con el servidor.");
             });
+    };
+
+    window.verDetallesMateriales = function(id) {
+        const sourceHtml = document.getElementById('mats-detail-' + id).innerHTML.trim();
+        const body = document.getElementById('detallesMaterialesBody');
+        if (sourceHtml === '') {
+            body.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-info-circle fs-3 d-block mb-2"></i>Solo mano de obra (sin materiales utilizados)</div>';
+        } else {
+            body.innerHTML = sourceHtml;
+        }
+        const modal = new bootstrap.Modal(document.getElementById('detallesMaterialesModal'));
+        modal.show();
     };
 
     window.obtenerUbicacionGPS_edit = function() {
