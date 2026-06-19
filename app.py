@@ -814,12 +814,14 @@ def diagnostico_materiales():
 
 @app.route("/debug_ticket")
 def debug_ticket():
-    av = Averia.query.filter(Averia.cuenta.ilike('%19061621%')).first()
-    if av:
-        return jsonify({
+    averias = Averia.query.filter(Averia.cuenta.ilike('%19061621%')).all()
+    results = []
+    for av in averias:
+        results.append({
             "id": av.id,
             "cuenta": av.cuenta,
             "estado": av.estado,
+            "coordenadas": av.coordenadas,
             "materiales_json": av.materiales_json,
             "material_acopladores": av.material_acopladores,
             "material_cable_m": av.material_cable_m,
@@ -827,7 +829,7 @@ def debug_ticket():
             "material_rosetas": av.material_rosetas,
             "material_mangas": av.material_mangas
         })
-    return "Ticket not found", 404
+    return jsonify(results)
 
 
 @app.route("/manifest.json")
