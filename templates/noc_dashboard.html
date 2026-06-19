@@ -471,7 +471,7 @@
                 id: {{ av.id }},
                 fecha: "{{ av.fecha_resolucion.strftime('%Y-%m-%d') if av.fecha_resolucion else '' }}",
                 cable: {{ av.material_cable_m or 0 }},
-                conectores: {{ av.material_conectores or 0 }}
+                conectores: {{ (av.material_conectores or 0) + (av.material_rosetas or 0) }}
             }{% if not loop.last %},{% endif %}
             {% endfor %}
         ];
