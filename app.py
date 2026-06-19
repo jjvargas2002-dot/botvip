@@ -679,6 +679,125 @@ def sincronizar_drive():
         return False, f"Error en sincronización: {str(e)}"
 
 
+@app.route("/diagnostico_materiales")
+def diagnostico_materiales():
+    try:
+        from sqlalchemy import func
+        reparados = Averia.query.filter_by(estado="REPARADO").order_by(Averia.id.desc()).all()
+        
+        # Ejecutar la migración manualmente y capturar logs
+        migrated_log = []
+        
+        # Buscar todas las averías REPARADO que no tienen materiales
+        reparadas_sin_mats = Averia.query.filter(
+            Averia.estado == "REPARADO",
+            (Averia.material_cable_m.is_(None) | (Averia.material_cable_m == 0)),
+            (Averia.material_conectores.is_(None) | (Averia.material_conectores == 0)),
+            (Averia.material_rosetas.is_(None) | (Averia.material_rosetas == 0)),
+            (Averia.material_mangas.is_(None) | (Averia.material_mangas == 0)),
+            (Averia.material_acopladores.is_(None) | (Averia.material_acopladores == 0)),
+            (Averia.materiales_json.is_(None) | (Averia.materiales_json == "{}") | (Averia.materiales_json == ""))
+        ).all()
+        
+        migrated_count = 0
+        for av in reparadas_sin_mats:
+            # Buscar previos
+            previo = Averia.query.filter(
+                Averia.cuenta == av.cuenta,
+                Averia.estado == "REPARADO",
+                Averia.id != av.id,
+                (
+                    (Averia.material_cable_m > 0) |
+                    (Averia.material_conectores > 0) |
+                    (Averia.material_rosetas > 0) |
+                    (Averia.material_mangas > 0) |
+                    (Averia.material_acopladores > 0) |
+                    ((Averia.materiales_json != None) & (Averia.materiales_json != "{}"))
+                )
+            ).order_by(Averia.id.desc()).first()
+            
+            if previo:
+                av.materiales_json = previo.materiales_json
+                av.material_cable_m = previo.material_cable_m
+                av.material_conectores = previo.material_conectores
+                av.material_rosetas = previo.material_rosetas
+                av.material_mangas = previo.material_mangas
+                av.material_acopladores = previo.material_acopladores
+                av.tecnico_id = previo.tecnico_id
+                av.tipificacion = previo.tipificacion
+                comentario_sync = av.material_comentarios or ""
+                if previo.material_comentarios:
+                    av.material_comentarios = f"{previo.material_comentarios} (Sincronizado: {comentario_sync})"
+                else:
+                    av.material_comentarios = comentario_sync
+                migrated_log.append(f"Restaurada cuenta {av.cuenta} (ID {av.id}) desde ID {previo.id} con Cable={previo.material_cable_m}, Conectores={previo.material_conectores}")
+                migrated_count += 1
+            else:
+                otros = Averia.query.filter(Averia.cuenta == av.cuenta, Averia.id != av.id).all()
+                otros_ids = [str(o.id) for o in otros]
+                migrated_log.append(f"Sin restaurar {av.cuenta} (ID {av.id}): No hay previos con materiales. Otros tickets de la cuenta en BD: [{', '.join(otros_ids)}]")
+                
+        if migrated_count > 0:
+            db.session.commit()
+            
+        html = f"""
+        <html>
+        <head><title>Diagnostico de Materiales</title></head>
+        <body style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
+            <h2>Diagnostico de Base de Datos - Materiales Perdidos</h2>
+            <p><strong>Total tickets REPARADO en BD:</strong> {len(reparados)}</p>
+            <p><strong>Total tickets REPARADO sin materiales:</strong> {len(reparadas_sin_mats)}</p>
+            <p><strong>Tickets restaurados en esta pasada:</strong> {migrated_count}</p>
+            
+            <h3>Logs de Restauración:</h3>
+            <pre style="background: #f4f4f4; padding: 15px; border: 1px solid #ccc; max-height: 400px; overflow-y: scroll;">
+{"\n".join(migrated_log)}
+            </pre>
+            
+            <h3>Últimos 30 tickets REPARADO en el sistema:</h3>
+            <table border="1" cellpadding="5" style="border-collapse: collapse; width: 100%;">
+                <tr style="background: #eee;">
+                    <th>ID</th>
+                    <th>Cuenta</th>
+                    <th>Estado</th>
+                    <th>Origen</th>
+                    <th>Técnico ID</th>
+                    <th>Cable (m)</th>
+                    <th>Conectores</th>
+                    <th>Mufas</th>
+                    <th>Rosetas</th>
+                    <th>Acopladores</th>
+                    <th>Agrupados</th>
+                    <th>Comentarios</th>
+                </tr>
+        """
+        for av in reparados[:30]:
+            html += f"""
+                <tr>
+                    <td>{av.id}</td>
+                    <td>{av.cuenta}</td>
+                    <td>{av.estado}</td>
+                    <td>{av.origen}</td>
+                    <td>{av.tecnico_id}</td>
+                    <td>{av.material_cable_m}</td>
+                    <td>{av.material_conectores}</td>
+                    <td>{av.material_mangas}</td>
+                    <td>{av.material_rosetas}</td>
+                    <td>{av.material_acopladores}</td>
+                    <td>{av.cuentas_asociadas}</td>
+                    <td>{av.material_comentarios}</td>
+                </tr>
+            """
+        html += """
+            </table>
+        </body>
+        </html>
+        """
+        return html
+    except Exception as e:
+        return f"Error en diagnóstico: {str(e)}"
+
+
 @app.route("/manifest.json")
 def serve_manifest():
     return app.send_static_file("manifest.json")
