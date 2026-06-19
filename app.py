@@ -812,6 +812,24 @@ def diagnostico_materiales():
         return f"Error en diagnóstico: {str(e)}"
 
 
+@app.route("/debug_ticket")
+def debug_ticket():
+    av = Averia.query.filter(Averia.cuenta.ilike('%19061621%')).first()
+    if av:
+        return jsonify({
+            "id": av.id,
+            "cuenta": av.cuenta,
+            "estado": av.estado,
+            "materiales_json": av.materiales_json,
+            "material_acopladores": av.material_acopladores,
+            "material_cable_m": av.material_cable_m,
+            "material_conectores": av.material_conectores,
+            "material_rosetas": av.material_rosetas,
+            "material_mangas": av.material_mangas
+        })
+    return "Ticket not found", 404
+
+
 @app.route("/manifest.json")
 def serve_manifest():
     return app.send_static_file("manifest.json")
