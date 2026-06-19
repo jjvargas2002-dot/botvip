@@ -155,6 +155,15 @@
         <div class="tab-content">
             <!-- Branch Summary Tab -->
             <div class="tab-pane fade show active" id="branchSummary" role="tabpanel">
+                <div class="p-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <span class="text-muted small">Resumen de consumo consolidado por sede.</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-nowrap fw-semibold text-slate-700" style="font-size: 0.85rem;">Filtrar Mes:</span>
+                        <select id="branchSummaryMonthSelector" class="form-select form-select-sm" style="width: 170px;">
+                            <!-- Populated via JS -->
+                        </select>
+                    </div>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
                         <thead class="table-light">
@@ -168,7 +177,7 @@
                                 <th class="pe-4">Preconectorizado (und)</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="branchSummaryTableBody">
                             {% for b in por_branch %}
                             <tr>
                                 <td class="ps-4 fw-semibold"><span class="badge bg-primary-subtle text-primary border px-2 py-1">{{ b.branch }}</span></td>
@@ -464,14 +473,18 @@
     document.addEventListener("DOMContentLoaded", function() {
         // --- CHARTS CONFIGURATION ---
         
-        // Raw resolved tickets data for dynamic daily chart
+        // Raw resolved tickets data for dynamic daily chart and branch summaries
         const reparadasRaw = [
             {% for av in reparadas %}
             {
                 id: {{ av.id }},
                 fecha: "{{ av.fecha_resolucion.strftime('%Y-%m-%d') if av.fecha_resolucion else '' }}",
+                branch: "{{ av.branch }}",
                 cable: {{ av.material_cable_m or 0 }},
-                conectores: {{ (av.material_conectores or 0) + (av.material_rosetas or 0) }}
+                fac: {{ av.material_conectores or 0 }},
+                rosetas: {{ av.material_rosetas or 0 }},
+                mangas: {{ av.material_mangas or 0 }},
+                acopladores: {{ av.material_acopladores or 0 }}
             }{% if not loop.last %},{% endif %}
             {% endfor %}
         ];
@@ -555,7 +568,7 @@
                 
                 if (avYear === year && avMonth === month) {
                     dailyCable[avDay - 1] += av.cable;
-                    dailyConnectors[avDay - 1] += av.conectores;
+                    dailyConnectors[avDay - 1] += av.fac + av.rosetas;
                 }
             });
             
@@ -570,24 +583,24 @@
             monthlyChart.update();
         }
 
-        // Populate Month Selector for Daily Chart
+        // Populate Month Selector for Daily Chart and Branch Summary
+        const monthsSet = new Set();
+        reparadasRaw.forEach(av => {
+            if (av.fecha) {
+                monthsSet.add(av.fecha.substring(0, 7)); // "YYYY-MM"
+            }
+        });
+        const sortedMonths = Array.from(monthsSet).sort().reverse();
+        
+        const MESES_NOMBRES = {
+            "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
+            "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
+            "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
+        };
+
+        // 1. Chart Month Selector
         const monthSelector = document.getElementById('chartMonthSelector');
         if (monthSelector) {
-            const monthsSet = new Set();
-            reparadasRaw.forEach(av => {
-                if (av.fecha) {
-                    monthsSet.add(av.fecha.substring(0, 7)); // "YYYY-MM"
-                }
-            });
-            
-            const sortedMonths = Array.from(monthsSet).sort().reverse();
-            
-            const MESES_NOMBRES = {
-                "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
-                "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
-                "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
-            };
-            
             sortedMonths.forEach(mKey => {
                 const parts = mKey.split("-");
                 const name = MESES_NOMBRES[parts[1]] || "Mes";
@@ -605,6 +618,76 @@
             
             monthSelector.addEventListener('change', function() {
                 updateDailyChart(this.value);
+            });
+        }
+
+        // 2. Branch Summary Month Selector
+        const branchSummaryMonthSelector = document.getElementById('branchSummaryMonthSelector');
+        
+        function updateBranchSummary(selectedMonth) {
+            const summaryData = {};
+            const branchesList = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"];
+            
+            branchesList.forEach(b => {
+                summaryData[b] = {
+                    branch: b,
+                    total_casos: 0,
+                    cable: 0,
+                    conectores: 0,
+                    rosetas: 0,
+                    mangas: 0,
+                    acopladores: 0
+                };
+            });
+            
+            reparadasRaw.forEach(av => {
+                const avMonth = av.fecha ? av.fecha.substring(0, 7) : "";
+                if (selectedMonth === "TOTAL" || avMonth === selectedMonth) {
+                    const b = av.branch;
+                    if (summaryData[b]) {
+                        summaryData[b].total_casos++;
+                        summaryData[b].cable += av.cable;
+                        summaryData[b].conectores += av.fac;
+                        summaryData[b].rosetas += av.rosetas;
+                        summaryData[b].mangas += av.mangas;
+                        summaryData[b].acopladores += av.acopladores;
+                    }
+                }
+            });
+            
+            const tbody = document.getElementById("branchSummaryTableBody");
+            if (tbody) {
+                tbody.innerHTML = "";
+                branchesList.forEach(b => {
+                    const data = summaryData[b];
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td class="ps-4 fw-semibold"><span class="badge bg-primary-subtle text-primary border px-2 py-1">${data.branch}</span></td>
+                        <td><strong class="text-slate-800">${data.total_casos}</strong></td>
+                        <td><strong class="text-primary">${data.cable}m</strong></td>
+                        <td>${data.conectores}</td>
+                        <td>${data.rosetas}</td>
+                        <td>${data.mangas}</td>
+                        <td class="pe-4">${data.acopladores}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        if (branchSummaryMonthSelector) {
+            branchSummaryMonthSelector.innerHTML = '<option value="TOTAL">TOTAL</option>';
+            sortedMonths.forEach(mKey => {
+                const parts = mKey.split("-");
+                const name = MESES_NOMBRES[parts[1]] || "Mes";
+                const option = document.createElement('option');
+                option.value = mKey;
+                option.innerText = `${name} ${parts[0]}`;
+                branchSummaryMonthSelector.appendChild(option);
+            });
+
+            branchSummaryMonthSelector.addEventListener('change', function() {
+                updateBranchSummary(this.value);
             });
         }
 

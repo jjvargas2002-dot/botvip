@@ -443,6 +443,41 @@ def crear_operador_defecto():
         db.session.rollback()
 
 
+def buscar_y_copiar_materiales_previos(cuenta, target_averia):
+    # Buscar una avería resuelta con materiales para la misma cuenta
+    previo = Averia.query.filter(
+        Averia.cuenta == cuenta,
+        Averia.estado == "REPARADO",
+        Averia.id != target_averia.id if target_averia.id else True,
+        (
+            (Averia.material_cable_m > 0) |
+            (Averia.material_conectores > 0) |
+            (Averia.material_rosetas > 0) |
+            (Averia.material_mangas > 0) |
+            (Averia.material_acopladores > 0) |
+            ((Averia.materiales_json != None) & (Averia.materiales_json != "{}"))
+        )
+    ).order_by(Averia.id.desc()).first()
+    
+    if previo:
+        target_averia.materiales_json = previo.materiales_json
+        target_averia.material_cable_m = previo.material_cable_m
+        target_averia.material_conectores = previo.material_conectores
+        target_averia.material_rosetas = previo.material_rosetas
+        target_averia.material_mangas = previo.material_mangas
+        target_averia.material_acopladores = previo.material_acopladores
+        target_averia.tecnico_id = previo.tecnico_id
+        target_averia.tipificacion = previo.tipificacion
+        # Preservar el comentario de drive pero adjuntar el anterior
+        comentario_sync = target_averia.material_comentarios or ""
+        if previo.material_comentarios:
+            target_averia.material_comentarios = f"{previo.material_comentarios} (Sincronizado: {comentario_sync})"
+        else:
+            target_averia.material_comentarios = comentario_sync
+        return True
+    return False
+
+
 def sincronizar_drive():
     url = "https://docs.google.com/spreadsheets/d/1eaNxCpm8JF1JcZS3_ldwMRINGYFaW6RsQQWybvRi_P8/export?format=csv&gid=1775459558"
     try:
@@ -514,7 +549,19 @@ def sincronizar_drive():
             es_resuelto_drive = any(k in status_upper or k in status_caja_upper for k in resuelto_keywords)
 
             # Buscar en BD
-            averia = Averia.query.filter_by(cuenta=cuenta).first()
+            averia = None
+            if codigo_wo:
+                # Buscar por código de WO primero (priorizando PENDIENTE, pero si no, cualquiera)
+                averia = Averia.query.filter_by(codigo_wo=codigo_wo, estado="PENDIENTE").first()
+                if not averia:
+                    averia = Averia.query.filter_by(codigo_wo=codigo_wo).order_by(Averia.id.desc()).first()
+            
+            if not averia:
+                # Si no se encontró por código de WO, buscar por cuenta
+                averia = Averia.query.filter_by(cuenta=cuenta, estado="PENDIENTE").order_by(Averia.id.desc()).first()
+                if not averia and es_resuelto_drive:
+                    averia = Averia.query.filter_by(cuenta=cuenta, estado="REPARADO").order_by(Averia.id.desc()).first()
+
             if averia:
                 # Si ya existe, actualizar datos del drive solo si está pendiente localmente
                 if averia.estado == "PENDIENTE":
@@ -522,6 +569,8 @@ def sincronizar_drive():
                         averia.estado = "REPARADO"
                         averia.fecha_resolucion = datetime.now()
                         averia.material_comentarios = f"Marcado como resuelto en el Drive (Estado: {status_ont or status_caja})"
+                        # Copiar materiales si existían anteriormente
+                        buscar_y_copiar_materiales_previos(cuenta, averia)
                     else:
                         averia.branch = branch
                         averia.codigo_wo = codigo_wo
@@ -545,6 +594,17 @@ def sincronizar_drive():
                         (averia.material_acopladores or 0) > 0 or
                         (averia.materiales_json and averia.materiales_json != "{}")
                     )
+                    # Si no tiene materiales, intentamos copiarlos por si existían anteriormente
+                    if not tiene_materiales:
+                        buscar_y_copiar_materiales_previos(cuenta, averia)
+                        tiene_materiales = (
+                            (averia.material_cable_m or 0) > 0 or
+                            (averia.material_conectores or 0) > 0 or
+                            (averia.material_rosetas or 0) > 0 or
+                            (averia.material_mangas or 0) > 0 or
+                            (averia.material_acopladores or 0) > 0 or
+                            (averia.materiales_json and averia.materiales_json != "{}")
+                        )
                     if not averia.tecnico_id and not tiene_materiales and not es_resuelto_drive:
                         averia.estado = "PENDIENTE"
                         averia.fecha_resolucion = None
@@ -579,6 +639,8 @@ def sincronizar_drive():
                     coordenadas=coordenadas,
                     origen="SHEETS"
                 )
+                if es_resuelto_drive:
+                    buscar_y_copiar_materiales_previos(cuenta, nueva)
                 db.session.add(nueva)
                 nuevos += 1
                 if branch not in nuevos_por_branch:
@@ -1467,32 +1529,13 @@ def crear_averia_manual():
         # Validar si ya existe la cuenta (solo si no es un placeholder autogenerado)
         existente = None
         if not cuenta.startswith("SIN_CUENTA_") and not cuenta.startswith("AVERÍA_ODN_"):
-            existente = Averia.query.filter_by(cuenta=cuenta).first()
+            existente = Averia.query.filter_by(cuenta=cuenta, estado="PENDIENTE").order_by(Averia.id.desc()).first()
         if existente:
-            if existente.estado == "PENDIENTE":
-                if accion == "registrar_y_reparar":
-                    flash(f"La cuenta {cuenta} ya tiene una avería pendiente activa. Redirigiendo a resolución.", "info")
-                    return redirect(url_for("dashboard", auto_resolver_id=existente.id, auto_resolver_cuenta=existente.cuenta))
-                flash(f"La cuenta {cuenta} ya tiene una avería pendiente activa.", "warning")
-                return redirect(url_for("dashboard"))
-            else:
-                # Si ya existía pero estaba reparada, la reactivamos o creamos una nueva
-                # Para evitar duplicados de cuenta unique, eliminamos la anterior o la editamos.
-                # Lo mejor es reactivar la existente poniéndola PENDIENTE
-                existente.estado = "PENDIENTE"
-                existente.branch = target_branch
-                existente.caja = caja_compuesta
-                existente.site = site
-                existente.coordenadas = coordenadas
-                existente.detalles = detalles
-                existente.contrata = contrata or "TGI"
-                existente.dias_pendientes = 0.0
-                existente.origen = "MANUAL"
-                db.session.commit()
-                flash(f"Se reactivó la avería para la cuenta {cuenta}.", "success")
-                if accion == "registrar_y_reparar":
-                    return redirect(url_for("dashboard", auto_resolver_id=existente.id, auto_resolver_cuenta=existente.cuenta))
-                return redirect(url_for("dashboard"))
+            if accion == "registrar_y_reparar":
+                flash(f"La cuenta {cuenta} ya tiene una avería pendiente activa. Redirigiendo a resolución.", "info")
+                return redirect(url_for("dashboard", auto_resolver_id=existente.id, auto_resolver_cuenta=existente.cuenta))
+            flash(f"La cuenta {cuenta} ya tiene una avería pendiente activa.", "warning")
+            return redirect(url_for("dashboard"))
         
         nueva = Averia(
             branch=target_branch,
@@ -1660,6 +1703,19 @@ def registrar_stock():
         count = sum(1 for av in reparadas_sede if av.tipificacion == typ)
         tipificaciones_sede.append({"tipificacion": typ, "cantidad": count})
         
+    reparadas_sede_serialized = []
+    for av in reparadas_sede:
+        reparadas_sede_serialized.append({
+            "fecha": av.fecha_resolucion.strftime("%Y-%m-%d") if av.fecha_resolucion else "",
+            "cable": av.material_cable_m or 0,
+            "conectores": av.material_conectores or 0,
+            "rosetas": av.material_rosetas or 0,
+            "mangas": av.material_mangas or 0,
+            "acopladores": av.material_acopladores or 0,
+            "tipificacion": av.tipificacion or "",
+            "materiales_dict": av.materiales_dict
+        })
+
     return render_template(
         "stock.html",
         materiales_por_seccion=materiales_por_seccion_stock,
@@ -1669,7 +1725,8 @@ def registrar_stock():
         es_noc=es_noc,
         consumo_materiales=consumo_materiales,
         tipificaciones_data=tipificaciones_sede,
-        total_reparadas_sede=len(reparadas_sede)
+        total_reparadas_sede=len(reparadas_sede),
+        reparadas_sede_raw=reparadas_sede_serialized
     )
 
 

@@ -159,6 +159,11 @@
                             <i class="bi bi-bar-chart-line-fill me-1.5"></i>Resumen de Consumo y Tipificaciones
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#dailyStockPane" type="button" role="tab" aria-controls="dailyStockPane" aria-selected="false">
+                            <i class="bi bi-calendar-event-fill me-1.5"></i>Resumen Diario de Materiales
+                        </button>
+                    </li>
                 </ul>
             </div>
 
@@ -266,8 +271,14 @@
                             <div class="col">
                                 <h4 class="fw-bold mb-1 text-slate-800"><i class="bi bi-activity text-primary me-2"></i>Consumo y Estadísticas: Sede {{ sede_actual }}</h4>
                                 <p class="text-muted mb-0" style="font-size: 0.9rem;">
-                                    Resumen acumulado de materiales utilizados en averías reparadas para esta sede. Total de averías reparadas: <strong class="text-success">{{ total_reparadas_sede }}</strong>
+                                    Resumen de materiales utilizados en averías reparadas para esta sede. Total de averías reparadas en el período: <strong class="text-success" id="sedeDashboardTotalReparadas">{{ total_reparadas_sede }}</strong>
                                 </p>
+                            </div>
+                            <div class="col-auto">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="text-nowrap fw-semibold text-slate-700" style="font-size: 0.9rem;">Filtrar Período:</span>
+                                    <select id="sedeDashboardPeriodSelector" class="form-select form-select-sm" style="width: 170px;"></select>
+                                </div>
                             </div>
                         </div>
 
@@ -286,7 +297,7 @@
                                                     <th class="text-center" style="width: 120px;">Cantidad</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody id="consumoMaterialesTableBody">
                                                 {% for c in consumo_materiales %}
                                                 <tr>
                                                     <td><span class="badge bg-light text-dark border font-monospace">{{ c.codigo }}</span></td>
@@ -295,7 +306,7 @@
                                                     <td class="text-center"><span class="badge bg-primary text-white px-2.5 py-1.5 fw-bold">{{ c.cantidad }}</span></td>
                                                 </tr>
                                                 {% else %}
-                                                <tr>
+                                                <tr id="emptyConsumoRow">
                                                     <td colspan="4" class="text-center py-5 text-muted">
                                                         <i class="bi bi-inbox-fill fs-2 d-block mb-2 text-secondary"></i>
                                                         No se registran materiales utilizados para averías reparadas en esta sede.
@@ -320,7 +331,7 @@
                                                     <th class="text-center" style="width: 100px;">Cantidad</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody id="tipificacionesTableBody">
                                                 {% for t in tipificaciones_data %}
                                                 <tr>
                                                     <td class="fw-semibold text-slate-700">{{ t.tipificacion }}</td>
@@ -331,13 +342,67 @@
                                         </table>
                                     </div>
 
-                                    {% if total_reparadas_sede > 0 %}
-                                    <div class="card bg-light border-0 p-2 text-center">
+                                    <div class="card bg-light border-0 p-2 text-center" id="sedeTipChartContainer" style="display: {% if total_reparadas_sede > 0 %}block{% else %}none{% endif %};">
                                         <div class="chart-container" style="height: 200px; width: 100%; position: relative;">
                                             <canvas id="sedeTipChart"></canvas>
                                         </div>
                                     </div>
-                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Resumen Diario de Materiales -->
+                <div class="tab-pane fade" id="dailyStockPane" role="tabpanel" aria-labelledby="daily-tab">
+                    <div class="p-4">
+                        <div class="row align-items-center mb-4">
+                            <div class="col">
+                                <h4 class="fw-bold mb-1 text-slate-800"><i class="bi bi-calendar-event text-primary me-2"></i>Resumen Diario de Materiales: Sede {{ sede_actual }}</h4>
+                                <p class="text-muted mb-0" style="font-size: 0.9rem;">
+                                    Consumo diario detallado y gráfico de evolución de cables y conectores.
+                                </p>
+                            </div>
+                            <div class="col-auto">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="text-nowrap fw-semibold text-slate-700" style="font-size: 0.9rem;">Seleccionar Mes:</span>
+                                    <select id="dailyMonthSelector" class="form-select form-select-sm" style="width: 170px;"></select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-4">
+                            <!-- Grafico diario de cables y conectores -->
+                            <div class="col-12">
+                                <div class="card card-premium p-3">
+                                    <h5 class="fw-bold mb-3 text-secondary" style="font-size: 1rem;"><i class="bi bi-graph-up text-primary me-2"></i>Evolución Diaria de Cables y Conectores (FAC + Waterproof)</h5>
+                                    <div style="height: 300px; position: relative;">
+                                        <canvas id="sedeDailyChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tabla de materiales diaria -->
+                            <div class="col-12">
+                                <div class="card card-premium p-3">
+                                    <h5 class="fw-bold mb-3 text-secondary" style="font-size: 1rem;"><i class="bi bi-table text-primary me-2"></i>Consumo Diario Detallado</h5>
+                                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                        <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
+                                            <thead class="table-light" style="position: sticky; top: 0; z-index: 10;">
+                                                <tr>
+                                                    <th>Fecha</th>
+                                                    <th class="text-center">Cable Drop (m)</th>
+                                                    <th class="text-center">FAC (ud)</th>
+                                                    <th class="text-center">Waterproof (ud)</th>
+                                                    <th class="text-center">Mufas (ud)</th>
+                                                    <th class="text-center">Preconectorizado (ud)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="sedeDailyTableBody">
+                                                <!-- Populate via JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -423,48 +488,386 @@
             });
         });
 
-        // --- CHART INITIALIZATION FOR LOCAL SEDE DASHBOARD ---
-        {% if total_reparadas_sede > 0 %}
-        const tipDataSede = {{ tipificaciones_data|tojson }};
-        const labelsTipSede = tipDataSede.map(t => t.tipificacion);
-        const countsTipSede = tipDataSede.map(t => t.cantidad);
+        // --- DATA PREPARATION FOR CLIENT-SIDE FILTERING ---
+        const reparadasSedeRaw = {{ reparadas_sede_raw|tojson }};
+        const masterMateriales = [];
+        {% for seccion, materiales in materiales_por_seccion.items() %}
+            {% for m in materiales %}
+                masterMateriales.push({
+                    codigo: "{{ m.codigo }}",
+                    nombre: "{{ m.nombre }}",
+                    seccion: "{{ m.seccion }}"
+                });
+            {% endfor %}
+        {% endfor %}
 
-        const ctxSede = document.getElementById('sedeTipChart').getContext('2d');
-        new Chart(ctxSede, {
-            type: 'doughnut',
-            data: {
-                labels: labelsTipSede,
-                datasets: [{
-                    data: countsTipSede,
-                    backgroundColor: [
-                        '#2563eb', // primary blue
-                        '#10b981', // green
-                        '#f59e0b', // orange
-                        '#ef4444', // red
-                        '#8b5cf6', // purple
-                        '#06b6d4', // cyan
-                        '#ec4899', // pink
-                        '#64748b'  // slate
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            boxWidth: 8,
-                            font: { size: 9 },
-                            padding: 8
+        const typificationsList = [
+            "Personas externa cortó",
+            "Camión grande rompió fibra",
+            "Puerto sucio",
+            "Refusión de hilo / cambio de módulo",
+            "Cambio de caja",
+            "Caja robada",
+            "Reemplazo de poste eléctrico",
+            "Conector roto",
+            "OLT caída"
+        ];
+
+        const MESES_ES = {
+            "01": "ENERO", "02": "FEBRERO", "03": "MARZO", "04": "ABRIL", "05": "MAYO", "06": "JUNIO",
+            "07": "JULIO", "08": "AGOSTO", "09": "SEPTIEMBRE", "10": "OCTUBRE", "11": "NOVIEMBRE", "12": "DICIEMBRE"
+        };
+
+        function getMonthLabel(ym) {
+            const parts = ym.split("-");
+            const y = parts[0];
+            const m = parts[1];
+            return (MESES_ES[m] || m) + " " + y;
+        }
+
+        // Obtener todos los meses únicos presentes en las averías
+        const uniqueMonths = [...new Set(reparadasSedeRaw
+            .filter(r => r.fecha)
+            .map(r => r.fecha.substring(0, 7))
+        )].sort().reverse();
+
+        // Rellenar selectores de período
+        const dashPeriodSelect = document.getElementById("sedeDashboardPeriodSelector");
+        const dailyMonthSelect = document.getElementById("dailyMonthSelector");
+
+        if (dashPeriodSelect) {
+            dashPeriodSelect.innerHTML = '<option value="TOTAL">TOTAL</option>';
+            uniqueMonths.forEach(ym => {
+                const opt = document.createElement("option");
+                opt.value = ym;
+                opt.textContent = getMonthLabel(ym);
+                dashPeriodSelect.appendChild(opt);
+            });
+        }
+
+        if (dailyMonthSelect) {
+            if (uniqueMonths.length > 0) {
+                uniqueMonths.forEach(ym => {
+                    const opt = document.createElement("option");
+                    opt.value = ym;
+                    opt.textContent = getMonthLabel(ym);
+                    dailyMonthSelect.appendChild(opt);
+                });
+            } else {
+                dailyMonthSelect.innerHTML = '<option value="">SIN REGISTROS</option>';
+            }
+        }
+
+        // --- TAB 2: UPDATE CONSUMPTION & TIPIFICACIONES ---
+        let tipChartInstance = null;
+
+        function updateDashboardStats(period) {
+            // Filtrar averías por el período seleccionado
+            const filtered = reparadasSedeRaw.filter(r => {
+                if (period === "TOTAL") return true;
+                return r.fecha && r.fecha.substring(0, 7) === period;
+            });
+
+            // Actualizar total reparadas text
+            const totalRepText = document.getElementById("sedeDashboardTotalReparadas");
+            if (totalRepText) totalRepText.textContent = filtered.length;
+
+            // Recalcular consumo de materiales
+            const consumoDict = {};
+            masterMateriales.forEach(m => {
+                consumoDict[`${m.codigo}|${m.nombre}`] = 0;
+            });
+
+            filtered.forEach(av => {
+                const mats = av.materiales_dict || {};
+                for (const key in mats) {
+                    const cant = mats[key];
+                    if (cant) {
+                        if (key in consumoDict) {
+                            consumoDict[key] += cant;
+                        } else {
+                            const parts = key.split("|");
+                            if (parts.length > 0) {
+                                const code = parts[0];
+                                const found = masterMateriales.find(m => m.codigo === code);
+                                if (found) {
+                                    consumoDict[`${found.codigo}|${found.nombre}`] += cant;
+                                }
+                            }
                         }
                     }
                 }
+            });
+
+            // Rellenar tabla de materiales consumidos
+            const matsTableBody = document.getElementById("consumoMaterialesTableBody");
+            if (matsTableBody) {
+                matsTableBody.innerHTML = "";
+                let hasMats = false;
+
+                masterMateriales.forEach(m => {
+                    const key = `${m.codigo}|${m.nombre}`;
+                    const cant = consumoDict[key] || 0;
+                    if (cant > 0) {
+                        hasMats = true;
+                        const tr = document.createElement("tr");
+                        tr.innerHTML = `
+                            <td><span class="badge bg-light text-dark border font-monospace">${m.codigo}</span></td>
+                            <td class="fw-semibold text-slate-800">${m.nombre}</td>
+                            <td><span class="badge bg-secondary-subtle text-secondary" style="font-size: 0.75rem;">${m.seccion}</span></td>
+                            <td class="text-center"><span class="badge bg-primary text-white px-2.5 py-1.5 fw-bold">${cant}</span></td>
+                        `;
+                        matsTableBody.appendChild(tr);
+                    }
+                });
+
+                if (!hasMats) {
+                    matsTableBody.innerHTML = `
+                        <tr id="emptyConsumoRow">
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox-fill fs-2 d-block mb-2 text-secondary"></i>
+                                No se registran materiales utilizados para averías reparadas en este período.
+                            </td>
+                        </tr>
+                    `;
+                }
             }
-        });
-        {% endif %}
+
+            // Recalcular tipificaciones
+            const tipCounts = {};
+            typificationsList.forEach(t => {
+                tipCounts[t] = 0;
+            });
+
+            filtered.forEach(av => {
+                if (av.tipificacion && av.tipificacion in tipCounts) {
+                    tipCounts[av.tipificacion]++;
+                }
+            });
+
+            // Rellenar tabla de tipificaciones
+            const tipTableBody = document.getElementById("tipificacionesTableBody");
+            if (tipTableBody) {
+                tipTableBody.innerHTML = "";
+                typificationsList.forEach(t => {
+                    const count = tipCounts[t] || 0;
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td class="fw-semibold text-slate-700">${t}</td>
+                        <td class="text-center"><span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1">${count}</span></td>
+                    `;
+                    tipTableBody.appendChild(tr);
+                });
+            }
+
+            // Renderizar / actualizar gráfico de rosquilla de tipificaciones
+            const chartContainer = document.getElementById("sedeTipChartContainer");
+            const canvas = document.getElementById("sedeTipChart");
+
+            if (filtered.length > 0) {
+                if (chartContainer) chartContainer.style.display = "block";
+                
+                const labels = typificationsList;
+                const counts = typificationsList.map(t => tipCounts[t] || 0);
+
+                if (tipChartInstance) {
+                    tipChartInstance.data.labels = labels;
+                    tipChartInstance.data.datasets[0].data = counts;
+                    tipChartInstance.update();
+                } else if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    tipChartInstance = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: counts,
+                                backgroundColor: [
+                                    '#2563eb', '#10b981', '#f59e0b', '#ef4444',
+                                    '#8b5cf6', '#06b6d4', '#ec4899', '#64748b', '#4b5563'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        boxWidth: 8,
+                                        font: { size: 9 },
+                                        padding: 8
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            } else {
+                if (chartContainer) chartContainer.style.display = "none";
+                if (tipChartInstance) {
+                    tipChartInstance.destroy();
+                    tipChartInstance = null;
+                }
+            }
+        }
+
+        if (dashPeriodSelect) {
+            dashPeriodSelect.addEventListener("change", function() {
+                updateDashboardStats(this.value);
+            });
+            // Inicializar con TOTAL
+            updateDashboardStats("TOTAL");
+        }
+
+        // --- TAB 3: DAILY CONSUMPTION CHART AND TABLE ---
+        let dailyChartInstance = null;
+
+        function updateDailyStats(period) {
+            if (!period) {
+                const tbody = document.getElementById("sedeDailyTableBody");
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No hay registros de averías en esta sede.</td></tr>';
+                }
+                return;
+            }
+
+            // Filtrar averías por el mes seleccionado
+            const filtered = reparadasSedeRaw.filter(r => r.fecha && r.fecha.substring(0, 7) === period);
+
+            // Obtener todos los días del mes actual
+            const year = parseInt(period.substring(0, 4));
+            const month = parseInt(period.substring(5, 7));
+            const numDays = new Date(year, month, 0).getDate();
+
+            const dailyData = {};
+            for (let d = 1; d <= numDays; d++) {
+                const dayStr = String(d).padStart(2, '0');
+                const dateKey = `${period}-${dayStr}`;
+                dailyData[dateKey] = {
+                    cable: 0,
+                    conectores: 0,
+                    rosetas: 0,
+                    mangas: 0,
+                    acopladores: 0
+                };
+            }
+
+            // Acumular cantidades por día
+            filtered.forEach(av => {
+                if (av.fecha && av.fecha in dailyData) {
+                    dailyData[av.fecha].cable += av.cable;
+                    dailyData[av.fecha].conectores += av.conectores;
+                    dailyData[av.fecha].rosetas += av.rosetas;
+                    dailyData[av.fecha].mangas += av.mangas;
+                    dailyData[av.fecha].acopladores += av.acopladores;
+                }
+            });
+
+            // Ordenar fechas cronológicamente de forma descendente para la tabla, pero ascendente para la gráfica
+            const sortedDatesAsc = Object.keys(dailyData).sort();
+            const sortedDatesDesc = [...sortedDatesAsc].reverse();
+
+            // Rellenar tabla
+            const dailyTbody = document.getElementById("sedeDailyTableBody");
+            if (dailyTbody) {
+                dailyTbody.innerHTML = "";
+                sortedDatesDesc.forEach(date => {
+                    const rowData = dailyData[date];
+                    if (rowData.cable > 0 || rowData.conectores > 0 || rowData.rosetas > 0 || rowData.mangas > 0 || rowData.acopladores > 0) {
+                        const tr = document.createElement("tr");
+                        tr.innerHTML = `
+                            <td class="fw-semibold text-slate-700">${date}</td>
+                            <td class="text-center">${rowData.cable} m</td>
+                            <td class="text-center">${rowData.conectores} ud</td>
+                            <td class="text-center">${rowData.rosetas} ud</td>
+                            <td class="text-center">${rowData.mangas} ud</td>
+                            <td class="text-center">${rowData.acopladores} ud</td>
+                        `;
+                        dailyTbody.appendChild(tr);
+                    }
+                });
+
+                if (dailyTbody.children.length === 0) {
+                    dailyTbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No se registró consumo de materiales en ningún día de este mes.</td></tr>';
+                }
+            }
+
+            // Preparar datos para el gráfico lineal
+            const labels = sortedDatesAsc.map(d => d.substring(8, 10)); // Mostrar solo el número de día
+            const cableData = sortedDatesAsc.map(d => dailyData[d].cable);
+            const conectorData = sortedDatesAsc.map(d => dailyData[d].conectores + dailyData[d].rosetas); // FAC + Waterproof
+
+            const canvasDaily = document.getElementById("sedeDailyChart");
+            if (canvasDaily) {
+                const ctx = canvasDaily.getContext('2d');
+                if (dailyChartInstance) {
+                    dailyChartInstance.data.labels = labels;
+                    dailyChartInstance.data.datasets[0].data = cableData;
+                    dailyChartInstance.data.datasets[1].data = conectorData;
+                    dailyChartInstance.update();
+                } else {
+                    dailyChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Cable Drop (m)',
+                                    data: cableData,
+                                    borderColor: '#2563eb',
+                                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                    fill: true,
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'Conectores (FAC + Waterproof) (ud)',
+                                    data: conectorData,
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    fill: true,
+                                    tension: 0.3
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Día del Mes'
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Cantidad Consumida'
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    position: 'top'
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        if (dailyMonthSelect) {
+            dailyMonthSelect.addEventListener("change", function() {
+                updateDailyStats(this.value);
+            });
+            // Inicializar con el mes por defecto seleccionado
+            updateDailyStats(dailyMonthSelect.value);
+        }
     });
 </script>
 {% endblock %}
