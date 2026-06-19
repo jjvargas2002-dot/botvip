@@ -1705,7 +1705,7 @@ def crear_averia_manual():
             caja=caja_compuesta,
             coordenadas=coordenadas,
             detalles=detalles,
-            contrata=contrata or "TGI",
+            contrata=contrata or "",
             estado="PENDIENTE",
             dias_pendientes=0.0,
             origen="MANUAL",
@@ -1813,7 +1813,7 @@ def editar_averia(id):
         averia.caja = caja_compuesta
         averia.coordenadas = coordenadas
         averia.detalles = detalles
-        averia.contrata = contrata or "TGI"
+        averia.contrata = contrata or ""
         averia.branch = target_branch
         
         db.session.commit()
