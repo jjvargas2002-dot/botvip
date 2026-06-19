@@ -3,7 +3,10 @@ from io import BytesIO
 import csv
 import io
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
+
+def obtener_hora_peru():
+    return datetime.utcnow() - timedelta(hours=5)
 
 from flask import Flask, render_template, request, send_file, redirect, url_for, session, flash, jsonify
 from openpyxl import Workbook
@@ -568,7 +571,7 @@ def sincronizar_drive():
                             # Si en el Drive sigue pendiente, pero se reparó en la web hace menos de 24 horas,
                             # asumimos que el Drive está desactualizado y asociamos este ticket reparado para no duplicar.
                             if ultimo_reparado.fecha_resolucion:
-                                diff_horas = (datetime.now() - ultimo_reparado.fecha_resolucion).total_seconds() / 3600.0
+                                diff_horas = (obtener_hora_peru() - ultimo_reparado.fecha_resolucion).total_seconds() / 3600.0
                                 if diff_horas <= 24.0:
                                     averia = ultimo_reparado
 
@@ -577,7 +580,7 @@ def sincronizar_drive():
                 if averia.estado == "PENDIENTE":
                     if es_resuelto_drive:
                         averia.estado = "REPARADO"
-                        averia.fecha_resolucion = datetime.now()
+                        averia.fecha_resolucion = obtener_hora_peru()
                         averia.material_comentarios = f"Marcado como resuelto en el Drive (Estado: {status_ont or status_caja})"
                         # Copiar materiales si existían anteriormente
                         buscar_y_copiar_materiales_previos(cuenta, averia)
@@ -639,7 +642,7 @@ def sincronizar_drive():
                     detalles=detalles,
                     dias_pendientes=dias_pendientes,
                     estado="REPARADO" if es_resuelto_drive else "PENDIENTE",
-                    fecha_resolucion=datetime.now() if es_resuelto_drive else None,
+                    fecha_resolucion=obtener_hora_peru() if es_resuelto_drive else None,
                     material_comentarios=f"Marcado como resuelto en el Drive al importar" if es_resuelto_drive else None,
                     status_caja=status_caja if status_caja else status_ont,
                     contrata=contrata,
@@ -647,7 +650,8 @@ def sincronizar_drive():
                     site=site,
                     caja=caja,
                     coordenadas=coordenadas,
-                    origen="SHEETS"
+                    origen="SHEETS",
+                    fecha_creacion=obtener_hora_peru()
                 )
                 if es_resuelto_drive:
                     buscar_y_copiar_materiales_previos(cuenta, nueva)
@@ -666,7 +670,7 @@ def sincronizar_drive():
         
         for av in cerrados_ext:
             av.estado = "REPARADO"
-            av.fecha_resolucion = datetime.now()
+            av.fecha_resolucion = obtener_hora_peru()
             av.material_comentarios = "Cerrado automáticamente al no figurar en la lista del Drive."
         
         db.session.commit()
@@ -1014,7 +1018,7 @@ def dashboard():
     
     # Obtener las averías pendientes y las reparadas en los últimos 12 meses
     from datetime import datetime, timedelta
-    hace_12_meses = datetime.now() - timedelta(days=365)
+    hace_12_meses = obtener_hora_peru() - timedelta(days=365)
     query_pendientes = Averia.query.filter_by(estado="PENDIENTE")
     query_reparadas = Averia.query.filter(Averia.estado == "REPARADO", Averia.fecha_resolucion >= hace_12_meses)
     
@@ -1194,7 +1198,7 @@ def resolver_averia(id):
         ajustar_stock_por_consumo(averia.branch, old_mats, mats)
         
         averia.estado = "REPARADO"
-        averia.fecha_resolucion = datetime.now()
+        averia.fecha_resolucion = obtener_hora_peru()
         averia.tecnico_id = session.get("operador_id")
         averia.materiales_json = materiales_json_str
         averia.material_comentarios = comentarios or "Reparado desde el portal"
@@ -1373,7 +1377,7 @@ def agrupar_clientes_averia(id):
                         
                         averia.estado = "REPARADO"
                         if not averia.fecha_resolucion:
-                            averia.fecha_resolucion = datetime.now()
+                            averia.fecha_resolucion = obtener_hora_peru()
                         averia.tecnico_id = session.get("operador_id")
                         averia.material_comentarios = f"Agrupado en la avería principal ({principal.cuenta})"
                         averia.tipificacion = principal.tipificacion
@@ -1464,7 +1468,7 @@ def agrupar_clientes_averia(id):
             ).all()
             for av_g in averias_to_add:
                 av_g.estado = "REPARADO"
-                av_g.fecha_resolucion = datetime.now()
+                av_g.fecha_resolucion = obtener_hora_peru()
                 av_g.tecnico_id = session.get("operador_id")
                 av_g.material_comentarios = f"Agrupado en la avería principal ({averia.cuenta})"
                 av_g.tipificacion = averia.tipificacion
@@ -1651,7 +1655,7 @@ def crear_averia_manual():
         cuenta = request.form.get("cuenta", "").strip()
         accion = request.form.get("accion", "").strip()
         if not cuenta:
-            now_str = datetime.now().strftime("%d%m%H%M")
+            now_str = obtener_hora_peru().strftime("%d%m%H%M")
             cuenta = f"AVERÍA_ODN_{now_str}"
             
         site = request.form["site"].strip().upper()
@@ -1704,7 +1708,8 @@ def crear_averia_manual():
             contrata=contrata or "TGI",
             estado="PENDIENTE",
             dias_pendientes=0.0,
-            origen="MANUAL"
+            origen="MANUAL",
+            fecha_creacion=obtener_hora_peru()
         )
         db.session.add(nueva)
         db.session.commit()
@@ -1966,7 +1971,7 @@ def exportar_inventario_sede(branch):
     wb.save(out)
     out.seek(0)
     
-    filename = f"inventario_{branch.lower()}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    filename = f"inventario_{branch.lower()}_{obtener_hora_peru().strftime('%Y%m%d')}.xlsx"
     return send_file(
         out,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2089,7 +2094,7 @@ def exportar_averias():
     summary_sheet["A1"].alignment = left_align
     summary_sheet.row_dimensions[1].height = 30
     
-    summary_sheet["A2"] = f"Generado el: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    summary_sheet["A2"] = f"Generado el: {obtener_hora_peru().strftime('%Y-%m-%d %H:%M')}"
     summary_sheet["A2"].font = Font(italic=True, color="64748B")
     
     curr_row = 4
