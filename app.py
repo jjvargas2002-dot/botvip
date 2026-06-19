@@ -559,8 +559,18 @@ def sincronizar_drive():
             if not averia:
                 # Si no se encontró por código de WO, buscar por cuenta
                 averia = Averia.query.filter_by(cuenta=cuenta, estado="PENDIENTE").order_by(Averia.id.desc()).first()
-                if not averia and es_resuelto_drive:
-                    averia = Averia.query.filter_by(cuenta=cuenta, estado="REPARADO").order_by(Averia.id.desc()).first()
+                if not averia:
+                    ultimo_reparado = Averia.query.filter_by(cuenta=cuenta, estado="REPARADO").order_by(Averia.id.desc()).first()
+                    if ultimo_reparado:
+                        if es_resuelto_drive:
+                            averia = ultimo_reparado
+                        else:
+                            # Si en el Drive sigue pendiente, pero se reparó en la web hace menos de 24 horas,
+                            # asumimos que el Drive está desactualizado y asociamos este ticket reparado para no duplicar.
+                            if ultimo_reparado.fecha_resolucion:
+                                diff_horas = (datetime.now() - ultimo_reparado.fecha_resolucion).total_seconds() / 3600.0
+                                if diff_horas <= 24.0:
+                                    averia = ultimo_reparado
 
             if averia:
                 # Si ya existe, actualizar datos del drive solo si está pendiente localmente
