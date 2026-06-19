@@ -1214,6 +1214,34 @@ def agrupar_clientes_averia(id):
                             old_list.append(averia.cuenta)
                             principal.cuentas_asociadas = ", ".join(old_list)
                         
+                        # Si el ticket agrupado (secundario) ya tenía materiales, sumárselos al principal
+                        sec_mats = averia.materiales_dict
+                        if sec_mats:
+                            principal_mats = principal.materiales_dict or {}
+                            for m_key, m_cant in sec_mats.items():
+                                if m_cant:
+                                    if m_key in principal_mats:
+                                        principal_mats[m_key] += m_cant
+                                    else:
+                                        principal_mats[m_key] = m_cant
+                            
+                            import json
+                            principal.materiales_json = json.dumps(principal_mats)
+                            
+                            # Sumar las 5 columnas básicas
+                            principal.material_cable_m = (principal.material_cable_m or 0) + (averia.material_cable_m or 0)
+                            principal.material_conectores = (principal.material_conectores or 0) + (averia.material_conectores or 0)
+                            principal.material_rosetas = (principal.material_rosetas or 0) + (averia.material_rosetas or 0)
+                            principal.material_mangas = (principal.material_mangas or 0) + (averia.material_mangas or 0)
+                            principal.material_acopladores = (principal.material_acopladores or 0) + (averia.material_acopladores or 0)
+                            
+                            # Concatenar comentarios de materiales
+                            if averia.material_comentarios and "Agrupado en la avería principal" not in averia.material_comentarios:
+                                if principal.material_comentarios:
+                                    principal.material_comentarios = f"{principal.material_comentarios} | Secundario ({averia.cuenta}): {averia.material_comentarios}"
+                                else:
+                                    principal.material_comentarios = f"Secundario ({averia.cuenta}): {averia.material_comentarios}"
+                        
                         averia.estado = "REPARADO"
                         if not averia.fecha_resolucion:
                             averia.fecha_resolucion = datetime.now()
@@ -2437,6 +2465,33 @@ def migrar_materiales_mapeados():
         print("Error en migración de mapeo de materiales:", e)
 
 
+def migrar_recuperar_materiales_perdidos():
+    try:
+        # Buscar todas las averías REPARADO que no tienen materiales
+        reparadas_sin_mats = Averia.query.filter(
+            Averia.estado == "REPARADO",
+            (Averia.material_cable_m.is_(None) | (Averia.material_cable_m == 0)),
+            (Averia.material_conectores.is_(None) | (Averia.material_conectores == 0)),
+            (Averia.material_rosetas.is_(None) | (Averia.material_rosetas == 0)),
+            (Averia.material_mangas.is_(None) | (Averia.material_mangas == 0)),
+            (Averia.material_acopladores.is_(None) | (Averia.material_acopladores == 0)),
+            (Averia.materiales_json.is_(None) | (Averia.materiales_json == "{}") | (Averia.materiales_json == ""))
+        ).all()
+        
+        migrated_count = 0
+        for av in reparadas_sin_mats:
+            # Intentar buscar y copiar materiales previos de la misma cuenta
+            if buscar_y_copiar_materiales_previos(av.cuenta, av):
+                migrated_count += 1
+                
+        if migrated_count > 0:
+            db.session.commit()
+            print(f"Migración: Se recuperaron los materiales de {migrated_count} averías a partir de registros históricos.")
+    except Exception as e:
+        db.session.rollback()
+        print("Error en migración de recuperación de materiales perdidos:", e)
+
+
 with app.app_context():
     try:
         db.create_all()
@@ -2444,6 +2499,7 @@ with app.app_context():
         crear_operador_defecto()
         migrar_comentarios_agrupacion()
         migrar_materiales_mapeados()
+        migrar_recuperar_materiales_perdidos()
         # Verify if static/sites.json exists, otherwise fetch it
         import os
         sites_path = os.path.join(app.root_path, "static", "sites.json")
