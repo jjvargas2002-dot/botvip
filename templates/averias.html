@@ -276,6 +276,9 @@
                     <td>
                         <div class="d-inline-flex gap-1.5">
                             {% if session.get('operador_rol') != 'noc' %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-1 fs-8" title="Editar Datos" onclick="abrirModalEditar({{ av.id }})">
+                                <i class="bi bi-pencil-square"></i> Datos
+                            </button>
                             <button type="button" class="btn btn-sm btn-outline-success py-1 fs-8" onclick="abrirModalResolver({{ av.id }}, '{{ av.cuenta }}', this)">
                                 <i class="bi bi-tools"></i> Materiales
                             </button>
@@ -445,6 +448,108 @@
             <div class="modal-footer bg-light border-top-0">
                 <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">Cerrar</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para editar información básica de la avería -->
+<div class="modal fade" id="editarAveriaModal" tabindex="-1" aria-labelledby="editarAveriaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold" id="editarAveriaModalLabel"><i class="bi bi-pencil-square text-primary me-2"></i>Editar Datos de Avería</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formEditarAveria" method="POST" action="">
+                <div class="modal-body py-3">
+                    <p class="text-muted small">Actualiza la información básica del ticket de avería.</p>
+                    
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Cuenta Cliente</label>
+                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="cuenta" id="edit_cuenta" required>
+                    </div>
+
+                    {% if session.get('operador_rol') == 'admin' %}
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Sede (Branch)</label>
+                        <select class="form-select form-select-custom py-1.5 fs-7" name="branch" id="edit_branch" required>
+                            <option value="LI1">LI1</option>
+                            <option value="LI2">LI2</option>
+                            <option value="LI3">LI3</option>
+                            <option value="LI4">LI4</option>
+                            <option value="LI7">LI7</option>
+                            <option value="ARE">ARE</option>
+                            <option value="PIU">PIU</option>
+                            <option value="SAN">SAN</option>
+                            <option value="CAJ">CAJ</option>
+                            <option value="LAL">LAL</option>
+                            <option value="HUN">HUN</option>
+                            <option value="CUS">CUS</option>
+                            <option value="JUN">JUN</option>
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">SITE</label>
+                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="site" id="edit_site" required placeholder="Ej: ARE0005">
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-4">
+                            <label class="form-label small fw-medium text-secondary">XBOX (Opcional)</label>
+                            <select class="form-select form-select-custom py-1.5 fs-7" name="xbox" id="edit_xbox">
+                                <option value="">N/A</option>
+                                <option value="XB01">XB01</option>
+                                <option value="XB02">XB02</option>
+                                <option value="XB03">XB03</option>
+                                <option value="XB04">XB04</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-medium text-secondary">HUBOX (Opcional)</label>
+                            <select class="form-select form-select-custom py-1.5 fs-7" name="hubox" id="edit_hubox">
+                                <option value="">N/A</option>
+                                <option value="HB01">HB01</option>
+                                <option value="HB02">HB02</option>
+                                <option value="HB03">HB03</option>
+                                <option value="HB04">HB04</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-medium text-secondary">Caja (Caja Nro)</label>
+                            <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="caja_num" id="edit_caja_num" placeholder="Ej: EB134">
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Coordenadas (Lat,Lng)</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="coordenadas" id="edit_coordenadas" placeholder="Ej: -16.425,-71.523" required>
+                            <button type="button" id="btn-gps-edit" class="btn btn-outline-secondary fs-7" onclick="obtenerUbicacionGPS_edit()">
+                                <i class="bi bi-geo-alt-fill"></i> GPS
+                            </button>
+                            <button type="button" id="btn-box-edit" class="btn btn-outline-success fs-7" onclick="obtenerUbicacionBox_edit()" style="border-radius: 0 0.5rem 0.5rem 0;">
+                                <i class="bi bi-box-seam"></i> BOX
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-medium text-secondary">Contrata Asignada</label>
+                        <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="contrata" id="edit_contrata" placeholder="Ej: TGI">
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label small fw-medium text-secondary">Detalles del Reporte</label>
+                        <textarea class="form-control form-control-custom py-1.5 fs-7" name="detalles" id="edit_detalles" rows="2" placeholder="Ej: Caja atenuada, corte de fibra..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-3">Guardar Cambios</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -806,6 +911,108 @@ ${materialsText}`;
             }
             const modal = new bootstrap.Modal(document.getElementById('detallesMaterialesModal'));
             modal.show();
+        };
+
+        // Funciones para el Modal de Edición de Avería
+        window.abrirModalEditar = function(id) {
+            fetch(`/averias/editar/${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('edit_cuenta').value = data.cuenta;
+                        const branchEl = document.getElementById('edit_branch');
+                        if (branchEl) branchEl.value = data.branch;
+                        document.getElementById('edit_site').value = data.site;
+                        document.getElementById('edit_xbox').value = data.xbox;
+                        document.getElementById('edit_hubox').value = data.hubox;
+                        document.getElementById('edit_caja_num').value = data.caja_num;
+                        document.getElementById('edit_coordenadas').value = data.coordenadas;
+                        document.getElementById('edit_contrata').value = data.contrata;
+                        document.getElementById('edit_detalles').value = data.detalles;
+                        
+                        document.getElementById('formEditarAveria').action = `/averias/editar/${id}`;
+                        
+                        // Mostrar modal
+                        const modal = new bootstrap.Modal(document.getElementById('editarAveriaModal'));
+                        modal.show();
+                    } else {
+                        alert("Error al cargar los datos de la avería: " + data.message);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Error al conectar con el servidor.");
+                });
+        };
+
+        window.obtenerUbicacionGPS_edit = function() {
+            const btn = document.getElementById("btn-gps-edit");
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> GPS';
+            btn.disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude.toFixed(7);
+                    const lng = position.coords.longitude.toFixed(7);
+                    document.getElementById('edit_coordenadas').value = `${lat},${lng}`;
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                },
+                function(error) {
+                    let msg = "Error al obtener ubicación.";
+                    if (error.code === error.PERMISSION_DENIED) {
+                        msg = "Permiso denegado para acceder al GPS.";
+                    }
+                    alert(msg);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        };
+
+        window.obtenerUbicacionBox_edit = function() {
+            const site = document.getElementById('edit_site').value.trim().toUpperCase();
+            const xbox = document.getElementById('edit_xbox').value.trim().toUpperCase();
+            const hubox = document.getElementById('edit_hubox').value.trim().toUpperCase();
+            const caja = document.getElementById('edit_caja_num').value.trim().toUpperCase();
+            
+            if (!site) {
+                alert("Por favor, ingresa el SITE primero.");
+                return;
+            }
+            
+            let boxParts = [site];
+            if (xbox) boxParts.push(xbox);
+            if (hubox) boxParts.push(hubox);
+            if (caja) boxParts.push(caja);
+            const boxCode = boxParts.join('-');
+            
+            const btn = document.getElementById("btn-box-edit");
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> BOX';
+            btn.disabled = true;
+            
+            fetch(`/api/caja_coordenadas?caja=${encodeURIComponent(boxCode)}`)
+                .then(res => {
+                    if (!res.ok) throw new Error("No se encontraron coordenadas para esta caja.");
+                    return res.json();
+                })
+                .then(data => {
+                    if (data.success && data.lat && data.lng) {
+                        document.getElementById('edit_coordenadas').value = `${data.lat},${data.lng}`;
+                    } else {
+                        alert("No se encontraron coordenadas para esta caja.");
+                    }
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                })
+                .catch(err => {
+                    alert(err.message);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                });
         };
 
         // Ejecutar conteo de inicio al cargar la página

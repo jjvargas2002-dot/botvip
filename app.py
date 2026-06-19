@@ -130,8 +130,8 @@ def obtener_material_mapeado(codigo, nombre):
     elif seccion == "CAJAS" or "empalme" in nombre_lower or "caja de empalme" in nombre_lower or codigo in ["299798", "299799", "424", "423", "8810", "262079"] or "odb" in nombre_lower:
         return "299799", "Mufas", "CAJAS"
         
-    # 6. Preconectorizado (código 294790): agrupar todas las fibras que digan "Preconectorizado" de la "Sección CABLES"
-    elif (seccion == "CABLES" and "preconectoriza" in nombre_lower) or "preconectoriza" in nombre_lower:
+    # 6. Preconectorizado (código 294790): agrupar todas las fibras que digan "Preconectorizado" de la "Sección CABLES" (excluyendo preformadas/retenciones/grapas)
+    elif ((seccion == "CABLES" and "preconectoriza" in nombre_lower) or "preconectoriza" in nombre_lower) and not ("preformada" in nombre_lower or "retencion" in nombre_lower or "retención" in nombre_lower or "grapa" in nombre_lower):
         return "294790", "Preconectorizado", "CABLES"
         
     # Fallback to original
@@ -1721,6 +1721,108 @@ def crear_averia_manual():
         flash(f"Error al crear avería: {str(e)}", "danger")
         
     return redirect(url_for("dashboard"))
+
+
+@app.route("/averias/editar/<int:id>", methods=["GET", "POST"])
+@login_requerido
+def editar_averia(id):
+    branch_op = session.get("operador_branch")
+    es_admin = session.get("operador_rol") == "admin"
+    es_noc = session.get("operador_rol") == "noc"
+    
+    if es_noc:
+        return jsonify({"success": False, "message": "No tienes permisos para editar la avería."}), 403
+        
+    averia = db.session.get(Averia, id)
+    if not averia:
+        return jsonify({"success": False, "message": "La avería no existe."}), 404
+        
+    if request.method == "GET":
+        # Separar la caja compuesta en sus componentes
+        site = averia.site or ""
+        xbox = ""
+        hubox = ""
+        caja_num = ""
+        
+        if averia.caja:
+            parts = averia.caja.split("-")
+            if len(parts) > 0:
+                site = parts[0]
+            for p in parts[1:]:
+                if p.upper().startswith("XB"):
+                    xbox = p
+                elif p.upper().startswith("HB"):
+                    hubox = p
+                else:
+                    caja_num = p
+                    
+        return jsonify({
+            "success": True,
+            "id": averia.id,
+            "cuenta": averia.cuenta,
+            "branch": averia.branch,
+            "site": site,
+            "xbox": xbox,
+            "hubox": hubox,
+            "caja_num": caja_num,
+            "coordenadas": averia.coordenadas or "",
+            "detalles": averia.detalles or "",
+            "contrata": averia.contrata or "",
+            "origen": averia.origen
+        })
+        
+    # POST - Guardar cambios
+    try:
+        cuenta = request.form.get("cuenta", "").strip()
+        if not cuenta:
+            flash("La cuenta no puede estar vacía.", "danger")
+            return redirect(request.referrer or url_for("dashboard"))
+            
+        site = request.form["site"].strip().upper()
+        xbox = request.form.get("xbox", "").strip().upper()
+        hubox = request.form.get("hubox", "").strip().upper()
+        caja_input = request.form.get("caja_num", "").strip().upper()
+        coordenadas = request.form["coordenadas"].strip()
+        detalles = request.form["detalles"].strip()
+        contrata = request.form.get("contrata", "").strip()
+        
+        # Sede (sólo admins pueden cambiarla, u operarios si no hay restricción. Dejémoslo libre si no es NOC)
+        target_branch = request.form.get("branch", averia.branch).strip().upper()
+        
+        # Validar XBOX y HUBOX si se proveen
+        if xbox and not xbox.startswith("XB"):
+            flash("El tipo de caja XBOX debe comenzar con XB.", "danger")
+            return redirect(request.referrer or url_for("dashboard"))
+        if hubox and not hubox.startswith("HB"):
+            flash("El tipo de caja HUBOX debe comenzar con HB.", "danger")
+            return redirect(request.referrer or url_for("dashboard"))
+            
+        # Componer código de caja
+        parts = [site]
+        if xbox:
+            parts.append(xbox)
+        if hubox:
+            parts.append(hubox)
+        if caja_input:
+            parts.append(caja_input)
+        caja_compuesta = "-".join(parts)
+        
+        # Actualizar avería
+        averia.cuenta = cuenta
+        averia.site = site
+        averia.caja = caja_compuesta
+        averia.coordenadas = coordenadas
+        averia.detalles = detalles
+        averia.contrata = contrata or "TGI"
+        averia.branch = target_branch
+        
+        db.session.commit()
+        flash("La información de la avería ha sido actualizada con éxito.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error al editar la avería: {str(e)}", "danger")
+        
+    return redirect(request.referrer or url_for("dashboard"))
 
 
 @app.route("/stock", methods=["GET", "POST"])
