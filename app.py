@@ -89,8 +89,8 @@ MATERIALES_MASTER = [
     {"codigo": "294929", "nombre": "Retención preformada para cable de 6.8mm (Cable MPO)", "seccion": "ACCESORIOS"},
     {"codigo": "294928", "nombre": "Retención preformada para cable de 5mm (Cable preconectorizado)", "seccion": "ACCESORIOS"},
     {"codigo": "299380", "nombre": "Templador para cable Drop", "seccion": "ACCESORIOS"},
-    {"codigo": "28497", "nombre": "Grillete tipo D", "seccion": "ACCESORIOS"},
-    {"codigo": "294898", "nombre": "Grillete tipo trébol", "seccion": "ACCESORIOS"},
+    {"codigo": "28497", "nombre": "Clevis tipo D", "seccion": "ACCESORIOS"},
+    {"codigo": "294898", "nombre": "Clevis tipo trébol", "seccion": "ACCESORIOS"},
     {"codigo": "285043", "nombre": "Brazo de soporte 1.0m", "seccion": "ACCESORIOS"},
     {"codigo": "295136", "nombre": "Brazo de soporte 0.6m", "seccion": "ACCESORIOS"},
     {"codigo": "24941", "nombre": "Cruceta 60cm", "seccion": "ACCESORIOS"},
@@ -814,13 +814,29 @@ def diagnostico_materiales():
 
 @app.route("/debug_ticket")
 def debug_ticket():
+    from sqlalchemy import func
     averias = Averia.query.filter(Averia.cuenta.ilike('%19061621%')).all()
+    
+    # Run the exact same sums query
+    query_sums = db.session.query(
+        func.sum(Averia.material_cable_m).label("cable"),
+        func.sum(Averia.material_conectores).label("conectores"),
+        func.sum(Averia.material_rosetas).label("rosetas"),
+        func.sum(Averia.material_mangas).label("mangas"),
+        func.sum(Averia.material_acopladores).label("acopladores")
+    ).filter_by(estado="REPARADO")
+    
+    # Run globally and filtered by JUN
+    sums_all = query_sums.first()
+    sums_jun = query_sums.filter_by(branch="JUN").first()
+    
     results = []
     for av in averias:
         results.append({
             "id": av.id,
             "cuenta": av.cuenta,
             "estado": av.estado,
+            "branch": av.branch,
             "coordenadas": av.coordenadas,
             "materiales_json": av.materiales_json,
             "material_acopladores": av.material_acopladores,
@@ -829,7 +845,24 @@ def debug_ticket():
             "material_rosetas": av.material_rosetas,
             "material_mangas": av.material_mangas
         })
-    return jsonify(results)
+        
+    return jsonify({
+        "tickets": results,
+        "sums_all": {
+            "cable": sums_all.cable if sums_all else None,
+            "conectores": sums_all.conectores if sums_all else None,
+            "rosetas": sums_all.rosetas if sums_all else None,
+            "mangas": sums_all.mangas if sums_all else None,
+            "acopladores": sums_all.acopladores if sums_all else None
+        },
+        "sums_jun": {
+            "cable": sums_jun.cable if sums_jun else None,
+            "conectores": sums_jun.conectores if sums_jun else None,
+            "rosetas": sums_jun.rosetas if sums_jun else None,
+            "mangas": sums_jun.mangas if sums_jun else None,
+            "acopladores": sums_jun.acopladores if sums_jun else None
+        }
+    })
 
 
 @app.route("/debug_map_json")
@@ -2781,6 +2814,79 @@ def migrar_recuperar_materiales_perdidos():
         print("Error en migración de recuperación de materiales perdidos:", e)
 
 
+def migrar_nombres_grillete_clevis():
+    try:
+        import json
+        mapping_grillete = {
+            "Grillete tipo D": "Clevis tipo D",
+            "Grillete tipo trébol": "Clevis tipo trébol",
+        }
+        
+        # 1. Migrar StockBranch
+        stock_updated = 0
+        stock_deleted = 0
+        for old_name, new_name in mapping_grillete.items():
+            records = StockBranch.query.filter_by(material_nombre=old_name).all()
+            for rec in records:
+                exist_rec = StockBranch.query.filter_by(branch=rec.branch, material_nombre=new_name).first()
+                if exist_rec:
+                    exist_rec.stock_actual += rec.stock_actual
+                    exist_rec.stock_enviado_noc += rec.stock_enviado_noc
+                    db.session.delete(rec)
+                    stock_deleted += 1
+                else:
+                    rec.material_nombre = new_name
+                    stock_updated += 1
+                    
+        # 2. Migrar Averia.materiales_json
+        averia_updated = 0
+        averias = Averia.query.all()
+        for av in averias:
+            changed = False
+            if av.materiales_json:
+                try:
+                    mats = json.loads(av.materiales_json)
+                    new_mats = {}
+                    for key, val in mats.items():
+                        if "|" in key:
+                            parts = key.split("|", 1)
+                            code = parts[0]
+                            name = parts[1]
+                            if name in mapping_grillete:
+                                new_key = f"{code}|{mapping_grillete[name]}"
+                                new_mats[new_key] = val
+                                changed = True
+                            else:
+                                new_mats[key] = val
+                        else:
+                            if key in mapping_grillete:
+                                new_mats[mapping_grillete[key]] = val
+                                changed = True
+                            else:
+                                new_mats[key] = val
+                    if changed:
+                        av.materiales_json = json.dumps(new_mats)
+                except Exception:
+                    pass
+            
+            if av.material_comentarios:
+                old_com = av.material_comentarios
+                new_com = old_com.replace("Grillete", "Clevis").replace("grillete", "clevis").replace("GRILLETE", "CLEVIS")
+                if new_com != old_com:
+                    av.material_comentarios = new_com
+                    changed = True
+                    
+            if changed:
+                averia_updated += 1
+                
+        if stock_updated > 0 or stock_deleted > 0 or averia_updated > 0:
+            db.session.commit()
+            print(f"Migración Clevis: {stock_updated} stocks actualizados, {stock_deleted} fusionados, {averia_updated} averías migradas.")
+    except Exception as e:
+        db.session.rollback()
+        print("Error en migración de nombres Grillete/Clevis:", e)
+
+
 def limpiar_contrata_tgi():
     try:
         updated = Averia.query.filter(
@@ -2879,6 +2985,7 @@ with app.app_context():
         migrar_materiales_mapeados()
         migrar_recuperar_materiales_perdidos()
         migrar_nombres_vano_span()
+        migrar_nombres_grillete_clevis()
         # Verify if static/sites.json exists, otherwise fetch it
         import os
         sites_path = os.path.join(app.root_path, "static", "sites.json")
