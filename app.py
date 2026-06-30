@@ -848,6 +848,7 @@ def admin_migrar_supabase():
                 activo=op.activo, fecha_creacion=op.fecha_creacion
             )
             session_sb.add(new_op)
+        session_sb.commit()
             
         # 3. Copiar clientes
         clientes = Cliente.query.all()
@@ -859,6 +860,7 @@ def admin_migrar_supabase():
                 direccion=cl.direccion, referencia=cl.referencia, fecha_creacion=cl.fecha_creacion
             )
             session_sb.add(new_cl)
+        session_sb.commit()
             
         # 4. Copiar casos
         casos = Caso.query.all()
@@ -873,6 +875,7 @@ def admin_migrar_supabase():
                 fecha_cierre=cs.fecha_cierre
             )
             session_sb.add(new_cs)
+        session_sb.commit()
             
         # 5. Copiar averias
         averias = Averia.query.all()
@@ -890,6 +893,7 @@ def admin_migrar_supabase():
                 material_comentarios=av.material_comentarios, materiales_json=av.materiales_json
             )
             session_sb.add(new_av)
+        session_sb.commit()
             
         # 6. Copiar stock
         stocks = StockBranch.query.all()
@@ -902,6 +906,7 @@ def admin_migrar_supabase():
                 fecha_actualizacion=st.fecha_actualizacion
             )
             session_sb.add(new_st)
+        session_sb.commit()
             
         # 7. Copiar boxes
         boxes = Box.query.all()
@@ -911,7 +916,6 @@ def admin_migrar_supabase():
                 id=bx.id, caja=bx.caja, latitud=bx.latitud, longitud=bx.longitud
             )
             session_sb.add(new_bx)
-            
         session_sb.commit()
         
         # Corregir secuencias de IDs en Postgres
