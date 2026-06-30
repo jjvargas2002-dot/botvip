@@ -166,7 +166,8 @@
                     <th scope="col">Estado</th>
                     <th scope="col">Materiales Consumidos</th>
                     <th scope="col">Acciones</th>
-                    <th scope="col" class="pe-4">Fecha Creación</th>
+                    <th scope="col">Fecha Creación</th>
+                    <th scope="col" class="pe-4">Fecha Resolución</th>
                 </tr>
             </thead>
             <tbody>
@@ -311,20 +312,23 @@
                             {% endif %}
                         </div>
                     </td>
-                    <td class="pe-4 text-muted" style="font-size: 0.825rem;">
+                    <td class="text-muted" style="font-size: 0.825rem; white-space: nowrap;">
                         {{ av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else '-' }}
+                    </td>
+                    <td class="pe-4 text-muted" style="font-size: 0.825rem; white-space: nowrap;">
+                        {{ av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else 'Pendiente' }}
                     </td>
                 </tr>
                 {% else %}
                 <tr id="emptyRow">
-                    <td colspan="8" class="text-center text-muted py-5">
+                    <td colspan="10" class="text-center text-muted py-5">
                         <i class="bi bi-folder-x fs-1 d-block mb-2 text-slate-400"></i>
                         No hay averías registradas en el sistema para esta sede.
                     </td>
                 </tr>
                 {% endfor %}
                 <tr id="noResultsRow" style="display: none;">
-                    <td colspan="8" class="text-center text-muted py-5">
+                    <td colspan="10" class="text-center text-muted py-5">
                         <i class="bi bi-search fs-1 d-block mb-2 text-slate-400"></i>
                         No se encontraron registros con los filtros seleccionados.
                     </td>
