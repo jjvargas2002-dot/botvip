@@ -61,7 +61,34 @@ fun WebViewScreen(url: String) {
         modifier = Modifier.fillMaxSize(),
         factory = { context ->
             WebView(context).apply {
-                webViewClient = WebViewClient()
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView?,
+                        request: android.webkit.WebResourceRequest?
+                    ): Boolean {
+                        val urlStr = request?.url?.toString() ?: return false
+                        val isInternal = urlStr.contains("botvip-iz55.onrender.com") || urlStr.contains("localhost")
+                        val isMaps = urlStr.contains("google.com/maps") || urlStr.contains("maps.google") || urlStr.startsWith("geo:")
+                        val isWhatsapp = urlStr.contains("wa.me") || urlStr.contains("api.whatsapp.com")
+                        
+                        if (isMaps || isWhatsapp || !isInternal) {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(urlStr))
+                                context.startActivity(intent)
+                                return true
+                            } catch (e: Exception) {
+                                try {
+                                    val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(urlStr))
+                                    context.startActivity(browserIntent)
+                                    return true
+                                } catch (ex: Exception) {
+                                    return false
+                                }
+                            }
+                        }
+                        return false
+                    }
+                }
                 webChromeClient = object : WebChromeClient() {
                     override fun onGeolocationPermissionsShowPrompt(
                         origin: String?,
