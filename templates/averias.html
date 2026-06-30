@@ -540,6 +540,22 @@
                         <input type="text" class="form-control form-control-custom py-1.5 fs-7" name="contrata" id="edit_contrata" placeholder="Omitir si no aplica" autocomplete="off">
                     </div>
 
+                    <div class="mb-2" id="edit_tipificacion_container" style="display: none;">
+                        <label class="form-label small fw-medium text-secondary">Tipificación del Problema</label>
+                        <select class="form-select form-select-custom py-1.5 fs-7" name="tipificacion" id="edit_tipificacion">
+                            <option value="">-- Seleccionar Tipificación --</option>
+                            <option value="Personas externa cortó">Personas externa cortó</option>
+                            <option value="Camión grande rompió fibra">Camión grande rompió fibra</option>
+                            <option value="Puerto sucio">Puerto sucio</option>
+                            <option value="Refusión de hilo / cambio de módulo">Refusión de hilo / cambio de módulo</option>
+                            <option value="Cambio de caja">Cambio de caja</option>
+                            <option value="Caja robada">Caja robada</option>
+                            <option value="Reemplazo de poste eléctrico">Reemplazo de poste eléctrico</option>
+                            <option value="Conector roto">Conector roto</option>
+                            <option value="OLT caída">OLT caída</option>
+                        </select>
+                    </div>
+
                     <div class="mb-0">
                         <label class="form-label small fw-medium text-secondary">Detalles del Reporte</label>
                         <textarea class="form-control form-control-custom py-1.5 fs-7" name="detalles" id="edit_detalles" rows="2" placeholder="Ej: Caja atenuada, corte de fibra..." required></textarea>
@@ -929,6 +945,18 @@ ${materialsText}`;
                         document.getElementById('edit_coordenadas').value = data.coordenadas;
                         document.getElementById('edit_contrata').value = data.contrata;
                         document.getElementById('edit_detalles').value = data.detalles;
+                        
+                        const tipContainer = document.getElementById('edit_tipificacion_container');
+                        const tipSelect = document.getElementById('edit_tipificacion');
+                        if (data.estado === 'REPARADO') {
+                            tipContainer.style.display = 'block';
+                            tipSelect.value = data.tipificacion;
+                            tipSelect.setAttribute('required', 'required');
+                        } else {
+                            tipContainer.style.display = 'none';
+                            tipSelect.value = '';
+                            tipSelect.removeAttribute('required');
+                        }
                         
                         document.getElementById('formEditarAveria').action = `/averias/editar/${id}`;
                         

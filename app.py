@@ -1867,8 +1867,9 @@ def editar_averia(id):
             "caja_num": caja_num,
             "coordenadas": averia.coordenadas or "",
             "detalles": averia.detalles or "",
-            "contrata": averia.contrata or "",
-            "origen": averia.origen
+            "origen": averia.origen,
+            "estado": averia.estado,
+            "tipificacion": averia.tipificacion or ""
         })
         
     # POST - Guardar cambios
@@ -1915,6 +1916,10 @@ def editar_averia(id):
         averia.detalles = detalles
         averia.contrata = contrata or ""
         averia.branch = target_branch
+        
+        # Si la avería está resuelta, permitir actualizar su tipificación
+        if averia.estado == "REPARADO":
+            averia.tipificacion = request.form.get("tipificacion", "").strip()
         
         db.session.commit()
         flash("La información de la avería ha sido actualizada con éxito.", "success")
