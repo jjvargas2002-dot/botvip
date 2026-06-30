@@ -908,9 +908,7 @@ def admin_migrar_supabase():
         session_sb.execute(sqlalchemy.text("TRUNCATE TABLE boxes CASCADE"))
         for bx in boxes:
             new_bx = Box(
-                id=bx.id, caja=bx.caja, latitud=bx.latitud, longitud=bx.longitud,
-                status=bx.status, site=bx.site, id_caja=bx.id_caja,
-                fecha_creacion=bx.fecha_creacion
+                id=bx.id, caja=bx.caja, latitud=bx.latitud, longitud=bx.longitud
             )
             session_sb.add(new_bx)
             
