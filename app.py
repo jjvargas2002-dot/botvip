@@ -676,17 +676,21 @@ def sincronizar_drive():
         db.session.commit()
         total_cerrados = len(cerrados_ext)
         
-        # Sincronizar sites
-        success_sites, msg_sites = sincronizar_sites()
-        if not success_sites:
-            print("Advertencia en sincronización de sites:", msg_sites)
+        # Sincronizar sites y boxes en segundo plano para evitar timeout de la solicitud HTTP
+        import threading
+        def sync_bg():
+            with app.app_context():
+                try:
+                    sincronizar_sites()
+                    sincronizar_boxes()
+                except Exception as e:
+                    print("Error en sincronización en segundo plano de sites/boxes:", e)
+                finally:
+                    db.session.remove()
+        
+        threading.Thread(target=sync_bg).start()
             
-        # Sincronizar boxes
-        success_boxes, msg_boxes = sincronizar_boxes()
-        if not success_boxes:
-            print("Advertencia en sincronización de boxes:", msg_boxes)
-            
-        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados, {total_cerrados} cerrados y boxes sincronizados."
+        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} cerrados. (La sincronización de cajas y nodos continúa en segundo plano)."
     except Exception as e:
         db.session.rollback()
         print("Error en sincronización de drive:", e)
