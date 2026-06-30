@@ -1470,7 +1470,14 @@ def agrupar_clientes_averia(id):
                             averia.fecha_resolucion = obtener_hora_peru()
                         averia.tecnico_id = session.get("operador_id")
                         averia.material_comentarios = f"Agrupado en la avería principal ({principal.cuenta})"
-                        averia.tipificacion = principal.tipificacion
+                        
+                        # Preservar tipificación: si el principal no tiene pero el secundario sí, copiar al principal.
+                        # De lo contrario, si el principal tiene, copiar al secundario.
+                        if not principal.tipificacion and averia.tipificacion:
+                            principal.tipificacion = averia.tipificacion
+                        if principal.tipificacion:
+                            averia.tipificacion = principal.tipificacion
+                            
                         averia.material_cable_m = 0
                         averia.material_conectores = 0
                         averia.material_rosetas = 0
@@ -1561,7 +1568,10 @@ def agrupar_clientes_averia(id):
                 av_g.fecha_resolucion = obtener_hora_peru()
                 av_g.tecnico_id = session.get("operador_id")
                 av_g.material_comentarios = f"Agrupado en la avería principal ({averia.cuenta})"
-                av_g.tipificacion = averia.tipificacion
+                if not averia.tipificacion and av_g.tipificacion:
+                    averia.tipificacion = av_g.tipificacion
+                if averia.tipificacion:
+                    av_g.tipificacion = averia.tipificacion
                 av_g.material_cable_m = 0
                 av_g.material_conectores = 0
                 av_g.material_rosetas = 0
