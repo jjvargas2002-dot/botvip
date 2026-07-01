@@ -2764,6 +2764,7 @@ def noc_dashboard():
         count = sum(1 for av in reparadas if av.tipificacion == typ)
         tipificaciones_data.append({"tipificacion": typ, "cantidad": count})
         
+    stock_regs = StockBranch.query.order_by(StockBranch.branch, StockBranch.material_codigo).all()
     reparadas_raw = []
     for av in reparadas:
         reparadas_raw.append({
