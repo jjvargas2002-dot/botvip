@@ -2764,8 +2764,21 @@ def noc_dashboard():
         count = sum(1 for av in reparadas if av.tipificacion == typ)
         tipificaciones_data.append({"tipificacion": typ, "cantidad": count})
         
-    stock_regs = StockBranch.query.order_by(StockBranch.branch, StockBranch.material_codigo).all()
-    
+    reparadas_raw = []
+    for av in reparadas:
+        reparadas_raw.append({
+            "branch": av.branch or "Sin Sede",
+            "fecha": av.fecha_resolucion.strftime("%Y-%m-%d") if av.fecha_resolucion else "",
+            "cable": av.material_cable_m or 0,
+            "conectores": av.material_conectores or 0,
+            "rosetas": av.material_rosetas or 0,
+            "mangas": av.material_mangas or 0,
+            "acopladores": av.material_acopladores or 0,
+            "tipificacion": av.tipificacion or "",
+            "materiales_dict": av.materiales_dict
+        })
+    sedes = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
+
     return render_template(
         "noc_dashboard.html",
         reparadas=reparadas,
@@ -2773,7 +2786,9 @@ def noc_dashboard():
         por_branch=por_branch_lista,
         stats=stats_noc,
         tipificaciones_data=tipificaciones_data,
-        stock_regs=stock_regs
+        stock_regs=stock_regs,
+        reparadas_raw=reparadas_raw,
+        sedes=sedes
     )
 
 
