@@ -446,8 +446,45 @@ def crear_operador_defecto():
         db.session.rollback()
 
 
-def buscar_y_copiar_materiales_previos(cuenta, target_averia):
-    # Buscar una avería resuelta con materiales para la misma cuenta
+def buscar_y_copiar_materiales_previos(cuenta, target_averia, averias_por_cuenta=None):
+    if averias_por_cuenta is not None:
+        candidates = averias_por_cuenta.get(cuenta, [])
+        valid_previos = []
+        for av in candidates:
+            if av.estado != "REPARADO":
+                continue
+            if target_averia.id and av.id == target_averia.id:
+                continue
+            tiene_mats = (
+                (av.material_cable_m or 0) > 0 or
+                (av.material_conectores or 0) > 0 or
+                (av.material_rosetas or 0) > 0 or
+                (av.material_mangas or 0) > 0 or
+                (av.material_acopladores or 0) > 0 or
+                (av.materiales_json and av.materiales_json != "{}")
+            )
+            if tiene_mats:
+                valid_previos.append(av)
+        if valid_previos:
+            valid_previos.sort(key=lambda x: x.id, reverse=True)
+            previo = valid_previos[0]
+            target_averia.materiales_json = previo.materiales_json
+            target_averia.material_cable_m = previo.material_cable_m
+            target_averia.material_conectores = previo.material_conectores
+            target_averia.material_rosetas = previo.material_rosetas
+            target_averia.material_mangas = previo.material_mangas
+            target_averia.material_acopladores = previo.material_acopladores
+            target_averia.tecnico_id = previo.tecnico_id
+            target_averia.tipificacion = previo.tipificacion
+            comentario_sync = target_averia.material_comentarios or ""
+            if previo.material_comentarios:
+                target_averia.material_comentarios = f"{previo.material_comentarios} (Sincronizado: {comentario_sync})"
+            else:
+                target_averia.material_comentarios = comentario_sync
+            return True
+        return False
+
+    # Buscar una avería resuelta con materiales para la misma cuenta (fallback de consulta directa)
     previo = Averia.query.filter(
         Averia.cuenta == cuenta,
         Averia.estado == "REPARADO",
@@ -514,6 +551,20 @@ def sincronizar_drive():
         actualizados = 0
         nuevos_por_branch = {}
         
+        # Cargar todas las averías de la base de datos en memoria para evitar consultas en bucle
+        all_averias = Averia.query.all()
+        averias_por_wo = {}
+        averias_por_cuenta = {}
+        for av in all_averias:
+            if av.codigo_wo:
+                if av.codigo_wo not in averias_por_wo:
+                    averias_por_wo[av.codigo_wo] = []
+                averias_por_wo[av.codigo_wo].append(av)
+            if av.cuenta:
+                if av.cuenta not in averias_por_cuenta:
+                    averias_por_cuenta[av.cuenta] = []
+                averias_por_cuenta[av.cuenta].append(av)
+        
         for row in reader:
             if not row or len(row) <= max(indices.values()):
                 continue
@@ -549,27 +600,31 @@ def sincronizar_drive():
             status_upper = status_ont.upper().strip()
             status_caja_upper = status_caja.upper().strip()
             resuelto_keywords = ["REPARADO", "SOLUCIONADO", "CERRADO", "OK", "ATENDIDO", "RESUELTO"]
-            es_resuelto_drive = any(k in status_upper or k in status_caja_upper for k in resuelto_keywords)
-
-            # Buscar en BD
+                        # Buscar en memoria
             averia = None
             if codigo_wo:
-                # Buscar por código de WO primero (priorizando PENDIENTE, pero si no, cualquiera)
-                averia = Averia.query.filter_by(codigo_wo=codigo_wo, estado="PENDIENTE").first()
-                if not averia:
-                    averia = Averia.query.filter_by(codigo_wo=codigo_wo).order_by(Averia.id.desc()).first()
+                candidates_wo = averias_por_wo.get(codigo_wo, [])
+                candidates_wo_pending = [a for a in candidates_wo if a.estado == "PENDIENTE"]
+                if candidates_wo_pending:
+                    averia = candidates_wo_pending[0]
+                elif candidates_wo:
+                    candidates_wo_sorted = sorted(candidates_wo, key=lambda x: x.id, reverse=True)
+                    averia = candidates_wo_sorted[0]
             
             if not averia:
-                # Si no se encontró por código de WO, buscar por cuenta
-                averia = Averia.query.filter_by(cuenta=cuenta, estado="PENDIENTE").order_by(Averia.id.desc()).first()
-                if not averia:
-                    ultimo_reparado = Averia.query.filter_by(cuenta=cuenta, estado="REPARADO").order_by(Averia.id.desc()).first()
-                    if ultimo_reparado:
+                candidates_cuenta = averias_por_cuenta.get(cuenta, [])
+                candidates_cuenta_pending = [a for a in candidates_cuenta if a.estado == "PENDIENTE"]
+                if candidates_cuenta_pending:
+                    candidates_cuenta_pending_sorted = sorted(candidates_cuenta_pending, key=lambda x: x.id, reverse=True)
+                    averia = candidates_cuenta_pending_sorted[0]
+                else:
+                    candidates_cuenta_reparado = [a for a in candidates_cuenta if a.estado == "REPARADO"]
+                    if candidates_cuenta_reparado:
+                        candidates_cuenta_reparado_sorted = sorted(candidates_cuenta_reparado, key=lambda x: x.id, reverse=True)
+                        ultimo_reparado = candidates_cuenta_reparado_sorted[0]
                         if es_resuelto_drive:
                             averia = ultimo_reparado
                         else:
-                            # Si en el Drive sigue pendiente, pero se reparó en la web hace menos de 24 horas,
-                            # asumimos que el Drive está desactualizado y asociamos este ticket reparado para no duplicar.
                             if ultimo_reparado.fecha_resolucion:
                                 diff_horas = (obtener_hora_peru() - ultimo_reparado.fecha_resolucion).total_seconds() / 3600.0
                                 if diff_horas <= 24.0:
@@ -583,7 +638,7 @@ def sincronizar_drive():
                         averia.fecha_resolucion = obtener_hora_peru()
                         averia.material_comentarios = f"Marcado como resuelto en el Drive (Estado: {status_ont or status_caja})"
                         # Copiar materiales si existían anteriormente
-                        buscar_y_copiar_materiales_previos(cuenta, averia)
+                        buscar_y_copiar_materiales_previos(cuenta, averia, averias_por_cuenta)
                     else:
                         averia.branch = branch
                         averia.codigo_wo = codigo_wo
@@ -609,7 +664,7 @@ def sincronizar_drive():
                     )
                     # Si no tiene materiales, intentamos copiarlos por si existían anteriormente
                     if not tiene_materiales:
-                        buscar_y_copiar_materiales_previos(cuenta, averia)
+                        buscar_y_copiar_materiales_previos(cuenta, averia, averias_por_cuenta)
                         tiene_materiales = (
                             (averia.material_cable_m or 0) > 0 or
                             (averia.material_conectores or 0) > 0 or
@@ -654,8 +709,11 @@ def sincronizar_drive():
                     fecha_creacion=obtener_hora_peru()
                 )
                 if es_resuelto_drive:
-                    buscar_y_copiar_materiales_previos(cuenta, nueva)
+                    buscar_y_copiar_materiales_previos(cuenta, nueva, averias_por_cuenta)
                 db.session.add(nueva)
+                if cuenta not in averias_por_cuenta:
+                    averias_por_cuenta[cuenta] = []
+                averias_por_cuenta[cuenta].append(nueva)
                 nuevos += 1
                 if branch not in nuevos_por_branch:
                     nuevos_por_branch[branch] = []
