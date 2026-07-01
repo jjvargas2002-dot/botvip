@@ -682,7 +682,12 @@ def sincronizar_drive():
             with app.app_context():
                 try:
                     sincronizar_sites()
-                    sincronizar_boxes()
+                    from models import Box
+                    if db.session.query(Box).first() is None:
+                        print("Sincronizando boxes en segundo plano...")
+                        sincronizar_boxes()
+                    else:
+                        print("Sincronización de boxes omitida porque ya existen registros.")
                 except Exception as e:
                     print("Error en sincronización en segundo plano de sites/boxes:", e)
                 finally:
