@@ -600,7 +600,9 @@ def sincronizar_drive():
             status_upper = status_ont.upper().strip()
             status_caja_upper = status_caja.upper().strip()
             resuelto_keywords = ["REPARADO", "SOLUCIONADO", "CERRADO", "OK", "ATENDIDO", "RESUELTO"]
-                        # Buscar en memoria
+            es_resuelto_drive = any(k in status_upper or k in status_caja_upper for k in resuelto_keywords)
+
+            # Buscar en memoria
             averia = None
             if codigo_wo:
                 candidates_wo = averias_por_wo.get(codigo_wo, [])
