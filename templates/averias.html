@@ -589,14 +589,40 @@
         const rows = document.querySelectorAll(".averia-row");
         const noResultsRow = document.getElementById("noResultsRow");
 
-        // Autopopular dinámicamente los SITEs únicos en el dropdown
-        const uniqueSites = [...new Set(Array.from(rows).map(row => row.getAttribute("data-site")).filter(s => s && s.trim() !== ''))].sort();
-        uniqueSites.forEach(site => {
-            const option = document.createElement("option");
-            option.value = site;
-            option.innerText = site;
-            siteFilter.appendChild(option);
-        });
+        // Autopopular dinámicamente los SITEs únicos en el dropdown según la sede activa
+        const sitesWithBranch = Array.from(rows).map(row => {
+            return {
+                site: row.getAttribute("data-site"),
+                branch: row.getAttribute("data-branch")
+            };
+        }).filter(item => item.site && item.site.trim() !== '');
+
+        window.updateSiteOptions = function() {
+            const selectedBranch = branchFilter ? branchFilter.value : "";
+            const filteredSites = [...new Set(
+                sitesWithBranch
+                    .filter(item => selectedBranch === "" || item.branch === selectedBranch)
+                    .map(item => item.site)
+            )].sort();
+
+            const currentSelectedSite = siteFilter.value;
+            siteFilter.innerHTML = '<option value="">Todos los SITEs</option>';
+
+            filteredSites.forEach(site => {
+                const option = document.createElement("option");
+                option.value = site;
+                option.innerText = site;
+                siteFilter.appendChild(option);
+            });
+
+            if (filteredSites.includes(currentSelectedSite)) {
+                siteFilter.value = currentSelectedSite;
+            } else {
+                siteFilter.value = "";
+            }
+        };
+
+        updateSiteOptions();
 
         // Autopopular dinámicamente los meses únicos en el dropdown
         const uniqueMonths = [...new Set(Array.from(rows).map(row => row.getAttribute("data-month")).filter(m => m && m.trim() !== ''))].sort().reverse();
@@ -683,7 +709,12 @@
         }
         
         searchInput.addEventListener("input", filterTable);
-        if (branchFilter) branchFilter.addEventListener("change", filterTable);
+        if (branchFilter) {
+            branchFilter.addEventListener("change", function() {
+                updateSiteOptions();
+                filterTable();
+            });
+        }
         monthFilter.addEventListener("change", filterTable);
         siteFilter.addEventListener("change", filterTable);
         statusFilter.addEventListener("change", filterTable);
@@ -696,6 +727,7 @@
             siteFilter.value = "";
             statusFilter.value = "";
             originFilter.value = "";
+            updateSiteOptions();
             filterTable();
         });
 
