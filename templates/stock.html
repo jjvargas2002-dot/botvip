@@ -278,6 +278,9 @@
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="text-nowrap fw-semibold text-slate-700" style="font-size: 0.9rem;">Filtrar Período:</span>
                                     <select id="sedeDashboardPeriodSelector" class="form-select form-select-sm" style="width: 170px;"></select>
+                                    <a href="{{ url_for('exportar_averias') }}?sin_reporte_raw=true&branch=ALL" class="btn btn-sm btn-success d-flex align-items-center gap-2 px-3 py-1.5 rounded-3 fw-semibold shadow-sm text-white">
+                                        <i class="bi bi-file-earmark-excel-fill"></i> Descargar Excel Consumo
+                                    </a>
                                 </div>
                             </div>
                         </div>

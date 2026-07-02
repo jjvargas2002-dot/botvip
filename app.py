@@ -2044,9 +2044,13 @@ def exportar_inventario_sede(branch):
     stock_dict = {r.material_nombre: r for r in stock_regs}
     
     wb = Workbook()
-    ws = wb.active
-    ws.title = f"Inventario - {branch}"
+    wb.remove(wb.active)
     
+    if es_admin or es_noc:
+        sedes_to_export = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
+    else:
+        sedes_to_export = [branch]
+        
     header_fill = PatternFill(start_color="0EA5E9", end_color="0EA5E9", fill_type="solid")
     header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     regular_font = Font(name="Calibri", size=11)
@@ -2060,54 +2064,60 @@ def exportar_inventario_sede(branch):
         "Último Fecha Envío NOC"
     ]
     
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for br in sedes_to_export:
+        stock_regs = StockBranch.query.filter_by(branch=br).all()
+        stock_dict = {r.material_nombre: r for r in stock_regs}
         
-    row_idx = 2
-    for m in MATERIALES_MASTER:
-        reg = stock_dict.get(m["nombre"])
-        stock_actual = reg.stock_actual if reg else 0
-        enviado_noc = reg.stock_enviado_noc if reg else 0
-        fecha_noc = reg.fecha_envio_noc.strftime("%Y-%m-%d") if reg and reg.fecha_envio_noc else ""
+        ws = wb.create_sheet(title=br)
         
-        row_values = [
-            m["seccion"],
-            m["codigo"],
-            m["nombre"],
-            stock_actual,
-            enviado_noc,
-            fecha_noc
-        ]
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_idx, value=h)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            
+        row_idx = 2
+        for m in MATERIALES_MASTER:
+            reg = stock_dict.get(m["nombre"])
+            stock_actual = reg.stock_actual if reg else 0
+            enviado_noc = reg.stock_enviado_noc if reg else 0
+            fecha_noc = reg.fecha_envio_noc.strftime("%Y-%m-%d") if reg and reg.fecha_envio_noc else ""
+            
+            row_values = [
+                m["seccion"],
+                m["codigo"],
+                m["nombre"],
+                stock_actual,
+                enviado_noc,
+                fecha_noc
+            ]
+            
+            for col_idx, val in enumerate(row_values, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                cell.font = regular_font
+                if col_idx in [1, 2, 4, 5, 6]:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                else:
+                    cell.alignment = Alignment(horizontal="left", vertical="center")
+                    
+            row_idx += 1
+            
+        ws.row_dimensions[1].height = 28
         
-        for col_idx, val in enumerate(row_values, 1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
-            cell.font = regular_font
-            if col_idx in [1, 2, 4, 5, 6]:
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-            else:
-                cell.alignment = Alignment(horizontal="left", vertical="center")
-                
-        row_idx += 1
-        
-    for col in ws.columns:
-        max_len = 0
-        for cell in col:
-            val_str = str(cell.value or '')
-            if len(val_str) > max_len:
-                max_len = len(val_str)
-        col_letter = get_column_letter(col[0].column)
-        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
-        
-    ws.row_dimensions[1].height = 28
-    
+        for col in ws.columns:
+            max_len = 0
+            for cell in col:
+                val_str = str(cell.value or '')
+                if len(val_str) > max_len:
+                    max_len = len(val_str)
+            col_letter = get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+            
     out = BytesIO()
     wb.save(out)
     out.seek(0)
     
-    filename = f"inventario_{branch.lower()}_{obtener_hora_peru().strftime('%Y%m%d')}.xlsx"
+    filename = f"reporte_almacenes_{obtener_hora_peru().strftime('%Y%m%d')}.xlsx"
     return send_file(
         out,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2219,266 +2229,224 @@ def exportar_averias():
                     pass
         return 0
 
-    # 1. SUMMARY SHEET
-    summary_sheet = workbook.active
-    summary_sheet.title = "SUMMARY"
-    
-    # Title
-    summary_sheet.merge_cells("A1:D1")
-    summary_sheet["A1"] = "DASHBOARD DE CONSUMO E INCIDENCIAS"
-    summary_sheet["A1"].font = Font(size=16, bold=True, color="5B21B6")
-    summary_sheet["A1"].alignment = left_align
-    summary_sheet.row_dimensions[1].height = 30
-    
-    summary_sheet["A2"] = f"Generado el: {obtener_hora_peru().strftime('%Y-%m-%d %H:%M')}"
-    summary_sheet["A2"].font = Font(italic=True, color="64748B")
-    
-    curr_row = 4
+    sin_reporte_raw = request.args.get("sin_reporte_raw") == "true"
     months_keys = sorted(list(reparadas_por_mes.keys()), reverse=True)
-    
-    # Table 1: Material Consumption
-    summary_sheet.cell(row=curr_row, column=1, value="RESUMEN DE CONSUMO DE MATERIALES").font = Font(size=12, bold=True, color="0891B2")
-    curr_row += 1
-    
-    headers_t1 = ["Material", "Código"] + months_keys + ["Total Consumido"]
-    for col_idx, h in enumerate(headers_t1, start=1):
-        cell = summary_sheet.cell(row=curr_row, column=col_idx, value=h)
-        cell.fill = purple_fill
-        cell.font = purple_font
-        cell.alignment = center_align
-    
-    summary_sheet.row_dimensions[curr_row].height = 25
-    curr_row += 1
-    
-    for m in MATERIALES_MASTER:
-        has_consumption = False
-        row_values = []
-        for mes in months_keys:
-            cant = sum(get_material_quantity(av.materiales_dict, m) for av in reparadas_por_mes[mes])
-            row_values.append(cant)
-            if cant > 0:
-                has_consumption = True
-                
-        if not has_consumption:
-            continue
-            
-        summary_sheet.cell(row=curr_row, column=1, value=m["nombre"]).alignment = left_align
-        summary_sheet.cell(row=curr_row, column=2, value=m["codigo"]).alignment = center_align
-        
-        for idx, cant in enumerate(row_values):
-            c_cell = summary_sheet.cell(row=curr_row, column=3 + idx, value=cant)
-            c_cell.alignment = right_align
-            
-        total_cell = summary_sheet.cell(row=curr_row, column=3 + len(months_keys))
-        total_cell.alignment = right_align
-        total_cell.font = bold_font
-        total_cell.fill = green_fill
-        if months_keys:
-            start_letter = get_column_letter(3)
-            end_letter = get_column_letter(2 + len(months_keys))
-            total_cell.value = f"=SUM({start_letter}{curr_row}:{end_letter}{curr_row})"
-        else:
-            total_cell.value = 0
-        
-        curr_row += 1
-        
-    curr_row += 2
-    
-    # Table 2: Typifications
-    summary_sheet.cell(row=curr_row, column=1, value="RESUMEN DE TIPIFICACIONES DE AVERÍAS").font = Font(size=12, bold=True, color="0891B2")
-    curr_row += 1
-    
-    typifications = [
-        "Personas externa cortó",
-        "Camión grande rompió fibra",
-        "Puerto sucio",
-        "Refusión de hilo / cambio de módulo",
-        "Cambio de caja",
-        "Caja robada",
-        "Reemplazo de poste eléctrico",
-        "Conector roto",
-        "OLT caída"
-    ]
-    
-    headers_t2 = ["Tipificación"] + months_keys + ["Total Incidencias"]
-    for col_idx, h in enumerate(headers_t2, start=1):
-        cell = summary_sheet.cell(row=curr_row, column=col_idx, value=h)
-        cell.fill = purple_fill
-        cell.font = purple_font
-        cell.alignment = center_align
-        
-    summary_sheet.row_dimensions[curr_row].height = 25
-    curr_row += 1
-    
-    for typ in typifications:
-        summary_sheet.cell(row=curr_row, column=1, value=typ).alignment = left_align
-        
-        row_counts = []
-        for mes in months_keys:
-            count = sum(1 for av in reparadas_por_mes[mes] if av.tipificacion == typ)
-            row_counts.append(count)
-            
-        for idx, count in enumerate(row_counts):
-            c_cell = summary_sheet.cell(row=curr_row, column=2 + idx, value=count)
-            c_cell.alignment = right_align
-            
-        total_cell = summary_sheet.cell(row=curr_row, column=2 + len(months_keys))
-        total_cell.alignment = right_align
-        total_cell.font = bold_font
-        total_cell.fill = green_fill
-        if months_keys:
-            start_letter = get_column_letter(2)
-            end_letter = get_column_letter(1 + len(months_keys))
-            total_cell.value = f"=SUM({start_letter}{curr_row}:{end_letter}{curr_row})"
-        else:
-            total_cell.value = 0
-        
-        curr_row += 1
 
-    # 2. RAW DATA SHEET ("Reporte Averias ODN")
-    raw_sheet = workbook.create_sheet(title="Reporte Averias ODN")
-    
-    headers_raw = [
-        "ID",
-        "Sede (Branch)",
-        "Código de WO",
-        "Cuenta",
-        "Detalles",
-        "Días Pendientes",
-        "Estado del Ticket",
-        "Contrata",
-        "Site",
-        "Caja",
-        "Coordenadas",
-        "Origen",
-        "Fecha Creación",
-        "Fecha Resolución",
-        "Técnico que Resolvió",
-        "Tipificación",
-        "Cuentas Agrupadas"
-    ]
-    
-    for m in MATERIALES_MASTER:
-        headers_raw.append(f"[{m['codigo']}] {m['nombre']}")
+    def populate_summary_tables(ws, title_prefix, branch_filter):
+        # Title
+        ws.merge_cells("A1:D1")
+        ws["A1"] = title_prefix
+        ws["A1"].font = Font(size=14, bold=True, color="5B21B6")
+        ws["A1"].alignment = left_align
+        ws.row_dimensions[1].height = 30
         
-    headers_raw.append("Comentarios Solución")
-    raw_sheet.append(headers_raw)
-    
-    for av in averias:
-        tecnico_nombre = av.tecnico.nombre if av.tecnico else ""
-        row_data = [
-            av.id,
-            av.branch,
-            av.codigo_wo or "",
-            av.cuenta or "",
-            av.detalles or "",
-            av.dias_pendientes or 0.0,
-            av.estado,
-            av.contrata or "",
-            av.site or "",
-            av.caja or "",
-            av.coordenadas or "",
-            av.origen,
-            av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else "",
-            av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else "Pendiente",
-            tecnico_nombre,
-            av.tipificacion or "",
-            av.cuentas_asociadas or ""
-        ]
+        ws["A2"] = f"Generado el: {obtener_hora_peru().strftime('%Y-%m-%d %H:%M')}"
+        ws["A2"].font = Font(italic=True, color="64748B")
         
-        mats_dict = av.materiales_dict
+        curr_row = 4
+        
+        # Filter reparadas for this branch
+        if branch_filter:
+            reparadas_scope = [av for av in reparadas if av.branch == branch_filter]
+        else:
+            reparadas_scope = reparadas
+            
+        # Group scope by month
+        reparadas_by_mes_scope = collections.defaultdict(list)
+        for av in reparadas_scope:
+            mes_str = av.fecha_resolucion.strftime("%Y-%m")
+            reparadas_by_mes_scope[mes_str].append(av)
+            
+        # Table 1: Material Consumption
+        ws.cell(row=curr_row, column=1, value="RESUMEN DE CONSUMO DE MATERIALES").font = Font(size=11, bold=True, color="0891B2")
+        curr_row += 1
+        
+        headers_t1 = ["Material", "Código"] + months_keys + ["Total Consumido"]
+        for col_idx, h in enumerate(headers_t1, start=1):
+            cell = ws.cell(row=curr_row, column=col_idx, value=h)
+            cell.fill = purple_fill
+            cell.font = purple_font
+            cell.alignment = center_align
+        
+        ws.row_dimensions[curr_row].height = 25
+        curr_row += 1
+        
         for m in MATERIALES_MASTER:
-            cant = get_material_quantity(mats_dict, m)
-            row_data.append(cant if cant > 0 else "")
-            
-        row_data.append(av.material_comentarios or "")
-        raw_sheet.append(row_data)
-        
-    raw_header_fill = PatternFill("solid", fgColor="1D4ED8")
-    raw_header_font = Font(color="FFFFFF", bold=True)
-    
-    for cell in raw_sheet[1]:
-        cell.fill = raw_header_fill
-        cell.font = raw_header_font
-        cell.alignment = center_align
-        
-    raw_sheet.freeze_panes = "A2"
-    raw_sheet.auto_filter.ref = raw_sheet.dimensions
-    
-    for row in raw_sheet.iter_rows(min_row=2):
-        for cell in row:
-            cell.alignment = Alignment(vertical="top", wrap_text=True)
-
-    # 3. MONTHLY BALANCE SHEETS
-    if target_branch != "ALL":
-        keys_to_generate = [(mes_str, target_branch) for mes_str in sorted(list(reparadas_por_mes.keys()), reverse=True)]
-    else:
-        # Group by month and sort branches alphabetically
-        grouped_by_month = collections.defaultdict(list)
-        for (mes_str, br) in reparadas_por_mes_y_branch.keys():
-            grouped_by_month[mes_str].append(br)
-            
-        keys_to_generate = []
-        for mes_str in sorted(grouped_by_month.keys(), reverse=True):
-            for br in sorted(grouped_by_month[mes_str]):
-                keys_to_generate.append((mes_str, br))
+            has_consumption = False
+            row_values = []
+            for mes in months_keys:
+                cant = sum(get_material_quantity(av.materiales_dict, m) for av in reparadas_by_mes_scope[mes])
+                row_values.append(cant)
+                if cant > 0:
+                    has_consumption = True
+                    
+            if not has_consumption:
+                continue
                 
-    for mes_str, br in keys_to_generate:
-        sheet_title = f"{mes_str} ({br})" if target_branch == "ALL" else mes_str
-        month_sheet = workbook.create_sheet(title=sheet_title)
+            ws.cell(row=curr_row, column=1, value=m["nombre"]).alignment = left_align
+            ws.cell(row=curr_row, column=2, value=m["codigo"]).alignment = center_align
+            
+            for idx, cant in enumerate(row_values):
+                c_cell = ws.cell(row=curr_row, column=3 + idx, value=cant)
+                c_cell.alignment = right_align
+                
+            total_col_idx = 3 + len(months_keys)
+            total_cell = ws.cell(row=curr_row, column=total_col_idx)
+            total_cell.alignment = right_align
+            total_cell.font = bold_font
+            total_cell.fill = green_fill
+            if months_keys:
+                start_letter = get_column_letter(3)
+                end_letter = get_column_letter(2 + len(months_keys))
+                total_cell.value = f"=SUM({start_letter}{curr_row}:{end_letter}{curr_row})"
+            else:
+                total_cell.value = 0
+            
+            curr_row += 1
+            
+        curr_row += 2
         
-        # Title row
-        month_sheet.merge_cells("A1:F1")
-        month_sheet["A1"] = f"BALANCE DE MATERIALES - Sede: {br} - Mes: {mes_str}"
-        month_sheet["A1"].font = Font(size=14, bold=True, color="5B21B6")
-        month_sheet["A1"].alignment = left_align
-        month_sheet.row_dimensions[1].height = 30
+        # Table 2: Typifications
+        ws.cell(row=curr_row, column=1, value="RESUMEN DE TIPIFICACIONES DE AVERÍAS").font = Font(size=11, bold=True, color="0891B2")
+        curr_row += 1
         
-        headers_m = [
-            "№",
-            "MATERIAL",
-            "CODIGO",
-            "STOCK ACTUAL",
-            "STOCK ENVIADO NOC",
-            "FECHA ENVIO NOC",
-            "BITEL",
-            "TOTAL"
+        typifications = [
+            "Personas externa cortó",
+            "Camión grande rompió fibra",
+            "Puerto sucio",
+            "Refusión de hilo / cambio de módulo",
+            "Cambio de caja",
+            "Caja robada",
+            "Reemplazo de poste eléctrico",
+            "Conector roto",
+            "OLT caída"
         ]
         
-        for col_idx, h in enumerate(headers_m, start=1):
-            cell = month_sheet.cell(row=3, column=col_idx, value=h)
+        headers_t2 = ["Tipificación"] + months_keys + ["Total Incidencias"]
+        for col_idx, h in enumerate(headers_t2, start=1):
+            cell = ws.cell(row=curr_row, column=col_idx, value=h)
             cell.fill = purple_fill
             cell.font = purple_font
             cell.alignment = center_align
             
-        month_sheet.row_dimensions[3].height = 25
+        ws.row_dimensions[curr_row].height = 25
+        curr_row += 1
         
-        st_dict_br = stock_by_branch.get(br, {})
-        reparadas_m_b = reparadas_por_mes_y_branch.get((mes_str, br), []) if target_branch == "ALL" else reparadas_por_mes.get(mes_str, [])
-        
-        for idx, m in enumerate(MATERIALES_MASTER, start=1):
-            row_num = 3 + idx
+        for typ in typifications:
+            ws.cell(row=curr_row, column=1, value=typ).alignment = left_align
             
-            st_data = st_dict_br.get(m["nombre"], {"stock_actual": 0, "stock_enviado_noc": 0, "fecha_envio_noc": ""})
-            
-            month_sheet.cell(row=row_num, column=1, value=idx).alignment = center_align
-            month_sheet.cell(row=row_num, column=2, value=m["nombre"]).alignment = left_align
-            month_sheet.cell(row=row_num, column=3, value=m["codigo"]).alignment = center_align
-            
-            month_sheet.cell(row=row_num, column=4, value=st_data["stock_actual"]).alignment = right_align
-            month_sheet.cell(row=row_num, column=5, value=st_data["stock_enviado_noc"]).alignment = right_align
-            month_sheet.cell(row=row_num, column=6, value=st_data["fecha_envio_noc"]).alignment = center_align
-            
-            # Bitel consumption (total sum of material consumed in this month/branch combo)
-            cant = sum(get_material_quantity(av.materiales_dict, m) for av in reparadas_m_b)
-            c_cell = month_sheet.cell(row=row_num, column=7, value=cant)
-            c_cell.alignment = right_align
+            row_counts = []
+            for mes in months_keys:
+                count = sum(1 for av in reparadas_by_mes_scope[mes] if av.tipificacion == typ)
+                row_counts.append(count)
                 
-            total_cell = month_sheet.cell(row=row_num, column=8)
-            total_cell.value = f"=(D{row_num}+E{row_num})-G{row_num}"
+            for idx, count in enumerate(row_counts):
+                c_cell = ws.cell(row=curr_row, column=2 + idx, value=count)
+                c_cell.alignment = right_align
+                
+            total_col_idx = 2 + len(months_keys)
+            total_cell = ws.cell(row=curr_row, column=total_col_idx)
             total_cell.alignment = right_align
             total_cell.font = bold_font
             total_cell.fill = green_fill
+            if months_keys:
+                start_letter = get_column_letter(2)
+                end_letter = get_column_letter(1 + len(months_keys))
+                total_cell.value = f"=SUM({start_letter}{curr_row}:{end_letter}{curr_row})"
+            else:
+                total_cell.value = 0
+            
+            curr_row += 1
+
+    # 1. SUMMARY SHEET
+    summary_sheet = workbook.active
+    summary_sheet.title = "SUMMARY"
+    populate_summary_tables(summary_sheet, "DASHBOARD GENERAL DE CONSUMO E INCIDENCIAS", None)
+    
+    # 2. RAW DATA SHEET ("Reporte Averias ODN") if not excluded
+    if not sin_reporte_raw:
+        raw_sheet = workbook.create_sheet(title="Reporte Averias ODN")
+        
+        headers_raw = [
+            "ID",
+            "Sede (Branch)",
+            "Código de WO",
+            "Cuenta",
+            "Detalles",
+            "Días Pendientes",
+            "Estado del Ticket",
+            "Contrata",
+            "Site",
+            "Caja",
+            "Coordenadas",
+            "Origen",
+            "Fecha Creación",
+            "Fecha Resolución",
+            "Técnico que Resolvió",
+            "Tipificación",
+            "Cuentas Agrupadas"
+        ]
+        
+        for m in MATERIALES_MASTER:
+            headers_raw.append(f"[{m['codigo']}] {m['nombre']}")
+            
+        headers_raw.append("Comentarios Solución")
+        raw_sheet.append(headers_raw)
+        
+        for av in averias:
+            tecnico_nombre = av.tecnico.nombre if av.tecnico else ""
+            row_data = [
+                av.id,
+                av.branch,
+                av.codigo_wo or "",
+                av.cuenta or "",
+                av.detalles or "",
+                av.dias_pendientes or 0.0,
+                av.estado,
+                av.contrata or "",
+                av.site or "",
+                av.caja or "",
+                av.coordenadas or "",
+                av.origen,
+                av.fecha_creacion.strftime("%Y-%m-%d %H:%M") if av.fecha_creacion else "",
+                av.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if av.fecha_resolucion else "Pendiente",
+                tecnico_nombre,
+                av.tipificacion or "",
+                av.cuentas_asociadas or ""
+            ]
+            
+            mats_dict = av.materiales_dict
+            for m in MATERIALES_MASTER:
+                cant = get_material_quantity(mats_dict, m)
+                row_data.append(cant if cant > 0 else "")
+                
+            row_data.append(av.material_comentarios or "")
+            raw_sheet.append(row_data)
+            
+        raw_header_fill = PatternFill("solid", fgColor="1D4ED8")
+        raw_header_font = Font(color="FFFFFF", bold=True)
+        
+        for cell in raw_sheet[1]:
+            cell.fill = raw_header_fill
+            cell.font = raw_header_font
+            cell.alignment = center_align
+            
+        raw_sheet.freeze_panes = "A2"
+        raw_sheet.auto_filter.ref = raw_sheet.dimensions
+        
+        for row in raw_sheet.iter_rows(min_row=2):
+            for cell in row:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    # 3. INDIVIDUAL BRANCH SHEETS
+    if target_branch == "ALL":
+        branches_to_generate = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
+    else:
+        branches_to_generate = [target_branch]
+        
+    for br in branches_to_generate:
+        br_sheet = workbook.create_sheet(title=br)
+        populate_summary_tables(br_sheet, f"DASHBOARD DE CONSUMO E INCIDENCIAS - Sede: {br}", br)
 
     # Global column auto-fit
     for ws in workbook.worksheets:
