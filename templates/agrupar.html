@@ -88,6 +88,11 @@
                             <div>
                                 <span class="fw-bold text-dark fs-6">{{ averia.cuenta }}</span>
                                 <small class="text-muted d-block" style="font-size: 0.75rem;">WO: {{ averia.codigo_wo or 'N/A' }} | Caja inicial: {{ averia.caja or 'N/A' }}</small>
+                                {% if averia.material_comentarios %}
+                                <div class="mt-1 small text-dark" style="font-size: 0.775rem;">
+                                    <strong>Comentario:</strong> <span class="text-slate-800">{{ averia.material_comentarios }}</span>
+                                </div>
+                                {% endif %}
                             </div>
                             <div>
                                 <span class="badge bg-primary text-white px-2.5 py-1">Principal</span>

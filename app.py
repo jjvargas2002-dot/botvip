@@ -1494,7 +1494,8 @@ def agrupar_clientes_averia(id):
                 av_g.estado = "REPARADO"
                 av_g.fecha_resolucion = obtener_hora_peru()
                 av_g.tecnico_id = session.get("operador_id")
-                av_g.material_comentarios = f"Agrupado en la avería principal ({averia.cuenta})"
+                princ_comm = f" - {averia.material_comentarios}" if averia.material_comentarios else ""
+                av_g.material_comentarios = f"Agrupado en la avería principal ({averia.cuenta}){princ_comm}"
                 if not averia.tipificacion and av_g.tipificacion:
                     averia.tipificacion = av_g.tipificacion
                 if averia.tipificacion:
