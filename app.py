@@ -1576,7 +1576,8 @@ def agrupar_clientes_averia(id):
                     "estado": row.estado,
                     "id": row.id,
                     "nombre": cl.nombre if cl else "Cliente de Sheet",
-                    "seleccionado": is_associated
+                    "seleccionado": is_associated,
+                    "detalles": row.detalles or ""
                 })
             
     # Format materials list for principal ticket

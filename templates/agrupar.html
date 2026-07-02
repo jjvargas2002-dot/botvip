@@ -131,6 +131,11 @@
                                 <label class="form-check-label" for="chk-{{ c.cuenta }}">
                                     <span class="fw-semibold text-slate-800">{{ c.cuenta }}</span>
                                     <span class="text-muted ms-2" style="font-size: 0.85rem;">- {{ c.nombre }}</span>
+                                    {% if c.detalles %}
+                                    <small class="text-muted d-block" style="font-size: 0.75rem; margin-top: 2px;">
+                                        <i class="bi bi-chat-left-text me-1 text-slate-400"></i>{{ c.detalles }}
+                                    </small>
+                                    {% endif %}
                                 </label>
                             </div>
                             <div>
