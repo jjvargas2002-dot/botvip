@@ -115,7 +115,7 @@ def obtener_material_mapeado(codigo, nombre):
     seccion = master_item["seccion"] if master_item else ""
     
     # 2. Cable Drop (código 283866)
-    if codigo == "283866" or "drop" in nombre_lower:
+    if (codigo in ["283866", "299381"] or "drop" in nombre_lower) and not ("templador" in nombre_lower or "grapa" in nombre_lower or "anclaje" in nombre_lower or "retencion" in nombre_lower or "retención" in nombre_lower or "soporte" in nombre_lower or "preformada" in nombre_lower or "tencion" in nombre_lower or "tensión" in nombre_lower or "abrazadera" in nombre_lower):
         return "283866", "Cable Drop", "CABLES"
         
     # 3. FAC (código 299378)
