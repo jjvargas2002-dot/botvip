@@ -2442,7 +2442,7 @@ def exportar_averias():
     if target_branch == "ALL":
         branches_to_generate = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
     else:
-        branches_to_generate = [target_branch]
+        branches_to_generate = []
         
     for br in branches_to_generate:
         br_sheet = workbook.create_sheet(title=br)
