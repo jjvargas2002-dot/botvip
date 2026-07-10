@@ -1,0 +1,557 @@
+{% extends "layout.html" %}
+
+{% block title %}Generar Plan Diario - BotVip{% endblock %}
+
+{% block extra_head %}
+<style>
+    .planner-card {
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        background-color: var(--card-bg);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .planner-card:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    .preview-sticky {
+        position: sticky;
+        top: 1.5rem;
+    }
+    .btn-remove {
+        color: var(--danger);
+        background: transparent;
+        border: none;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+    }
+    .btn-remove:hover {
+        background-color: rgba(239, 68, 68, 0.1);
+    }
+    .box-item {
+        border-left: 3px solid var(--primary);
+        padding-left: 0.75rem;
+        background-color: #f8fafc;
+        border-radius: 0 0.5rem 0.5rem 0;
+    }
+    .preview-box {
+        font-family: monospace;
+        font-size: 0.875rem;
+        background-color: #0f172a;
+        color: #e2e8f0;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        white-space: pre-wrap;
+        word-break: break-all;
+        min-height: 250px;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    .btn-copy {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        font-weight: 600;
+        border: none;
+        border-radius: 0.5rem;
+        transition: opacity 0.2s ease;
+    }
+    .btn-copy:hover {
+        opacity: 0.9;
+        color: white;
+    }
+    .btn-clear {
+        background: #64748b;
+        color: white;
+        font-weight: 600;
+        border: none;
+        border-radius: 0.5rem;
+    }
+    .btn-clear:hover {
+        background: #475569;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Row -->
+    <div class="row align-items-center mb-4">
+        <div class="col-12 col-md-7">
+            <h2 class="h3 fw-bold mb-1"><i class="bi bi-calendar-check text-primary me-2"></i>Generador de Plan Diario</h2>
+            <p class="text-muted mb-0">Estructura la asignación de sites y cajas de averías pendientes para tus técnicos en el día.</p>
+        </div>
+        <div class="col-12 col-md-5 text-md-end mt-3 mt-md-0">
+            <div class="d-flex align-items-center justify-content-md-end gap-3">
+                {% if session.get('operador_rol') in ['noc', 'admin'] or session.get('operador_branch') == 'ALL' %}
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-medium text-secondary text-nowrap">Sede:</span>
+                    <select id="branchSelectorPlan" class="form-select form-select-sm" onchange="changeBranchPlan(this.value)" style="width: 130px;">
+                        {% for s in sedes %}
+                        <option value="{{ s }}" {% if s == target_branch %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% else %}
+                <span class="badge bg-primary fs-6 px-3 py-2">Sede: {{ target_branch }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="row g-4">
+        <!-- Left Side: Form and Builders (8 columns) -->
+        <div class="col-lg-8">
+            <!-- Parameters Card -->
+            <div class="card planner-card p-3 mb-4">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <label for="planDate" class="form-label small fw-semibold text-secondary">Fecha del Plan</label>
+                        <input type="date" id="planDate" class="form-control" onchange="updatePreview()">
+                    </div>
+                    <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                        <button class="btn btn-premium-primary" onclick="addTechnician()">
+                            <i class="bi bi-plus-circle me-1.5"></i>Añadir Técnico
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Technicians Container -->
+            <div id="techniciansContainer">
+                <!-- Dynamically populated -->
+            </div>
+            
+            <!-- Empty State Helper -->
+            <div id="emptyState" class="card planner-card p-5 text-center d-none">
+                <i class="bi bi-person-workspace text-muted display-4 mb-3"></i>
+                <h5 class="fw-bold text-secondary">No hay técnicos en el plan</h5>
+                <p class="text-muted small">Haz clic en "Añadir Técnico" para comenzar a planificar la jornada.</p>
+                <div>
+                    <button class="btn btn-primary btn-sm" onclick="addTechnician()">
+                        <i class="bi bi-plus-circle me-1.5"></i>Añadir Técnico
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Sticky Preview Panel (4 columns) -->
+        <div class="col-lg-4">
+            <div class="preview-sticky">
+                <div class="card planner-card">
+                    <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between">
+                        <h5 class="mb-0 fw-semibold text-slate-800"><i class="bi bi-file-earmark-text text-primary me-2"></i>Previsualización</h5>
+                        <span class="badge bg-secondary rounded-pill" id="totalAveriasPlan">0 averías</span>
+                    </div>
+                    <div class="card-body p-3">
+                        <div id="planPreviewText" class="preview-box mb-3">Plan de trabajo...</div>
+                        
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-copy py-2.5 d-flex align-items-center justify-content-center gap-2" onclick="copyPlan()">
+                                <i class="bi bi-clipboard"></i> Copiar Plan
+                            </button>
+                            <button class="btn btn-clear py-2 d-flex align-items-center justify-content-center gap-2" onclick="clearPlan()">
+                                <i class="bi bi-trash"></i> Limpiar Plan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Raw Pending Tickets Data injected from Python -->
+<script>
+    const pendingTickets = {{ tickets_data | tojson }};
+    const operators = [
+        {% for op in operators %}
+        { id: {{ op.id }}, nombre: "{{ op.nombre }}" },
+        {% endfor %}
+    ];
+    const targetBranch = "{{ target_branch }}";
+</script>
+
+<script>
+    // Initialize default Date to Today (Peru local timezone)
+    const nowPeru = new Date(new Date().getTime() - 5 * 60 * 60 * 1000);
+    document.getElementById('planDate').value = nowPeru.toISOString().split('T')[0];
+
+    // Global Plan State
+    let planState = {
+        technicians: []
+    };
+
+    // Load unique pending sites from tickets data
+    const uniqueSites = [...new Set(pendingTickets.map(t => t.site))].sort();
+
+    // Helper to change branch (Admin/NOC)
+    function changeBranchPlan(br) {
+        window.location.href = "{{ url_for('generar_plan_diario') }}?branch=" + br;
+    }
+
+    // Add technician card
+    function addTechnician() {
+        const techId = Date.now() + Math.random();
+        planState.technicians.push({
+            id: techId,
+            nameType: 'select', // 'select' or 'custom'
+            operatorId: operators.length > 0 ? operators[0].nombre : '',
+            customName: '',
+            sites: []
+        });
+        renderForm();
+        updatePreview();
+    }
+
+    // Remove technician card
+    function removeTechnician(techId) {
+        planState.technicians = planState.technicians.filter(t => t.id !== techId);
+        renderForm();
+        updatePreview();
+    }
+
+    // Add site block for technician
+    function addSite(techId) {
+        const tech = planState.technicians.find(t => t.id === techId);
+        if (!tech) return;
+        
+        const siteId = Date.now() + Math.random();
+        // find first unused site or default to first unique site
+        const usedSites = tech.sites.map(s => s.siteName);
+        const nextSite = uniqueSites.find(s => !usedSites.includes(s)) || uniqueSites[0] || '';
+        
+        const siteObj = {
+            id: siteId,
+            siteName: nextSite,
+            selectedBoxes: []
+        };
+        
+        // Auto select all boxes for nextSite by default
+        if (nextSite) {
+            const boxesOfSite = [...new Set(pendingTickets.filter(t => t.site === nextSite).map(t => t.caja || "SIN_CAJA"))];
+            siteObj.selectedBoxes = boxesOfSite;
+        }
+        
+        tech.sites.push(siteObj);
+        renderForm();
+        updatePreview();
+    }
+
+    // Remove site block for technician
+    function removeSite(techId, siteId) {
+        const tech = planState.technicians.find(t => t.id === techId);
+        if (tech) {
+            tech.sites = tech.sites.filter(s => s.id !== siteId);
+        }
+        renderForm();
+        updatePreview();
+    }
+
+    // Update technician name type (select vs custom text)
+    function toggleTechNameInput(techId, type) {
+        const tech = planState.technicians.find(t => t.id === techId);
+        if (!tech) return;
+        tech.nameType = type;
+        renderForm();
+        updatePreview();
+    }
+
+    // Handle tech name select/text inputs
+    function onTechNameChange(techId, val) {
+        const tech = planState.technicians.find(t => t.id === techId);
+        if (!tech) return;
+        if (tech.nameType === 'select') {
+            tech.operatorId = val;
+        } else {
+            tech.customName = val;
+        }
+        updatePreview();
+    }
+
+    // Handle site selection change
+    function onSiteChange(techId, siteId, siteName) {
+        const tech = planState.technicians.find(t => t.id === techId);
+        if (!tech) return;
+        const siteObj = tech.sites.find(s => s.id === siteId);
+        if (!siteObj) return;
+        
+        siteObj.siteName = siteName;
+        // Auto select all boxes of new site by default
+        const boxesOfSite = [...new Set(pendingTickets.filter(t => t.site === siteName).map(t => t.caja || "SIN_CAJA"))];
+        siteObj.selectedBoxes = boxesOfSite;
+        
+        renderForm();
+        updatePreview();
+    }
+
+    // Handle box checkbox changes
+    function onBoxCheckboxChange(techId, siteId, boxName, isChecked) {
+        const tech = planState.technicians.find(t => t.id === techId);
+        if (!tech) return;
+        const siteObj = tech.sites.find(s => s.id === siteId);
+        if (!siteObj) return;
+        
+        if (isChecked) {
+            if (!siteObj.selectedBoxes.includes(boxName)) {
+                siteObj.selectedBoxes.push(boxName);
+            }
+        } else {
+            siteObj.selectedBoxes = siteObj.selectedBoxes.filter(b => b !== boxName);
+        }
+        updatePreview();
+    }
+
+    // Render HTML Form
+    function renderForm() {
+        const container = document.getElementById('techniciansContainer');
+        const emptyState = document.getElementById('emptyState');
+        
+        if (planState.technicians.length === 0) {
+            container.innerHTML = '';
+            emptyState.classList.remove('d-none');
+            return;
+        }
+        
+        emptyState.classList.add('d-none');
+        
+        let html = '';
+        planState.technicians.forEach((tech, techIdx) => {
+            html += `
+            <div class="card planner-card p-3 mb-4 position-relative border-0 shadow-sm">
+                <!-- Card Header -->
+                <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                    <h5 class="fw-bold mb-0 text-slate-800"><i class="bi bi-person-badge text-primary me-2"></i>Técnico #${techIdx + 1}</h5>
+                    <button class="btn btn-remove btn-sm" onclick="removeTechnician(${tech.id})" title="Eliminar Técnico">
+                        <i class="bi bi-trash-fill me-1"></i>Eliminar Técnico
+                    </button>
+                </div>
+                
+                <!-- Technician Name Selection Row -->
+                <div class="row g-2 mb-3 align-items-end">
+                    <div class="col">
+                        <label class="form-label small fw-semibold text-secondary">Seleccionar Técnico Asignado</label>
+                        ${tech.nameType === 'select' ? `
+                            <select class="form-select form-select-custom" onchange="onTechNameChange(${tech.id}, this.value)">
+                                <option value="">-- Seleccionar Operador --</option>
+                                ${operators.map(op => `<option value="${op.nombre}" ${tech.operatorId === op.nombre ? 'selected' : ''}>${op.nombre}</option>`).join('')}
+                            </select>
+                        ` : `
+                            <input type="text" class="form-control" placeholder="Escribe el nombre del técnico..." value="${tech.customName}" oninput="onTechNameChange(${tech.id}, this.value)">
+                        `}
+                    </div>
+                    <div class="col-auto">
+                        ${tech.nameType === 'select' ? `
+                            <button class="btn btn-outline-secondary" onclick="toggleTechNameInput(${tech.id}, 'custom')">
+                                <i class="bi bi-pencil-square"></i> Nombre Libre
+                            </button>
+                        ` : `
+                            <button class="btn btn-outline-secondary" onclick="toggleTechNameInput(${tech.id}, 'select')">
+                                <i class="bi bi-list-stars"></i> Lista Operadores
+                            </button>
+                        `}
+                    </div>
+                </div>
+
+                <!-- Sites assigned section -->
+                <div class="ps-3 border-start border-light-subtle">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-geo-alt-fill me-1"></i>Sites Asignados</h6>
+                        <button class="btn btn-outline-primary btn-sm py-1 px-2.5 fs-7" onclick="addSite(${tech.id})">
+                            <i class="bi bi-plus-circle me-1"></i>Asignar Site
+                        </button>
+                    </div>
+                    
+                    <div id="sitesContainer_${tech.id}">
+                        ${tech.sites.map((site, siteIdx) => renderSiteBlock(tech, site, siteIdx)).join('')}
+                    </div>
+                    
+                    ${tech.sites.length === 0 ? `
+                        <div class="alert alert-light border border-dashed rounded-3 text-center py-3 text-muted small">
+                            No se han asignado sites a este técnico hoy.
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+
+    // Render a single Site Block for a Technician
+    function renderSiteBlock(tech, site, siteIdx) {
+        // filter tickets of this site
+        const siteTickets = pendingTickets.filter(t => t.site === site.siteName);
+        const totalSiteCount = siteTickets.length;
+        
+        // Group tickets by unique cajas/boxes
+        const boxesMap = {};
+        siteTickets.forEach(t => {
+            const boxName = t.caja || "SIN_CAJA";
+            if (!boxesMap[boxName]) {
+                boxesMap[boxName] = {
+                    caja: boxName,
+                    hubox: t.hubox || "",
+                    tickets: []
+                };
+            }
+            boxesMap[boxName].tickets.push(t);
+        });
+        const boxesList = Object.values(boxesMap).sort((a, b) => b.tickets.length - a.tickets.length);
+        
+        return `
+        <div class="card bg-light-subtle p-3 mb-3 border-0 shadow-sm rounded-3">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center gap-2 col-8">
+                    <span class="fw-semibold text-slate-700 text-nowrap">Site #${siteIdx + 1}:</span>
+                    <select class="form-select form-select-sm" onchange="onSiteChange(${tech.id}, ${site.id}, this.value)">
+                        <option value="">-- Seleccionar Site --</option>
+                        ${uniqueSites.map(s => `<option value="${s}" ${site.siteName === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-info-subtle text-info fw-bold">${totalSiteCount} pendientes</span>
+                    <button class="btn btn-remove btn-sm p-1 text-danger" onclick="removeSite(${tech.id}, ${site.id})" title="Quitar Site">
+                        <i class="bi bi-x-circle-fill fs-5"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Box List with counts & details -->
+            <div class="mt-2">
+                ${site.siteName ? `
+                    <p class="small fw-semibold text-secondary mb-2"><i class="bi bi-box-seam me-1"></i>Selecciona las Cajas de este Site a intervenir:</p>
+                    <div class="row g-2">
+                        ${boxesList.map(box => {
+                            const isChecked = site.selectedBoxes.includes(box.caja);
+                            const count = box.tickets.length;
+                            const problemsList = [...new Set(box.tickets.map(t => t.detalles).filter(d => d))];
+                            const problemsText = problemsList.join(" | ");
+                            
+                            return `
+                            <div class="col-12">
+                                <div class="box-item p-2 mb-1">
+                                    <div class="form-check d-flex align-items-center justify-content-between mb-0">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <input class="form-check-input" type="checkbox" id="box_${tech.id}_${site.id}_${box.caja}" ${isChecked ? 'checked' : ''} onchange="onBoxCheckboxChange(${tech.id}, ${site.id}, '${box.caja}', this.checked)">
+                                            <label class="form-check-label fw-bold text-slate-800 small" for="box_${tech.id}_${site.id}_${box.caja}">
+                                                ${box.caja} ${box.hubox ? `<span class="badge bg-secondary-subtle text-secondary py-0.5 px-1">${box.hubox}</span>` : ''}
+                                            </label>
+                                        </div>
+                                        <span class="badge bg-primary-subtle text-primary rounded-pill small">${count} cuentas</span>
+                                    </div>
+                                    <div class="text-muted small ps-4 mt-1" style="font-size: 0.775rem;">
+                                        <strong>Detalles:</strong> ${problemsText || 'Sin detalles'}
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                ` : `
+                    <div class="text-center text-muted py-2 small">Selecciona un site para cargar sus cajas pendientes.</div>
+                `}
+            </div>
+        </div>
+        `;
+    }
+
+    // Dynamic Preview Generator
+    function updatePreview() {
+        const rawDate = document.getElementById('planDate').value;
+        let formattedDate = rawDate;
+        if (rawDate) {
+            const parts = rawDate.split("-");
+            formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        
+        let text = `Plan de trabajo - ${formattedDate}\n`;
+        let totalAverias = 0;
+        
+        planState.technicians.forEach((tech) => {
+            const techName = tech.nameType === 'select' ? (tech.operatorId || '...') : (tech.customName || '...');
+            text += `\nTécnico: ${techName}\n`;
+            
+            if (tech.sites.length === 0) {
+                text += `(No se han asignado sites)\n`;
+            }
+            
+            tech.sites.forEach((site, siteIdx) => {
+                if (!site.siteName) return;
+                
+                // Get tickets for this site
+                const siteTickets = pendingTickets.filter(t => t.site === site.siteName);
+                
+                // Find active HBOX names from selected boxes in this site
+                const selectedHuboxes = [];
+                site.selectedBoxes.forEach(boxName => {
+                    const ticketMatch = siteTickets.find(t => (t.caja || "SIN_CAJA") === boxName);
+                    if (ticketMatch && ticketMatch.hubox) {
+                        selectedHuboxes.push(ticketMatch.hubox);
+                    }
+                });
+                const uniqueHboxes = [...new Set(selectedHuboxes)];
+                const hboxSuffix = uniqueHboxes.length > 0 ? `+${uniqueHboxes.join("+")}` : '';
+                
+                text += `${siteIdx + 1}. Site(${site.siteName}${hboxSuffix})\n`;
+                
+                if (site.selectedBoxes.length === 0) {
+                    text += `   - Sin cajas seleccionadas\n`;
+                }
+                
+                site.selectedBoxes.forEach(boxName => {
+                    // Get tickets for this box
+                    const boxTickets = siteTickets.filter(t => (t.caja || "SIN_CAJA") === boxName);
+                    const count = boxTickets.length;
+                    totalAverias += count;
+                    
+                    // Summarize problems
+                    const problemsList = [...new Set(boxTickets.map(t => t.detalles).filter(d => d))];
+                    const problemsText = problemsList.join(" | ");
+                    
+                    // Priority rules: >10 Alta, <=10 Media
+                    const priority = count > 10 ? 'alta' : 'media';
+                    
+                    text += `- ${boxName}: ${problemsText || 'Sin detalles de problema'}\n`;
+                    text += `Prioridad: ${priority}\n`;
+                });
+            });
+        });
+        
+        document.getElementById('planPreviewText').innerText = text;
+        document.getElementById('totalAveriasPlan').innerText = `${totalAverias} averías`;
+    }
+
+    // Copy to clipboard
+    function copyPlan() {
+        const text = document.getElementById('planPreviewText').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            // Flash a dynamic visual feedback on the button
+            const btn = document.querySelector('.btn-copy');
+            const origHTML = btn.innerHTML;
+            btn.innerHTML = `<i class="bi bi-check-lg"></i> ¡Copiado!`;
+            setTimeout(() => {
+                btn.innerHTML = origHTML;
+            }, 2000);
+        }).catch(err => {
+            alert('No se pudo copiar el plan al portapapeles: ' + err);
+        });
+    }
+
+    // Reset Plan
+    function clearPlan() {
+        if (confirm('¿Estás seguro de que deseas limpiar el plan de trabajo actual? Se borrarán todos los técnicos agregados.')) {
+            planState.technicians = [];
+            renderForm();
+            updatePreview();
+        }
+    }
+
+    // First Render
+    renderForm();
+    updatePreview();
+</script>
+{% endblock %}

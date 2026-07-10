@@ -1158,6 +1158,69 @@ def cambiar_password():
     return redirect(request.referrer or url_for("dashboard"))
 
 
+@app.route("/plan-diario", methods=["GET"])
+@login_requerido
+def generar_plan_diario():
+    es_admin = session.get("operador_rol") == "admin"
+    es_noc = session.get("operador_rol") == "noc"
+    user_branch = session.get("operador_branch")
+    
+    branch_arg = request.args.get("branch")
+    if not es_admin and not es_noc and user_branch != "ALL":
+        target_branch = user_branch
+    else:
+        target_branch = branch_arg if branch_arg else (user_branch if user_branch != "ALL" else "LI1")
+        
+    target_branch = target_branch.strip().upper()
+    
+    pending_tickets = Averia.query.filter_by(branch=target_branch, estado="PENDIENTE").all()
+    
+    def parse_caja_local(caja_str, site_val):
+        if not caja_str:
+            return site_val or "", "", "", ""
+        parts = [p.strip().upper() for p in caja_str.split("-") if p.strip()]
+        site = site_val or ""
+        xbox = ""
+        hubox = ""
+        subox = ""
+        if len(parts) > 0:
+            site = parts[0]
+        for p in parts[1:]:
+            if p.startswith("XB"):
+                xbox = p
+            elif p.startswith("HB"):
+                hubox = p
+            else:
+                subox = p
+        return site, xbox, hubox, subox
+
+    tickets_data = []
+    for t in pending_tickets:
+        site_p, xbox_p, hubox_p, subox_p = parse_caja_local(t.caja, t.site)
+        tickets_data.append({
+            "id": t.id,
+            "site": t.site or "SIN_SITE",
+            "caja": t.caja or "SIN_CAJA",
+            "hubox": hubox_p or "",
+            "detalles": t.detalles or "Sin detalles",
+            "cuenta": t.cuenta or ""
+        })
+        
+    operators = Operador.query.filter_by(branch=target_branch, activo=True).order_by(Operador.nombre).all()
+    if not operators:
+        operators = Operador.query.filter_by(activo=True).order_by(Operador.nombre).all()
+        
+    sedes = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
+    
+    return render_template(
+        "plan_diario.html",
+        tickets_data=tickets_data,
+        operators=operators,
+        target_branch=target_branch,
+        sedes=sedes
+    )
+
+
 @app.route("/", methods=["GET"])
 @login_requerido
 def dashboard():
