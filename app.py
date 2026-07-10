@@ -1201,6 +1201,7 @@ def generar_plan_diario():
             "id": t.id,
             "site": t.site or "SIN_SITE",
             "caja": t.caja or "SIN_CAJA",
+            "xbox": xbox_p or "",
             "hubox": hubox_p or "",
             "detalles": t.detalles or "Sin detalles",
             "cuenta": t.cuenta or ""

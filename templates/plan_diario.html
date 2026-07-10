@@ -370,6 +370,7 @@
             if (!boxesMap[boxName]) {
                 boxesMap[boxName] = {
                     caja: boxName,
+                    xbox: t.xbox || "",
                     hubox: t.hubox || "",
                     tickets: []
                 };
@@ -414,7 +415,7 @@
                                         <div class="d-flex align-items-center gap-2">
                                             <input class="form-check-input" type="checkbox" id="box_${tech.id}_${site.id}_${box.caja}" ${isChecked ? 'checked' : ''} onchange="onBoxCheckboxChange(${tech.id}, ${site.id}, '${box.caja}', this.checked)">
                                             <label class="form-check-label fw-bold text-slate-800 small" for="box_${tech.id}_${site.id}_${box.caja}">
-                                                ${box.caja} ${box.hubox ? `<span class="badge bg-secondary-subtle text-secondary py-0.5 px-1">${box.hubox}</span>` : ''}
+                                                ${box.caja} ${box.xbox ? `<span class="badge bg-secondary-subtle text-secondary py-0.5 px-1">${box.xbox}</span>` : ''}
                                             </label>
                                         </div>
                                         <span class="badge bg-primary-subtle text-primary rounded-pill small">${count} cuentas</span>
@@ -461,18 +462,18 @@
                 // Get tickets for this site
                 const siteTickets = pendingTickets.filter(t => t.site === site.siteName);
                 
-                // Find active HBOX names from selected boxes in this site
-                const selectedHuboxes = [];
+                // Find active XBOX names from selected boxes in this site
+                const selectedXboxes = [];
                 site.selectedBoxes.forEach(boxName => {
                     const ticketMatch = siteTickets.find(t => (t.caja || "SIN_CAJA") === boxName);
-                    if (ticketMatch && ticketMatch.hubox) {
-                        selectedHuboxes.push(ticketMatch.hubox);
+                    if (ticketMatch && ticketMatch.xbox) {
+                        selectedXboxes.push(ticketMatch.xbox);
                     }
                 });
-                const uniqueHboxes = [...new Set(selectedHuboxes)];
-                const hboxSuffix = uniqueHboxes.length > 0 ? `+${uniqueHboxes.join("+")}` : '';
+                const uniqueXboxes = [...new Set(selectedXboxes)];
+                const xboxSuffix = uniqueXboxes.length > 0 ? `+${uniqueXboxes.join("+")}` : '';
                 
-                text += `${siteIdx + 1}. Site(${site.siteName}${hboxSuffix})\n`;
+                text += `${siteIdx + 1}. Site(${site.siteName}${xboxSuffix})\n`;
                 
                 if (site.selectedBoxes.length === 0) {
                     text += `   - Sin cajas seleccionadas\n`;
