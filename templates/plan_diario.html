@@ -386,7 +386,13 @@
                     <span class="fw-semibold text-slate-700 text-nowrap">Site #${siteIdx + 1}:</span>
                     <select class="form-select form-select-sm" onchange="onSiteChange(${tech.id}, ${site.id}, this.value)">
                         <option value="">-- Seleccionar Site --</option>
-                        ${uniqueSites.map(s => `<option value="${s}" ${site.siteName === s ? 'selected' : ''}>${s}</option>`).join('')}
+                        ${uniqueSites.map(s => {
+                            const siteTickets = pendingTickets.filter(t => t.site === s);
+                            const uniqueBoxes = [...new Set(siteTickets.map(t => t.caja || "SIN_CAJA"))];
+                            const numCajas = uniqueBoxes.length;
+                            const cajasText = numCajas === 1 ? "1 caja" : `${numCajas} cajas`;
+                            return `<option value="${s}" ${site.siteName === s ? 'selected' : ''}>${s} (${cajasText})</option>`;
+                        }).join('')}
                     </select>
                 </div>
                 <div class="d-flex align-items-center gap-2">
