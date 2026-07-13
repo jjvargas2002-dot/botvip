@@ -2216,6 +2216,10 @@ def exportar_averias():
     
     branch_arg = request.args.get("branch")
     month_arg = request.args.get("month")
+    site_arg = request.args.get("site")
+    status_arg = request.args.get("status")
+    origin_arg = request.args.get("origin")
+    q_arg = request.args.get("q")
     
     if not es_admin and not es_noc and user_branch != "ALL":
         target_branch = user_branch
@@ -2236,6 +2240,44 @@ def exportar_averias():
             if av_date and av_date.strftime("%Y-%m") == month_arg:
                 filtered_averias.append(av)
         averias = filtered_averias
+
+    # Filter by site
+    if site_arg:
+        averias = [av for av in averias if av.site == site_arg]
+        
+    # Filter by origin
+    if origin_arg:
+        averias = [av for av in averias if av.origen == origin_arg]
+        
+    # Filter by status
+    if status_arg:
+        if status_arg == "PENDIENTE":
+            averias = [av for av in averias if av.estado == "PENDIENTE"]
+        elif status_arg == "REPARADO":
+            averias = [av for av in averias if av.estado == "REPARADO"]
+        elif status_arg == "REPARADO_PRINCIPAL":
+            averias = [av for av in averias if av.estado == "REPARADO" and not (av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios)]
+        elif status_arg == "REPARADO_AGRUPADO":
+            averias = [av for av in averias if av.estado == "REPARADO" and av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios]
+            
+    # Filter by search query (q)
+    if q_arg:
+        q_clean = q_arg.lower().strip()
+        filtered_q = []
+        for av in averias:
+            tecnico_name = av.tecnico.nombre.lower() if av.tecnico else ""
+            search_fields = [
+                av.cuenta or "",
+                av.caja or "",
+                av.site or "",
+                av.codigo_wo or "",
+                av.detalles or "",
+                tecnico_name
+            ]
+            search_str = " ".join(search_fields).lower()
+            if q_clean in search_str:
+                filtered_q.append(av)
+        averias = filtered_q
         
     reparadas = [av for av in averias if av.estado == "REPARADO" and av.fecha_resolucion]
     

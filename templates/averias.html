@@ -720,6 +720,10 @@
                 const params = [];
                 if (branch) params.push("branch=" + encodeURIComponent(branch));
                 if (month) params.push("month=" + encodeURIComponent(month));
+                if (site) params.push("site=" + encodeURIComponent(site));
+                if (status) params.push("status=" + encodeURIComponent(status));
+                if (origin) params.push("origin=" + encodeURIComponent(origin));
+                if (query) params.push("q=" + encodeURIComponent(query));
                 if (params.length > 0) {
                     exportUrl += "?" + params.join("&");
                 }
