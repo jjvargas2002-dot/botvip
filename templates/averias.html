@@ -73,8 +73,10 @@
             <div class="col-md-2 col-6">
                 <select id="statusFilter" class="form-select form-select-custom">
                     <option value="">Todos los Estados</option>
-                    <option value="PENDIE">Pendiente</option>
-                    <option value="REPARA">Reparado</option>
+                    <option value="PENDIENTE">Pendiente</option>
+                    <option value="REPARADO">Reparado (Todos)</option>
+                    <option value="REPARADO_PRINCIPAL">Reparado (Principal)</option>
+                    <option value="REPARADO_AGRUPADO">Reparado (Agrupado)</option>
                 </select>
             </div>
             <div class="col-md-1 col-6">
@@ -196,14 +198,16 @@
                     <td>
                         <div class="d-flex align-items-center gap-1">
                             <div class="fw-semibold text-dark">{{ av.cuenta }}</div>
-                            {% if av.cuentas_asociadas %}
-                            <span class="badge bg-info-subtle text-info border border-info-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Cliente Principal de una agrupación">
-                                Principal
-                            </span>
-                            {% elif av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios %}
-                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Agrupado a una avería principal">
-                                Agrupado
-                            </span>
+                            {% if av.estado == "REPARADO" %}
+                                {% if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Agrupado a una avería principal">
+                                    Agrupado
+                                </span>
+                                {% else %}
+                                <span class="badge bg-info-subtle text-info border border-info-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Cliente Principal o Resuelto solo">
+                                    Principal
+                                </span>
+                                {% endif %}
                             {% endif %}
                         </div>
                         <small class="text-muted d-block" style="font-size: 0.725rem;">Origen: {{ av.origen }}</small>
@@ -660,7 +664,22 @@
                 const matchesBranch = branch === "" || rowBranch === branch;
                 const matchesMonth = month === "" || rowMonth === month;
                 const matchesSite = site === "" || rowSite === site;
-                const matchesStatus = status === "" || rowStatus.includes(status);
+                
+                let matchesStatus = false;
+                if (status === "") {
+                    matchesStatus = true;
+                } else if (status === "PENDIENTE") {
+                    matchesStatus = (rowStatus === "PENDIENTE");
+                } else if (status === "REPARADO") {
+                    matchesStatus = (rowStatus === "REPARADO");
+                } else if (status === "REPARADO_PRINCIPAL") {
+                    const rowComentarios = row.getAttribute("data-comentarios") || "";
+                    matchesStatus = (rowStatus === "REPARADO" && !rowComentarios.includes("Agrupado en la avería principal"));
+                } else if (status === "REPARADO_AGRUPADO") {
+                    const rowComentarios = row.getAttribute("data-comentarios") || "";
+                    matchesStatus = (rowStatus === "REPARADO" && rowComentarios.includes("Agrupado en la avería principal"));
+                }
+                
                 const matchesOrigin = origin === "" || rowOrigin === origin;
                 
                 if (matchesSearch && matchesBranch && matchesMonth && matchesSite && matchesStatus && matchesOrigin) {
