@@ -2255,6 +2255,190 @@ def avance_diario():
     )
 
 
+@app.route("/avance-diario/exportar", methods=["GET"])
+@login_requerido
+def exportar_avance_diario():
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    
+    es_admin = session.get("operador_rol") == "admin"
+    es_noc = session.get("operador_rol") == "noc"
+    user_branch = session.get("operador_branch")
+    
+    can_filter_branch = es_admin or es_noc or user_branch == "ALL"
+    
+    branch_arg = request.args.get("branch")
+    if can_filter_branch:
+        target_branch = branch_arg if branch_arg else "ALL"
+    else:
+        target_branch = user_branch
+        
+    hoy_str = obtener_hora_peru().strftime("%Y-%m-%d")
+    date_arg = request.args.get("date", hoy_str).strip()
+    
+    query = Averia.query.filter_by(estado="REPARADO")
+    if target_branch != "ALL":
+        query = query.filter_by(branch=target_branch)
+        
+    all_resolved = query.order_by(Averia.fecha_resolucion.desc()).all()
+    
+    matching_averias = []
+    for av in all_resolved:
+        if av.fecha_resolucion and av.fecha_resolucion.strftime("%Y-%m-%d") == date_arg:
+            matching_averias.append(av)
+            
+    # Calculate stats
+    total_cable = 0
+    total_conectores = 0
+    total_rosetas = 0
+    total_mangas = 0
+    total_acopladores = 0
+    
+    for av in matching_averias:
+        total_cable += av.material_cable_m or 0
+        total_conectores += av.material_conectores or 0
+        total_rosetas += av.material_rosetas or 0
+        total_mangas += av.material_mangas or 0
+        total_acopladores += av.material_acopladores or 0
+        
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Avance Diario"
+    
+    # Styles
+    purple_fill = PatternFill("solid", fgColor="5B21B6") # Deep purple header
+    purple_font = Font(color="FFFFFF", bold=True)
+    light_purple_fill = PatternFill("solid", fgColor="F5F3FF")
+    
+    cyan_fill = PatternFill("solid", fgColor="ECFEFF") # Light cyan accent
+    cyan_font = Font(color="0891B2", bold=True)
+    
+    bold_font = Font(bold=True)
+    italic_font = Font(italic=True, color="64748B")
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+    right_align = Alignment(horizontal="right", vertical="center")
+    
+    # Title Block
+    ws.merge_cells("A1:G1")
+    ws["A1"] = "AVANCE DIARIO - REPORTES DE AVERÍAS RESUELTAS"
+    ws["A1"].font = Font(size=14, bold=True, color="5B21B6")
+    ws["A1"].alignment = left_align
+    ws.row_dimensions[1].height = 30
+    
+    ws["A2"] = f"Fecha de reporte: {date_arg}"
+    ws["A2"].font = bold_font
+    ws["A3"] = f"Sede consultada: {target_branch if target_branch != 'ALL' else 'TODAS LAS SEDES'}"
+    ws["A3"].font = bold_font
+    ws["A4"] = f"Generado el: {obtener_hora_peru().strftime('%Y-%m-%d %H:%M')}"
+    ws["A4"].font = italic_font
+    
+    # Summary Block
+    ws["A6"] = "RESUMEN DE CONSUMO"
+    ws["A6"].font = cyan_font
+    ws["A7"] = "Métrica"
+    ws["B7"] = "Valor"
+    ws["A7"].font = bold_font
+    ws["B7"].font = bold_font
+    ws["A7"].fill = light_purple_fill
+    ws["B7"].fill = light_purple_fill
+    
+    summary_metrics = [
+        ("Averías Resueltas", len(matching_averias), "ud"),
+        ("Cable Drop", total_cable, "m"),
+        ("FAC", total_conectores, "ud"),
+        ("Waterproof", total_rosetas, "ud"),
+        ("Mufas", total_mangas, "ud"),
+        ("Preconectorizado", total_acopladores, "ud")
+    ]
+    
+    for idx, (label, val, unit) in enumerate(summary_metrics, 8):
+        ws[f"A{idx}"] = label
+        ws[f"B{idx}"] = f"{val} {unit}"
+        ws[f"A{idx}"].alignment = left_align
+        ws[f"B{idx}"].alignment = right_align
+        
+    # Detail Table Block
+    start_row = 16
+    ws[f"A{start_row - 1}"] = "DETALLE DE AVERÍAS"
+    ws[f"A{start_row - 1}"].font = cyan_font
+    
+    headers = [
+        "Sede", "Cuenta / Cliente", "Tipo", "Caja", "SITE", 
+        "WO", "Detalles / Comentarios", "Técnico Resuelve", "DNI Técnico",
+        "Cable Drop (m)", "FAC (ud)", "Waterproof (ud)", "Mufas (ud)", "Preconectorizado (ud)",
+        "Hora Resolución"
+    ]
+    
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=start_row, column=col_idx, value=h)
+        cell.fill = purple_fill
+        cell.font = purple_font
+        cell.alignment = center_align
+        
+    ws.row_dimensions[start_row].height = 28
+    
+    row_idx = start_row + 1
+    for av in matching_averias:
+        tipo = "Agrupado" if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios else "Principal"
+        tech_name = av.tecnico.nombre if av.tecnico else "No asignado"
+        tech_dni = av.tecnico.dni if av.tecnico else ""
+        hora_resol = av.fecha_resolucion.strftime('%I:%M %p') if av.fecha_resolucion else ""
+        
+        row_values = [
+            av.branch,
+            av.cuenta or "",
+            tipo,
+            av.caja or "",
+            av.site or "",
+            av.codigo_wo or "",
+            av.detalles or "",
+            tech_name,
+            tech_dni,
+            av.material_cable_m or 0,
+            av.material_conectores or 0,
+            av.material_rosetas or 0,
+            av.material_mangas or 0,
+            av.material_acopladores or 0,
+            hora_resol
+        ]
+        
+        for col_idx, val in enumerate(row_values, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = Font(size=10)
+            if col_idx in [1, 3, 4, 5, 6, 9, 15]:
+                cell.alignment = center_align
+            elif col_idx in [10, 11, 12, 13, 14]:
+                cell.alignment = right_align
+            else:
+                cell.alignment = left_align
+        row_idx += 1
+        
+    # Auto fit column width
+    for col in ws.columns:
+        max_len = 0
+        for cell in col:
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 11)
+        
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    
+    filename = f"avance_diario_{target_branch}_{date_arg}.xlsx"
+    return send_file(
+        out,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
+    )
+
+
 @app.route("/averias", methods=["GET"])
 @login_requerido
 def listar_averias():
