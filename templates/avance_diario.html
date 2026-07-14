@@ -10,7 +10,7 @@
 <div class="row align-items-center mb-4 g-3">
     <div class="col-md-6">
         <h2 class="h3 fw-bold mb-1"><i class="bi bi-calendar2-check text-primary me-2"></i>Avance Diario</h2>
-        <p class="text-muted mb-0">Monitorea y haz seguimiento de las averías resueltas en una fecha determinada. Total: <strong class="text-primary">{{ stats.count }} averías</strong></p>
+        <p class="text-muted mb-0">Monitorea y haz seguimiento de los clientes atendidos en una fecha determinada. Total: <strong class="text-primary">{{ stats.count }} clientes</strong></p>
     </div>
     <div class="col-md-6 text-md-end d-flex gap-2 justify-content-md-end align-items-center flex-wrap">
         <div class="btn-group shadow-sm" role="group" aria-label="Seleccionar Vista">
@@ -86,7 +86,7 @@
             </div>
             <div>
                 <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ stats.count }} ud</div>
-                <div class="metric-label text-muted" style="font-size: 0.75rem;">Resueltas</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Clientes Atendidos</div>
             </div>
         </div>
     </div>
@@ -249,14 +249,14 @@
                 <tr id="emptyRow">
                     <td colspan="8" class="text-center py-5 text-muted">
                         <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
-                        No se registraron averías resueltas para los criterios seleccionados.
+                        No se registraron clientes atendidos para los criterios seleccionados.
                     </td>
                 </tr>
                 {% endfor %}
                 <tr id="noResultsRow" style="display: none;">
                     <td colspan="8" class="text-center py-5 text-muted">
                         <i class="bi bi-search fs-1 d-block mb-2"></i>
-                        No se encontraron averías que coincidan con la búsqueda.
+                        No se encontraron clientes atendidos que coincidan con la búsqueda.
                     </td>
                 </tr>
             </tbody>
