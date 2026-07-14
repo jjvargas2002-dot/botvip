@@ -533,6 +533,11 @@ def sincronizar_drive():
         header = next(reader, None)
         if not header:
             return False, "El archivo de Google Sheets está vacío."
+            
+        # Detectar errores comunes de fórmulas en el documento
+        has_formula_errors = any("#REF!" in str(col) or "#VALUE!" in str(col) or "#N/A" in str(col) for col in header)
+        if has_formula_errors:
+            return False, "El archivo de Google Sheets contiene errores de fórmula (#REF!, #VALUE!, #N/A) en la cabecera. Por favor, espera a que cargue o verifica el documento."
         
         # Mapeo de columnas por índice
         indices = {}
@@ -544,7 +549,8 @@ def sincronizar_drive():
         columnas_requeridas = ["BRANCH", "CUENTA", "COORDENADAS"]
         for col in columnas_requeridas:
             if col not in indices:
-                return False, f"Falta la columna requerida: {col}"
+                columnas_encontradas = [c for c in indices.keys() if c]
+                return False, f"Falta la columna requerida: {col}. Columnas encontradas: {columnas_encontradas}"
         
         cuentas_drive = set()
         nuevos = 0
