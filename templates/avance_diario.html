@@ -271,60 +271,40 @@
             <thead class="table-light">
                 <tr>
                     <th scope="col" class="ps-4">Sede</th>
-                    <th scope="col">SITE</th>
-                    <th scope="col">Caja</th>
-                    <th scope="col" class="text-center">Averías Reparadas</th>
-                    <th scope="col" class="text-center">Cable Drop</th>
-                    <th scope="col" class="text-center">FAC</th>
-                    <th scope="col" class="text-center">Waterproof</th>
-                    <th scope="col" class="text-center">Mufas</th>
-                    <th scope="col" class="pe-4 text-end">Preconectorizado</th>
+                    <th scope="col">Sites Reparados</th>
+                    <th scope="col" class="text-center">Cantidad de Cajas</th>
+                    <th scope="col" class="pe-4 text-end">Cantidad de Clientes Afectados</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in sumario_cajas %}
                 <tr class="sumario-row" 
-                    data-search="{{ item.caja }} {{ item.site }} {{ item.branch }}">
+                    data-search="{{ item.branch }} {{ item.sites_str }}">
                     <td class="ps-4">
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ item.branch }}</span>
                     </td>
                     <td>
-                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-1"><i class="bi bi-diagram-3 me-1"></i>{{ item.site }}</span>
-                    </td>
-                    <td>
-                        <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ item.caja }}</span>
-                    </td>
-                    <td class="text-center fw-bold text-slate-800">
-                        {{ item.count }} cuentas
+                        <span class="text-slate-700 fw-medium">{{ item.sites_str }}</span>
                     </td>
                     <td class="text-center">
-                        <span class="badge bg-blue-subtle text-blue border border-blue-subtle">{{ item.cable }} m</span>
+                        <span class="badge bg-light text-dark border px-2.5 py-1 fw-semibold">{{ item.cajas_count }} cajas</span>
                     </td>
-                    <td class="text-center">
-                        <span class="badge bg-orange-subtle text-orange border border-orange-subtle">{{ item.conectores }} ud</span>
-                    </td>
-                    <td class="text-center">
-                        <span class="badge bg-purple-subtle text-purple border border-purple-subtle">{{ item.rosetas }} ud</span>
-                    </td>
-                    <td class="text-center">
-                        <span class="badge bg-green-subtle text-green border border-green-subtle">{{ item.mangas }} ud</span>
-                    </td>
-                    <td class="pe-4 text-end">
-                        <span class="badge bg-secondary-subtle text-secondary border">{{ item.acopladores }} ud</span>
+                    <td class="pe-4 text-end fw-bold text-slate-800">
+                        {{ item.clientes_count }} cuentas
                     </td>
                 </tr>
                 {% else %}
                 <tr id="emptySumarioRow">
-                    <td colspan="9" class="text-center py-5 text-muted">
+                    <td colspan="4" class="text-center py-5 text-muted">
                         <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
-                        No se registraron cajas reparadas para los criterios seleccionados.
+                        No se registraron datos en el sumario para los criterios seleccionados.
                     </td>
                 </tr>
                 {% endfor %}
                 <tr id="noResultsSumarioRow" style="display: none;">
-                    <td colspan="9" class="text-center py-5 text-muted">
+                    <td colspan="4" class="text-center py-5 text-muted">
                         <i class="bi bi-search fs-1 d-block mb-2"></i>
-                        No se encontraron cajas que coincidan con la búsqueda.
+                        No se encontraron resultados que coincidan con la búsqueda.
                     </td>
                 </tr>
             </tbody>
@@ -431,7 +411,7 @@
         function performQuery() {
             const dateVal = dateFilter.value;
             const branchVal = branchFilter.value;
-            window.location.href = `/avance-diario?date=${dateVal}&branch=${branchVal}`;
+            window.location.href = `/avance-diario?date=${dateVal}&branch=${branchVal}&view=${currentView}`;
         }
 
         btnSearch.addEventListener("click", performQuery);
@@ -441,6 +421,10 @@
         });
 
         searchInput.addEventListener("input", filterTable);
+
+        // Initialize view selection based on backend parameter
+        const initView = '{{ selected_view }}';
+        switchView(initView);
     });
 </script>
 {% endblock %}

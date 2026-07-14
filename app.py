@@ -2247,31 +2247,37 @@ def avance_diario():
     
     sedes = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
     
-    # Group by caja (Pivot Table / Sumario)
-    cajas_agg = {}
-    for av in matching_averias:
-        key = (av.branch, av.site or "N/A", av.caja or "SIN_CAJA")
-        if key not in cajas_agg:
-            cajas_agg[key] = {
-                "branch": av.branch,
-                "site": av.site or "N/A",
-                "caja": av.caja or "SIN_CAJA",
-                "count": 0,
-                "cable": 0,
-                "conectores": 0,
-                "rosetas": 0,
-                "mangas": 0,
-                "acopladores": 0
-            }
-        cajas_agg[key]["count"] += 1
-        cajas_agg[key]["cable"] += av.material_cable_m or 0
-        cajas_agg[key]["conectores"] += av.material_conectores or 0
-        cajas_agg[key]["rosetas"] += av.material_rosetas or 0
-        cajas_agg[key]["mangas"] += av.material_mangas or 0
-        cajas_agg[key]["acopladores"] += av.material_acopladores or 0
+    view_arg = request.args.get("view", "data").strip().lower()
+    if view_arg not in ["data", "sumario"]:
+        view_arg = "data"
         
-    sumario_cajas = list(cajas_agg.values())
-    sumario_cajas.sort(key=lambda x: (x["branch"], x["site"], x["caja"]))
+    # Group by Branch (Sede) for the SUMARIO report
+    branch_agg = {}
+    for av in matching_averias:
+        branch = av.branch
+        if branch not in branch_agg:
+            branch_agg[branch] = {
+                "branch": branch,
+                "sites": set(),
+                "cajas": set(),
+                "clientes": 0
+            }
+        if av.site:
+            branch_agg[branch]["sites"].add(av.site)
+        if av.caja:
+            branch_agg[branch]["cajas"].add(av.caja)
+        branch_agg[branch]["clientes"] += 1
+        
+    sumario_cajas = []
+    for b, data in branch_agg.items():
+        sorted_sites = sorted(list(data["sites"]))
+        sumario_cajas.append({
+            "branch": b,
+            "sites_str": ", ".join(sorted_sites) if sorted_sites else "N/A",
+            "cajas_count": len(data["cajas"]),
+            "clientes_count": data["clientes"]
+        })
+    sumario_cajas.sort(key=lambda x: x["branch"])
     
     return render_template(
         "avance_diario.html",
@@ -2281,7 +2287,8 @@ def avance_diario():
         selected_date=date_arg,
         selected_branch=target_branch,
         can_filter_branch=can_filter_branch,
-        sedes=sedes
+        sedes=sedes,
+        selected_view=view_arg
     )
 
 
@@ -2398,38 +2405,39 @@ def exportar_avance_diario():
     start_row = 16
     
     if view_arg == "sumario":
-        # Group by caja (Pivot Table / Sumario)
-        cajas_agg = {}
+        # Group by Branch (Sede)
+        branch_agg = {}
         for av in matching_averias:
-            key = (av.branch, av.site or "N/A", av.caja or "SIN_CAJA")
-            if key not in cajas_agg:
-                cajas_agg[key] = {
-                    "branch": av.branch,
-                    "site": av.site or "N/A",
-                    "caja": av.caja or "SIN_CAJA",
-                    "count": 0,
-                    "cable": 0,
-                    "conectores": 0,
-                    "rosetas": 0,
-                    "mangas": 0,
-                    "acopladores": 0
+            branch = av.branch
+            if branch not in branch_agg:
+                branch_agg[branch] = {
+                    "branch": branch,
+                    "sites": set(),
+                    "cajas": set(),
+                    "clientes": 0
                 }
-            cajas_agg[key]["count"] += 1
-            cajas_agg[key]["cable"] += av.material_cable_m or 0
-            cajas_agg[key]["conectores"] += av.material_conectores or 0
-            cajas_agg[key]["rosetas"] += av.material_rosetas or 0
-            cajas_agg[key]["mangas"] += av.material_mangas or 0
-            cajas_agg[key]["acopladores"] += av.material_acopladores or 0
+            if av.site:
+                branch_agg[branch]["sites"].add(av.site)
+            if av.caja:
+                branch_agg[branch]["cajas"].add(av.caja)
+            branch_agg[branch]["clientes"] += 1
             
-        sumario_cajas = list(cajas_agg.values())
-        sumario_cajas.sort(key=lambda x: (x["branch"], x["site"], x["caja"]))
+        sumario_cajas = []
+        for b, data in branch_agg.items():
+            sorted_sites = sorted(list(data["sites"]))
+            sumario_cajas.append({
+                "branch": b,
+                "sites_str": ", ".join(sorted_sites) if sorted_sites else "N/A",
+                "cajas_count": len(data["cajas"]),
+                "clientes_count": data["clientes"]
+            })
+        sumario_cajas.sort(key=lambda x: x["branch"])
         
-        ws[f"A{start_row - 1}"] = "SUMARIO DE CAJAS REPARADAS (TABLA DINÁMICA)"
+        ws[f"A{start_row - 1}"] = "SUMARIO DE CAJAS Y CLIENTES POR SEDE"
         ws[f"A{start_row - 1}"].font = cyan_font
         
         headers = [
-            "Sede", "SITE", "Caja", "Cantidad de Averías",
-            "Cable Drop (m)", "FAC (ud)", "Waterproof (ud)", "Mufas (ud)", "Preconectorizado (ud)"
+            "Sede", "Sites Reparados", "Cantidad de Cajas", "Cantidad de Clientes Afectados"
         ]
         
         for col_idx, h in enumerate(headers, 1):
@@ -2444,22 +2452,17 @@ def exportar_avance_diario():
         for item in sumario_cajas:
             row_values = [
                 item["branch"],
-                item["site"],
-                item["caja"],
-                item["count"],
-                item["cable"],
-                item["conectores"],
-                item["rosetas"],
-                item["mangas"],
-                item["acopladores"]
+                item["sites_str"],
+                item["cajas_count"],
+                item["clientes_count"]
             ]
             for col_idx, val in enumerate(row_values, 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=val)
                 cell.font = Font(size=10)
-                if col_idx in [1, 2, 3, 4]:
+                if col_idx in [1, 3, 4]:
                     cell.alignment = center_align
                 else:
-                    cell.alignment = right_align
+                    cell.alignment = left_align
             row_idx += 1
     else:
         # Detail Table Block (default DATA view)
