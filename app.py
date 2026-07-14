@@ -2190,6 +2190,71 @@ def exportar_inventario_sede(branch):
     )
 
 
+@app.route("/avance-diario", methods=["GET"])
+@login_requerido
+def avance_diario():
+    es_admin = session.get("operador_rol") == "admin"
+    es_noc = session.get("operador_rol") == "noc"
+    user_branch = session.get("operador_branch")
+    
+    can_filter_branch = es_admin or es_noc or user_branch == "ALL"
+    
+    branch_arg = request.args.get("branch")
+    if can_filter_branch:
+        target_branch = branch_arg if branch_arg else "ALL"
+    else:
+        target_branch = user_branch
+        
+    hoy_str = obtener_hora_peru().strftime("%Y-%m-%d")
+    date_arg = request.args.get("date", hoy_str).strip()
+    
+    query = Averia.query.filter_by(estado="REPARADO")
+    if target_branch != "ALL":
+        query = query.filter_by(branch=target_branch)
+        
+    all_resolved = query.order_by(Averia.fecha_resolucion.desc()).all()
+    
+    matching_averias = []
+    for av in all_resolved:
+        if av.fecha_resolucion and av.fecha_resolucion.strftime("%Y-%m-%d") == date_arg:
+            matching_averias.append(av)
+            
+    # Calculate stats
+    total_cable = 0
+    total_conectores = 0
+    total_rosetas = 0
+    total_mangas = 0
+    total_acopladores = 0
+    
+    for av in matching_averias:
+        total_cable += av.material_cable_m or 0
+        total_conectores += av.material_conectores or 0
+        total_rosetas += av.material_rosetas or 0
+        total_mangas += av.material_mangas or 0
+        total_acopladores += av.material_acopladores or 0
+        
+    stats = {
+        "count": len(matching_averias),
+        "total_cable": total_cable,
+        "total_conectores": total_conectores,
+        "total_rosetas": total_rosetas,
+        "total_mangas": total_mangas,
+        "total_acopladores": total_acopladores,
+    }
+    
+    sedes = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
+    
+    return render_template(
+        "avance_diario.html",
+        averias=matching_averias,
+        stats=stats,
+        selected_date=date_arg,
+        selected_branch=target_branch,
+        can_filter_branch=can_filter_branch,
+        sedes=sedes
+    )
+
+
 @app.route("/averias", methods=["GET"])
 @login_requerido
 def listar_averias():

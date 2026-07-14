@@ -1,0 +1,310 @@
+{% extends "layout.html" %}
+
+{% block title %}Avance Diario - BotVip{% endblock %}
+
+{% block extra_head %}
+<!-- Daily progress specific styling -->
+{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4 g-3">
+    <div class="col-md-6">
+        <h2 class="h3 fw-bold mb-1"><i class="bi bi-calendar2-check text-primary me-2"></i>Avance Diario</h2>
+        <p class="text-muted mb-0">Monitorea y haz seguimiento de las averías resueltas en una fecha determinada. Total: <strong class="text-primary">{{ stats.count }} averías</strong></p>
+    </div>
+    <div class="col-md-6 text-md-end">
+        <button onclick="window.print();" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1.5 py-2 px-3 shadow-sm">
+            <i class="bi bi-printer-fill"></i> Imprimir Reporte
+        </button>
+    </div>
+</div>
+
+<!-- Controls & Filters card -->
+<div class="card-premium mb-4">
+    <div class="card-body p-3">
+        <div class="row g-3 align-items-end">
+            <!-- Date selection -->
+            <div class="col-md-3 col-12">
+                <label class="form-label small fw-semibold text-secondary">Seleccionar Fecha</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light"><i class="bi bi-calendar-event text-muted"></i></span>
+                    <input type="date" id="dateFilter" class="form-control form-control-custom" value="{{ selected_date }}">
+                </div>
+            </div>
+
+            <!-- Branch selection (Only for Admin, NOC or ALL accounts) -->
+            {% if can_filter_branch %}
+            <div class="col-md-3 col-12">
+                <label class="form-label small fw-semibold text-secondary">Filtrar Sede (NOC/FBB)</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light"><i class="bi bi-geo-alt text-muted"></i></span>
+                    <select id="branchFilter" class="form-select form-select-custom">
+                        <option value="ALL" {% if selected_branch == 'ALL' %}selected{% endif %}>Todas las Sedes</option>
+                        {% for s in sedes %}
+                        <option value="{{ s }}" {% if selected_branch == s %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            {% else %}
+            <input type="hidden" id="branchFilter" value="{{ selected_branch }}">
+            {% endif %}
+
+            <!-- Text search -->
+            <div class="col-md-4 col-12">
+                <label class="form-label small fw-semibold text-secondary">Buscar en la tabla</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchInput" class="form-control form-control-custom" placeholder="Buscar por cuenta, técnico, site, caja...">
+                </div>
+            </div>
+
+            <!-- Reset filters button -->
+            <div class="col-md-2 col-12">
+                <button id="btnSearch" class="btn btn-primary w-100 py-2 d-flex align-items-center justify-content-center gap-1.5 shadow-sm">
+                    <i class="bi bi-funnel-fill"></i> Consultar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Material Summary Cards for the Day -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-primary text-white">
+                <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ stats.count }} ud</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Resueltas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-metric-blue">
+                <i class="bi bi-lightning-charge-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ stats.total_cable }} m</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Cable Drop</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-metric-orange">
+                <i class="bi bi-usb-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ stats.total_conectores }} ud</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">FAC</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-metric-purple">
+                <i class="bi bi-house-door-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ stats.total_rosetas }} ud</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Waterproof</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-metric-green">
+                <i class="bi bi-box-seam-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ stats.total_mangas }} ud</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Mufas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="metric-card-noc">
+            <div class="metric-icon-noc bg-secondary-subtle text-secondary">
+                <i class="bi bi-hdd-network-fill"></i>
+            </div>
+            <div>
+                <div class="metric-value fw-bold text-slate-800" style="font-size: 1.25rem;">{{ stats.total_acopladores }} ud</div>
+                <div class="metric-label text-muted" style="font-size: 0.75rem;">Preconectorizado</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table list of resolved tickets for the day -->
+<div class="card-premium">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="avanceTable">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col" class="ps-4">Sede</th>
+                    <th scope="col">Cuenta / Cliente</th>
+                    <th scope="col">Caja</th>
+                    <th scope="col">SITE</th>
+                    <th scope="col">WO / Detalles</th>
+                    <th scope="col">Técnico Resuelve</th>
+                    <th scope="col" class="text-center">Materiales Consumidos</th>
+                    <th scope="col" class="pe-4 text-end">Hora Resolución</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for av in averias %}
+                <tr class="avance-row" 
+                    data-search="{{ av.cuenta }} {{ av.caja }} {{ av.site or '' }} {{ av.codigo_wo or '' }} {{ av.detalles or '' }} {{ av.tecnico.nombre if av.tecnico else '' }} {{ av.branch }}">
+                    <td class="ps-4">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ av.branch }}</span>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="fw-semibold text-dark">{{ av.cuenta }}</div>
+                            {% if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;">
+                                Agrupado
+                            </span>
+                            {% else %}
+                            <span class="badge bg-info-subtle text-info border border-info-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;">
+                                Principal
+                            </span>
+                            {% endif %}
+                        </div>
+                        <small class="text-muted d-block" style="font-size: 0.725rem;">Origen: {{ av.origen }}</small>
+                        {% if av.cuentas_asociadas %}
+                        <div class="text-muted mt-1" style="font-size: 0.7rem;">
+                            <i class="bi bi-link-45deg"></i> Agrupados: <strong class="text-slate-700">{{ av.cuentas_asociadas }}</strong>
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ av.caja }}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-1"><i class="bi bi-diagram-3 me-1"></i>{{ av.site or 'N/A' }}</span>
+                    </td>
+                    <td>
+                        <div class="fw-medium text-slate-800">{{ av.codigo_wo if av.codigo_wo and av.codigo_wo != 'N/A' else '' }}</div>
+                        <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
+                    </td>
+                    <td>
+                        {% if av.tecnico %}
+                        <div class="fw-semibold text-slate-700"><i class="bi bi-person-circle text-primary me-1"></i>{{ av.tecnico.nombre }}</div>
+                        <small class="text-muted" style="font-size: 0.725rem;">DNI: {{ av.tecnico.dni }}</small>
+                        {% else %}
+                        <span class="text-muted italic">No asignado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-1 justify-content-center" style="max-width: 280px; margin: 0 auto;">
+                            {% if av.material_cable_m %}
+                            <span class="badge bg-blue-subtle text-blue border border-blue-subtle" style="font-size: 0.7rem;" title="Cable Drop">
+                                Cable: {{ av.material_cable_m }}m
+                            </span>
+                            {% endif %}
+                            {% if av.material_conectores %}
+                            <span class="badge bg-orange-subtle text-orange border border-orange-subtle" style="font-size: 0.7rem;" title="FAC">
+                                FAC: {{ av.material_conectores }}ud
+                            </span>
+                            {% endif %}
+                            {% if av.material_rosetas %}
+                            <span class="badge bg-purple-subtle text-purple border border-purple-subtle" style="font-size: 0.7rem;" title="Waterproof">
+                                Waterproof: {{ av.material_rosetas }}ud
+                            </span>
+                            {% endif %}
+                            {% if av.material_mangas %}
+                            <span class="badge bg-green-subtle text-green border border-green-subtle" style="font-size: 0.7rem;" title="Mufas">
+                                Mufas: {{ av.material_mangas }}ud
+                            </span>
+                            {% endif %}
+                            {% if av.material_acopladores %}
+                            <span class="badge bg-secondary-subtle text-secondary border" style="font-size: 0.7rem;" title="Preconectorizado">
+                                Preconectorizado: {{ av.material_acopladores }}ud
+                            </span>
+                            {% endif %}
+                            
+                            {% if not av.material_cable_m and not av.material_conectores and not av.material_rosetas and not av.material_mangas and not av.material_acopladores %}
+                            <span class="text-muted small">Sin consumo registrado</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="pe-4 text-end fw-semibold text-slate-700">
+                        {{ av.fecha_resolucion.strftime('%I:%M %p') if av.fecha_resolucion else 'N/A' }}
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptyRow">
+                    <td colspan="8" class="text-center py-5 text-muted">
+                        <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
+                        No se registraron averías resueltas para los criterios seleccionados.
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr id="noResultsRow" style="display: none;">
+                    <td colspan="8" class="text-center py-5 text-muted">
+                        <i class="bi bi-search fs-1 d-block mb-2"></i>
+                        No se encontraron averías que coincidan con la búsqueda.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const dateFilter = document.getElementById("dateFilter");
+        const branchFilter = document.getElementById("branchFilter");
+        const searchInput = document.getElementById("searchInput");
+        const btnSearch = document.getElementById("btnSearch");
+        const rows = document.querySelectorAll(".avance-row");
+        const emptyRow = document.getElementById("emptyRow");
+        const noResultsRow = document.getElementById("noResultsRow");
+
+        // Reload page to query backend with correct date & branch parameters
+        function performQuery() {
+            const dateVal = dateFilter.value;
+            const branchVal = branchFilter.value;
+            window.location.href = `/avance-diario?date=${dateVal}&branch=${branchVal}`;
+        }
+
+        btnSearch.addEventListener("click", performQuery);
+
+        // Allow pressing Enter key on date field to trigger search
+        dateFilter.addEventListener("keypress", function(e) {
+            if (e.key === "Enter") performQuery();
+        });
+
+        // Client-side text filtering
+        function filterTable() {
+            const query = searchInput.value.toLowerCase().trim();
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const searchData = row.getAttribute("data-search").toLowerCase();
+                if (query === "" || searchData.includes(query)) {
+                    row.style.display = "";
+                    visibleCount++;
+                } else {
+                    row.style.display = "none";
+                }
+            });
+
+            if (rows.length > 0) {
+                if (visibleCount === 0) {
+                    noResultsRow.style.display = "";
+                } else {
+                    noResultsRow.style.display = "none";
+                }
+            }
+        }
+
+        searchInput.addEventListener("input", filterTable);
+    });
+</script>
+{% endblock %}

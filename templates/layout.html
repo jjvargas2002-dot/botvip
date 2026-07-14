@@ -335,6 +335,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link-custom {% if request.path == '/avance-diario' %}active{% endif %}" href="{{ url_for('avance_diario') }}">
+                            <i class="bi bi-calendar2-check-fill"></i> Avance Diario
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link-custom {% if request.path == '/stock' %}active{% endif %}" href="{{ url_for('registrar_stock') }}">
                             <i class="bi bi-box-seam-fill"></i> {% if session.get('operador_rol') == 'noc' %}Branch STOCK{% else %}Registrar STOCK{% endif %}
                         </a>
