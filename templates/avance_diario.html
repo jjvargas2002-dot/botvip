@@ -12,8 +12,16 @@
         <h2 class="h3 fw-bold mb-1"><i class="bi bi-calendar2-check text-primary me-2"></i>Avance Diario</h2>
         <p class="text-muted mb-0">Monitorea y haz seguimiento de las averías resueltas en una fecha determinada. Total: <strong class="text-primary">{{ stats.count }} averías</strong></p>
     </div>
-    <div class="col-md-6 text-md-end">
-        <a id="btnExportarExcel" href="{{ url_for('exportar_avance_diario') }}?date={{ selected_date }}&branch={{ selected_branch }}" class="btn btn-success d-inline-flex align-items-center gap-1.5 py-2 px-3 shadow-sm">
+    <div class="col-md-6 text-md-end d-flex gap-2 justify-content-md-end align-items-center flex-wrap">
+        <div class="btn-group shadow-sm" role="group" aria-label="Seleccionar Vista">
+            <button id="btnViewData" class="btn btn-primary btn-sm active px-3" onclick="switchView('data')" style="border-radius: 0.5rem 0 0 0.5rem; font-size: 0.85rem; height: 38px;">
+                <i class="bi bi-list-task me-1"></i> DATA
+            </button>
+            <button id="btnViewSumario" class="btn btn-outline-primary btn-sm px-3" onclick="switchView('sumario')" style="border-radius: 0 0.5rem 0.5rem 0; font-size: 0.85rem; height: 38px;">
+                <i class="bi bi-grid-3x3-gap-fill me-1"></i> SUMARIO
+            </button>
+        </div>
+        <a id="btnExportarExcel" href="{{ url_for('exportar_avance_diario') }}?date={{ selected_date }}&branch={{ selected_branch }}&view=data" class="btn btn-success d-inline-flex align-items-center gap-1.5 py-2 px-3 shadow-sm" style="height: 38px; border-radius: 0.5rem;">
             <i class="bi bi-file-earmark-excel-fill"></i> Exportar Excel
         </a>
     </div>
@@ -140,7 +148,7 @@
 </div>
 
 <!-- Table list of resolved tickets for the day -->
-<div class="card-premium">
+<div id="containerDataView" class="card-premium">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" id="avanceTable">
             <thead class="table-light">
@@ -256,35 +264,135 @@
     </div>
 </div>
 
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const dateFilter = document.getElementById("dateFilter");
-        const branchFilter = document.getElementById("branchFilter");
-        const searchInput = document.getElementById("searchInput");
-        const btnSearch = document.getElementById("btnSearch");
-        const rows = document.querySelectorAll(".avance-row");
-        const emptyRow = document.getElementById("emptyRow");
-        const noResultsRow = document.getElementById("noResultsRow");
+<!-- Aggregated Table (SUMARIO View) -->
+<div id="containerSumarioView" class="card-premium" style="display: none;">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="sumarioTable">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col" class="ps-4">Sede</th>
+                    <th scope="col">SITE</th>
+                    <th scope="col">Caja</th>
+                    <th scope="col" class="text-center">Averías Reparadas</th>
+                    <th scope="col" class="text-center">Cable Drop</th>
+                    <th scope="col" class="text-center">FAC</th>
+                    <th scope="col" class="text-center">Waterproof</th>
+                    <th scope="col" class="text-center">Mufas</th>
+                    <th scope="col" class="pe-4 text-end">Preconectorizado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in sumario_cajas %}
+                <tr class="sumario-row" 
+                    data-search="{{ item.caja }} {{ item.site }} {{ item.branch }}">
+                    <td class="ps-4">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ item.branch }}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-1"><i class="bi bi-diagram-3 me-1"></i>{{ item.site }}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border"><i class="bi bi-box-seam me-1"></i>{{ item.caja }}</span>
+                    </td>
+                    <td class="text-center fw-bold text-slate-800">
+                        {{ item.count }} cuentas
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-blue-subtle text-blue border border-blue-subtle">{{ item.cable }} m</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-orange-subtle text-orange border border-orange-subtle">{{ item.conectores }} ud</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-purple-subtle text-purple border border-purple-subtle">{{ item.rosetas }} ud</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-green-subtle text-green border border-green-subtle">{{ item.mangas }} ud</span>
+                    </td>
+                    <td class="pe-4 text-end">
+                        <span class="badge bg-secondary-subtle text-secondary border">{{ item.acopladores }} ud</span>
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptySumarioRow">
+                    <td colspan="9" class="text-center py-5 text-muted">
+                        <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
+                        No se registraron cajas reparadas para los criterios seleccionados.
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr id="noResultsSumarioRow" style="display: none;">
+                    <td colspan="9" class="text-center py-5 text-muted">
+                        <i class="bi bi-search fs-1 d-block mb-2"></i>
+                        No se encontraron cajas que coincidan con la búsqueda.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
-        // Reload page to query backend with correct date & branch parameters
-        function performQuery() {
-            const dateVal = dateFilter.value;
-            const branchVal = branchFilter.value;
-            window.location.href = `/avance-diario?date=${dateVal}&branch=${branchVal}`;
+<script>
+    let currentView = 'data';
+
+    function switchView(view) {
+        currentView = view;
+        const containerData = document.getElementById("containerDataView");
+        const containerSumario = document.getElementById("containerSumarioView");
+        const btnData = document.getElementById("btnViewData");
+        const btnSumario = document.getElementById("btnViewSumario");
+        const btnExportar = document.getElementById("btnExportarExcel");
+
+        if (view === 'sumario') {
+            containerData.style.display = "none";
+            containerSumario.style.display = "block";
+            btnData.classList.remove("active", "btn-primary");
+            btnData.classList.add("btn-outline-primary");
+            btnSumario.classList.add("active", "btn-primary");
+            btnSumario.classList.remove("btn-outline-primary");
+        } else {
+            containerData.style.display = "block";
+            containerSumario.style.display = "none";
+            btnData.classList.add("active", "btn-primary");
+            btnData.classList.remove("btn-outline-primary");
+            btnSumario.classList.remove("active", "btn-primary");
+            btnSumario.classList.add("btn-outline-primary");
         }
 
-        btnSearch.addEventListener("click", performQuery);
+        // Update Excel export link view parameter
+        let exportUrl = btnExportar.getAttribute("href");
+        try {
+            const urlObj = new URL(exportUrl, window.location.origin);
+            urlObj.searchParams.set("view", view);
+            btnExportar.setAttribute("href", urlObj.pathname + urlObj.search);
+        } catch(e) {
+            // fallback if URL cannot be parsed
+            if (exportUrl.includes("view=")) {
+                exportUrl = exportUrl.replace(/view=[^&]+/, "view=" + view);
+            } else {
+                exportUrl += "&view=" + view;
+            }
+            btnExportar.setAttribute("href", exportUrl);
+        }
+        
+        // Re-filter table on active view
+        filterTable();
+    }
+    
+    // Bind to window to allow inline onclick attribute
+    window.switchView = switchView;
 
-        // Allow pressing Enter key on date field to trigger search
-        dateFilter.addEventListener("keypress", function(e) {
-            if (e.key === "Enter") performQuery();
-        });
+    // Table text filtering logic
+    function filterTable() {
+        const searchInput = document.getElementById("searchInput");
+        const query = searchInput.value.toLowerCase().trim();
+        const rows = document.querySelectorAll(".avance-row");
+        const sumarioRows = document.querySelectorAll(".sumario-row");
+        const noResultsRow = document.getElementById("noResultsRow");
+        const noResultsSumarioRow = document.getElementById("noResultsSumarioRow");
 
-        // Client-side text filtering
-        function filterTable() {
-            const query = searchInput.value.toLowerCase().trim();
+        if (currentView === 'data') {
             let visibleCount = 0;
-
             rows.forEach(row => {
                 const searchData = row.getAttribute("data-search").toLowerCase();
                 if (query === "" || searchData.includes(query)) {
@@ -294,15 +402,43 @@
                     row.style.display = "none";
                 }
             });
-
             if (rows.length > 0) {
-                if (visibleCount === 0) {
-                    noResultsRow.style.display = "";
+                noResultsRow.style.display = (visibleCount === 0) ? "" : "none";
+            }
+        } else {
+            let visibleCount = 0;
+            sumarioRows.forEach(row => {
+                const searchData = row.getAttribute("data-search").toLowerCase();
+                if (query === "" || searchData.includes(query)) {
+                    row.style.display = "";
+                    visibleCount++;
                 } else {
-                    noResultsRow.style.display = "none";
+                    row.style.display = "none";
                 }
+            });
+            if (sumarioRows.length > 0) {
+                noResultsSumarioRow.style.display = (visibleCount === 0) ? "" : "none";
             }
         }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const dateFilter = document.getElementById("dateFilter");
+        const branchFilter = document.getElementById("branchFilter");
+        const searchInput = document.getElementById("searchInput");
+        const btnSearch = document.getElementById("btnSearch");
+
+        function performQuery() {
+            const dateVal = dateFilter.value;
+            const branchVal = branchFilter.value;
+            window.location.href = `/avance-diario?date=${dateVal}&branch=${branchVal}`;
+        }
+
+        btnSearch.addEventListener("click", performQuery);
+
+        dateFilter.addEventListener("keypress", function(e) {
+            if (e.key === "Enter") performQuery();
+        });
 
         searchInput.addEventListener("input", filterTable);
     });

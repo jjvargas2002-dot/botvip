@@ -2247,9 +2247,36 @@ def avance_diario():
     
     sedes = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
     
+    # Group by caja (Pivot Table / Sumario)
+    cajas_agg = {}
+    for av in matching_averias:
+        key = (av.branch, av.site or "N/A", av.caja or "SIN_CAJA")
+        if key not in cajas_agg:
+            cajas_agg[key] = {
+                "branch": av.branch,
+                "site": av.site or "N/A",
+                "caja": av.caja or "SIN_CAJA",
+                "count": 0,
+                "cable": 0,
+                "conectores": 0,
+                "rosetas": 0,
+                "mangas": 0,
+                "acopladores": 0
+            }
+        cajas_agg[key]["count"] += 1
+        cajas_agg[key]["cable"] += av.material_cable_m or 0
+        cajas_agg[key]["conectores"] += av.material_conectores or 0
+        cajas_agg[key]["rosetas"] += av.material_rosetas or 0
+        cajas_agg[key]["mangas"] += av.material_mangas or 0
+        cajas_agg[key]["acopladores"] += av.material_acopladores or 0
+        
+    sumario_cajas = list(cajas_agg.values())
+    sumario_cajas.sort(key=lambda x: (x["branch"], x["site"], x["caja"]))
+    
     return render_template(
         "avance_diario.html",
         averias=matching_averias,
+        sumario_cajas=sumario_cajas,
         stats=stats,
         selected_date=date_arg,
         selected_branch=target_branch,
@@ -2292,6 +2319,8 @@ def exportar_avance_diario():
         if av.fecha_resolucion and av.fecha_resolucion.strftime("%Y-%m-%d") == date_arg:
             matching_averias.append(av)
             
+    view_arg = request.args.get("view", "data").strip().lower()
+    
     # Calculate stats
     total_cable = 0
     total_conectores = 0
@@ -2326,7 +2355,10 @@ def exportar_avance_diario():
     
     # Title Block
     ws.merge_cells("A1:G1")
-    ws["A1"] = "AVANCE DIARIO - REPORTES DE AVERÍAS RESUELTAS"
+    if view_arg == "sumario":
+        ws["A1"] = "AVANCE DIARIO - SUMARIO DE CAJAS REPARADAS"
+    else:
+        ws["A1"] = "AVANCE DIARIO - REPORTES DE AVERÍAS RESUELTAS"
     ws["A1"].font = Font(size=14, bold=True, color="5B21B6")
     ws["A1"].alignment = left_align
     ws.row_dimensions[1].height = 30
@@ -2363,62 +2395,128 @@ def exportar_avance_diario():
         ws[f"A{idx}"].alignment = left_align
         ws[f"B{idx}"].alignment = right_align
         
-    # Detail Table Block
     start_row = 16
-    ws[f"A{start_row - 1}"] = "DETALLE DE AVERÍAS"
-    ws[f"A{start_row - 1}"].font = cyan_font
     
-    headers = [
-        "Sede", "Cuenta / Cliente", "Tipo", "Caja", "SITE", 
-        "WO", "Detalles / Comentarios", "Técnico Resuelve", "DNI Técnico",
-        "Cable Drop (m)", "FAC (ud)", "Waterproof (ud)", "Mufas (ud)", "Preconectorizado (ud)",
-        "Hora Resolución"
-    ]
-    
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=start_row, column=col_idx, value=h)
-        cell.fill = purple_fill
-        cell.font = purple_font
-        cell.alignment = center_align
+    if view_arg == "sumario":
+        # Group by caja (Pivot Table / Sumario)
+        cajas_agg = {}
+        for av in matching_averias:
+            key = (av.branch, av.site or "N/A", av.caja or "SIN_CAJA")
+            if key not in cajas_agg:
+                cajas_agg[key] = {
+                    "branch": av.branch,
+                    "site": av.site or "N/A",
+                    "caja": av.caja or "SIN_CAJA",
+                    "count": 0,
+                    "cable": 0,
+                    "conectores": 0,
+                    "rosetas": 0,
+                    "mangas": 0,
+                    "acopladores": 0
+                }
+            cajas_agg[key]["count"] += 1
+            cajas_agg[key]["cable"] += av.material_cable_m or 0
+            cajas_agg[key]["conectores"] += av.material_conectores or 0
+            cajas_agg[key]["rosetas"] += av.material_rosetas or 0
+            cajas_agg[key]["mangas"] += av.material_mangas or 0
+            cajas_agg[key]["acopladores"] += av.material_acopladores or 0
+            
+        sumario_cajas = list(cajas_agg.values())
+        sumario_cajas.sort(key=lambda x: (x["branch"], x["site"], x["caja"]))
         
-    ws.row_dimensions[start_row].height = 28
-    
-    row_idx = start_row + 1
-    for av in matching_averias:
-        tipo = "Agrupado" if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios else "Principal"
-        tech_name = av.tecnico.nombre if av.tecnico else "No asignado"
-        tech_dni = av.tecnico.dni if av.tecnico else ""
-        hora_resol = av.fecha_resolucion.strftime('%I:%M %p') if av.fecha_resolucion else ""
+        ws[f"A{start_row - 1}"] = "SUMARIO DE CAJAS REPARADAS (TABLA DINÁMICA)"
+        ws[f"A{start_row - 1}"].font = cyan_font
         
-        row_values = [
-            av.branch,
-            av.cuenta or "",
-            tipo,
-            av.caja or "",
-            av.site or "",
-            av.codigo_wo or "",
-            av.detalles or "",
-            tech_name,
-            tech_dni,
-            av.material_cable_m or 0,
-            av.material_conectores or 0,
-            av.material_rosetas or 0,
-            av.material_mangas or 0,
-            av.material_acopladores or 0,
-            hora_resol
+        headers = [
+            "Sede", "SITE", "Caja", "Cantidad de Averías",
+            "Cable Drop (m)", "FAC (ud)", "Waterproof (ud)", "Mufas (ud)", "Preconectorizado (ud)"
         ]
         
-        for col_idx, val in enumerate(row_values, 1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
-            cell.font = Font(size=10)
-            if col_idx in [1, 3, 4, 5, 6, 9, 15]:
-                cell.alignment = center_align
-            elif col_idx in [10, 11, 12, 13, 14]:
-                cell.alignment = right_align
-            else:
-                cell.alignment = left_align
-        row_idx += 1
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=start_row, column=col_idx, value=h)
+            cell.fill = purple_fill
+            cell.font = purple_font
+            cell.alignment = center_align
+            
+        ws.row_dimensions[start_row].height = 28
         
+        row_idx = start_row + 1
+        for item in sumario_cajas:
+            row_values = [
+                item["branch"],
+                item["site"],
+                item["caja"],
+                item["count"],
+                item["cable"],
+                item["conectores"],
+                item["rosetas"],
+                item["mangas"],
+                item["acopladores"]
+            ]
+            for col_idx, val in enumerate(row_values, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                cell.font = Font(size=10)
+                if col_idx in [1, 2, 3, 4]:
+                    cell.alignment = center_align
+                else:
+                    cell.alignment = right_align
+            row_idx += 1
+    else:
+        # Detail Table Block (default DATA view)
+        ws[f"A{start_row - 1}"] = "DETALLE DE AVERÍAS"
+        ws[f"A{start_row - 1}"].font = cyan_font
+        
+        headers = [
+            "Sede", "Cuenta / Cliente", "Tipo", "Caja", "SITE", 
+            "WO", "Detalles / Comentarios", "Técnico Resuelve", "DNI Técnico",
+            "Cable Drop (m)", "FAC (ud)", "Waterproof (ud)", "Mufas (ud)", "Preconectorizado (ud)",
+            "Hora Resolución"
+        ]
+        
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=start_row, column=col_idx, value=h)
+            cell.fill = purple_fill
+            cell.font = purple_font
+            cell.alignment = center_align
+            
+        ws.row_dimensions[start_row].height = 28
+        
+        row_idx = start_row + 1
+        for av in matching_averias:
+            tipo = "Agrupado" if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios else "Principal"
+            tech_name = av.tecnico.nombre if av.tecnico else "No asignado"
+            tech_dni = av.tecnico.dni if av.tecnico else ""
+            hora_resol = av.fecha_resolucion.strftime('%I:%M %p') if av.fecha_resolucion else ""
+            
+            row_values = [
+                av.branch,
+                av.cuenta or "",
+                tipo,
+                av.caja or "",
+                av.site or "",
+                av.codigo_wo or "",
+                av.detalles or "",
+                tech_name,
+                tech_dni,
+                av.material_cable_m or 0,
+                av.material_conectores or 0,
+                av.material_rosetas or 0,
+                av.material_mangas or 0,
+                av.material_acopladores or 0,
+                hora_resol
+            ]
+            
+            for col_idx, val in enumerate(row_values, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                cell.font = Font(size=10)
+                if col_idx in [1, 3, 4, 5, 6, 9, 15]:
+                    cell.alignment = center_align
+                elif col_idx in [10, 11, 12, 13, 14]:
+                    cell.alignment = right_align
+                else:
+                    cell.alignment = left_align
+            row_idx += 1
+            
     # Auto fit column width
     for col in ws.columns:
         max_len = 0
@@ -2433,7 +2531,7 @@ def exportar_avance_diario():
     wb.save(out)
     out.seek(0)
     
-    filename = f"avance_diario_{target_branch}_{date_arg}.xlsx"
+    filename = f"avance_diario_{view_arg}_{target_branch}_{date_arg}.xlsx"
     return send_file(
         out,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
