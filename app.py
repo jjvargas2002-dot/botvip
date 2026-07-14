@@ -727,12 +727,9 @@ def sincronizar_drive():
                     nuevos_por_branch[branch] = []
                 nuevos_por_branch[branch].append(nueva)
                 
-        # Cerrar averías de tipo 'SHEETS' que ya no están en el Drive (fueron solucionadas externamente)
-        cerrados_ext = Averia.query.filter(
-            Averia.origen == "SHEETS",
-            Averia.estado == "PENDIENTE",
-            ~Averia.cuenta.in_(list(cuentas_drive))
-        ).all()
+        # Obtener todas las averías pendientes originadas en el Drive y filtrarlas en Python para evitar consultas SQL lentas con miles de parámetros
+        sheets_pending = Averia.query.filter_by(origen="SHEETS", estado="PENDIENTE").all()
+        cerrados_ext = [av for av in sheets_pending if av.cuenta not in cuentas_drive]
         
         for av in cerrados_ext:
             av.estado = "REPARADO"
