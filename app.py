@@ -402,6 +402,12 @@ def asegurar_esquema():
                 return True
             if "contacto" in det or "contacto" in ont or "contacto" in caja or "estado: contacto" in com:
                 return True
+            if "desea" in det or "desea" in ont or "desea" in caja or "desea" in com:
+                return True
+            if "contesta" in det or "contesta" in ont or "contesta" in caja or "contesta" in com:
+                return True
+            if "baja" in det or "baja" in ont or "baja" in caja or "baja" in com:
+                return True
             return False
 
         all_avs = Averia.query.all()
@@ -592,6 +598,12 @@ def es_ticket_no_odn(detalles, status_ont, status_caja, material_comentarios=Non
     if contains_word(det, "online") or contains_word(ont, "online") or contains_word(caja, "online") or contains_word(com, "estado: online"):
         return True
     if "contacto" in det or "contacto" in ont or "contacto" in caja or "estado: contacto" in com:
+        return True
+    if "desea" in det or "desea" in ont or "desea" in caja or "desea" in com:
+        return True
+    if "contesta" in det or "contesta" in ont or "contesta" in caja or "contesta" in com:
+        return True
+    if "baja" in det or "baja" in ont or "baja" in caja or "baja" in com:
         return True
         
     return False
