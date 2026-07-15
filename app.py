@@ -376,11 +376,53 @@ def asegurar_esquema():
             db.session.rollback()
     db.session.commit()
 
-    # Cleanup: Delete all tickets previously marked as "Cerrado automáticamente" to keep database clean
+    # Cleanup: Delete only non-ODN tickets (e.g. status ONLINE, contact problem) that have no technician or materials
     try:
-        db.session.execute(text("DELETE FROM averias WHERE material_comentarios LIKE '%Cerrado automáticamente%'"))
+        def es_ticket_no_odn_local(detalles, status_ont, status_caja, material_comentarios=None):
+            det = (detalles or "").lower()
+            ont = (status_ont or "").lower()
+            caja = (status_caja or "").lower()
+            com = (material_comentarios or "").lower()
+            
+            def contains_word(text, word):
+                if word not in text:
+                    return False
+                if word == "online":
+                    if "not online" in text or "no online" in text or "not_online" in text:
+                        import re
+                        occurrences = [m.start() for m in re.finditer("online", text)]
+                        for start in occurrences:
+                            pre_text = text[max(0, start-5):start]
+                            if "not" not in pre_text and "no" not in pre_text:
+                                return True
+                        return False
+                return True
+
+            if contains_word(det, "online") or contains_word(ont, "online") or contains_word(caja, "online") or contains_word(com, "estado: online"):
+                return True
+            if "contacto" in det or "contacto" in ont or "contacto" in caja or "estado: contacto" in com:
+                return True
+            return False
+
+        all_avs = Averia.query.all()
+        deleted_count = 0
+        for av in all_avs:
+            tiene_materiales = (
+                (av.material_cable_m or 0) > 0 or
+                (av.material_conectores or 0) > 0 or
+                (av.material_rosetas or 0) > 0 or
+                (av.material_mangas or 0) > 0 or
+                (av.material_acopladores or 0) > 0 or
+                (av.materiales_json and av.materiales_json != "{}")
+            )
+            if not av.tecnico_id and not tiene_materiales:
+                status_for_check = av.estado if av.estado == "ONLINE" else ""
+                if es_ticket_no_odn_local(av.detalles, status_for_check, av.status_caja, av.material_comentarios):
+                    db.session.delete(av)
+                    deleted_count += 1
         db.session.commit()
-        print("Auto-closed database cleanup executed successfully.")
+        if deleted_count > 0:
+            print(f"Cleaned up {deleted_count} non-ODN tickets from database.")
     except Exception as e:
         print("Error executing database cleanup:", e)
         db.session.rollback()
@@ -527,6 +569,34 @@ def buscar_y_copiar_materiales_previos(cuenta, target_averia, averias_por_cuenta
     return False
 
 
+def es_ticket_no_odn(detalles, status_ont, status_caja, material_comentarios=None):
+    det = (detalles or "").lower()
+    ont = (status_ont or "").lower()
+    caja = (status_caja or "").lower()
+    com = (material_comentarios or "").lower()
+    
+    def contains_word(text, word):
+        if word not in text:
+            return False
+        if word == "online":
+            if "not online" in text or "no online" in text or "not_online" in text:
+                import re
+                occurrences = [m.start() for m in re.finditer("online", text)]
+                for start in occurrences:
+                    pre_text = text[max(0, start-5):start]
+                    if "not" not in pre_text and "no" not in pre_text:
+                        return True
+                return False
+        return True
+
+    if contains_word(det, "online") or contains_word(ont, "online") or contains_word(caja, "online") or contains_word(com, "estado: online"):
+        return True
+    if "contacto" in det or "contacto" in ont or "contacto" in caja or "estado: contacto" in com:
+        return True
+        
+    return False
+
+
 def sincronizar_drive():
     url = "https://docs.google.com/spreadsheets/d/1eaNxCpm8JF1JcZS3_ldwMRINGYFaW6RsQQWybvRi_P8/export?format=csv&gid=1775459558"
     try:
@@ -611,6 +681,23 @@ def sincronizar_drive():
             caja = row[indices.get("CAJA")].strip() if "CAJA" in indices else ""
             coordenadas = row[indices.get("COORDENADAS")].strip() if "COORDENADAS" in indices else ""
             
+            # Check if this is a non-ODN ticket (ONLINE, contacto, etc.)
+            if es_ticket_no_odn(detalles, status_ont, status_caja):
+                # Delete any existing tickets under this account that have no technician or materials
+                existing_tickets = Averia.query.filter_by(cuenta=cuenta).all()
+                for av in existing_tickets:
+                    tiene_materiales = (
+                        (av.material_cable_m or 0) > 0 or
+                        (av.material_conectores or 0) > 0 or
+                        (av.material_rosetas or 0) > 0 or
+                        (av.material_mangas or 0) > 0 or
+                        (av.material_acopladores or 0) > 0 or
+                        (av.materiales_json and av.materiales_json != "{}")
+                    )
+                    if not av.tecnico_id and not tiene_materiales:
+                        db.session.delete(av)
+                continue # Skip importing/updating this row
+                
             # Verificar si en el Drive figura como resuelto
             status_upper = status_ont.upper().strip()
             status_caja_upper = status_caja.upper().strip()
@@ -741,7 +828,9 @@ def sincronizar_drive():
         cerrados_ext = [av for av in sheets_pending if av.cuenta not in cuentas_drive]
         
         for av in cerrados_ext:
-            db.session.delete(av)
+            av.estado = "REPARADO"
+            av.fecha_resolucion = obtener_hora_peru()
+            av.material_comentarios = "Cerrado automáticamente al no figurar en la lista del Drive."
         
         db.session.commit()
         total_cerrados = len(cerrados_ext)
@@ -765,7 +854,7 @@ def sincronizar_drive():
         
         threading.Thread(target=sync_bg).start()
             
-        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} eliminados (ya no figuran en Sheets). (La sincronización de cajas y nodos continúa en segundo plano)."
+        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} cerrados. (La sincronización de cajas y nodos continúa en segundo plano)."
     except Exception as e:
         db.session.rollback()
         print("Error en sincronización de drive:", e)
