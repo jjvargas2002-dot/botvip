@@ -2634,6 +2634,9 @@ def exportar_averias():
         
     reparadas = [av for av in averias if av.estado == "REPARADO" and av.fecha_resolucion]
     
+    # Pre-cache materials dict to avoid parsing JSON millions of times in loops
+    mats_cache_global = {av.id: av.materiales_dict for av in averias}
+    
     # Group reparadas by month (YYYY-MM)
     reparadas_por_mes = collections.defaultdict(list)
     for av in reparadas:
@@ -2710,9 +2713,6 @@ def exportar_averias():
         else:
             reparadas_scope = reparadas
             
-        # Pre-cache materials dict to avoid parsing JSON millions of times in loops
-        mats_cache = {av.id: av.materiales_dict for av in reparadas_scope}
-            
         # Group scope by month
         reparadas_by_mes_scope = collections.defaultdict(list)
         for av in reparadas_scope:
@@ -2737,7 +2737,7 @@ def exportar_averias():
             has_consumption = False
             row_values = []
             for mes in months_keys:
-                cant = sum(get_material_quantity(mats_cache[av.id], m) for av in reparadas_by_mes_scope[mes])
+                cant = sum(get_material_quantity(mats_cache_global[av.id], m) for av in reparadas_by_mes_scope[mes])
                 row_values.append(cant)
                 if cant > 0:
                     has_consumption = True
@@ -2877,7 +2877,7 @@ def exportar_averias():
                 av.cuentas_asociadas or ""
             ]
             
-            mats_dict = av.materiales_dict
+            mats_dict = mats_cache_global[av.id]
             for m in MATERIALES_MASTER:
                 cant = get_material_quantity(mats_dict, m)
                 row_data.append(cant if cant > 0 else "")
@@ -2910,17 +2910,19 @@ def exportar_averias():
         br_sheet = workbook.create_sheet(title=br)
         populate_summary_tables(br_sheet, f"DASHBOARD DE CONSUMO E INCIDENCIAS - Sede: {br}", br)
 
-    # Global column auto-fit
+    # Global column auto-fit (optimized utilizing values_only iter_rows hash mapping)
     for ws in workbook.worksheets:
-        for col in ws.columns:
-            max_len = 0
-            for cell in col:
-                val = str(cell.value or "")
-                if val.startswith("="):
-                    val = "0.00"
-                if len(val) > max_len:
-                    max_len = len(val)
-            col_letter = get_column_letter(col[0].column)
+        col_widths = {}
+        for row in ws.iter_rows(values_only=True):
+            for col_idx, val in enumerate(row, 1):
+                val_str = str(val or "")
+                if val_str.startswith("="):
+                    val_str = "0.00"
+                length = len(val_str)
+                if col_idx not in col_widths or length > col_widths[col_idx]:
+                    col_widths[col_idx] = length
+        for col_idx, max_len in col_widths.items():
+            col_letter = get_column_letter(col_idx)
             ws.column_dimensions[col_letter].width = min(max(max_len + 3, 10), 50)
 
     output = BytesIO()
