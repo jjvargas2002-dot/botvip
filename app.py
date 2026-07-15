@@ -2710,6 +2710,9 @@ def exportar_averias():
         else:
             reparadas_scope = reparadas
             
+        # Pre-cache materials dict to avoid parsing JSON millions of times in loops
+        mats_cache = {av.id: av.materiales_dict for av in reparadas_scope}
+            
         # Group scope by month
         reparadas_by_mes_scope = collections.defaultdict(list)
         for av in reparadas_scope:
@@ -2734,7 +2737,7 @@ def exportar_averias():
             has_consumption = False
             row_values = []
             for mes in months_keys:
-                cant = sum(get_material_quantity(av.materiales_dict, m) for av in reparadas_by_mes_scope[mes])
+                cant = sum(get_material_quantity(mats_cache[av.id], m) for av in reparadas_by_mes_scope[mes])
                 row_values.append(cant)
                 if cant > 0:
                     has_consumption = True
