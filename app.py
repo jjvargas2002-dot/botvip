@@ -2552,7 +2552,8 @@ def listar_averias():
     es_noc = session.get("operador_rol") == "noc"
     branch = session.get("operador_branch")
     
-    query = Averia.query
+    from sqlalchemy.orm import joinedload
+    query = Averia.query.options(joinedload(Averia.tecnico))
     if not es_admin and not es_noc and branch != "ALL":
         query = query.filter_by(branch=branch)
         
@@ -2882,6 +2883,7 @@ def exportar_averias():
         headers_raw.append("Comentarios Solución")
         raw_sheet.append(headers_raw)
         
+        curr_raw_row = 2
         for av in averias:
             tecnico_nombre = av.tecnico.nombre if av.tecnico else ""
             row_data = [
@@ -2910,7 +2912,12 @@ def exportar_averias():
                 row_data.append(cant if cant > 0 else "")
                 
             row_data.append(av.material_comentarios or "")
-            raw_sheet.append(row_data)
+            
+            # Write only non-empty cells to avoid openpyxl Cell overhead
+            for col_idx, val in enumerate(row_data, 1):
+                if val != "" and val is not None:
+                    raw_sheet.cell(row=curr_raw_row, column=col_idx, value=val)
+            curr_raw_row += 1
             
         raw_header_fill = PatternFill("solid", fgColor="1D4ED8")
         raw_header_font = Font(color="FFFFFF", bold=True)
