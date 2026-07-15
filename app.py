@@ -413,19 +413,10 @@ def asegurar_esquema():
         all_avs = Averia.query.all()
         deleted_count = 0
         for av in all_avs:
-            tiene_materiales = (
-                (av.material_cable_m or 0) > 0 or
-                (av.material_conectores or 0) > 0 or
-                (av.material_rosetas or 0) > 0 or
-                (av.material_mangas or 0) > 0 or
-                (av.material_acopladores or 0) > 0 or
-                (av.materiales_json and av.materiales_json != "{}")
-            )
-            if not av.tecnico_id and not tiene_materiales:
-                status_for_check = av.estado if av.estado == "ONLINE" else ""
-                if es_ticket_no_odn_local(av.detalles, status_for_check, av.status_caja, av.material_comentarios):
-                    db.session.delete(av)
-                    deleted_count += 1
+            status_for_check = av.estado if av.estado == "ONLINE" else ""
+            if es_ticket_no_odn_local(av.detalles, status_for_check, av.status_caja, av.material_comentarios):
+                db.session.delete(av)
+                deleted_count += 1
         db.session.commit()
         if deleted_count > 0:
             print(f"Cleaned up {deleted_count} non-ODN tickets from database.")
@@ -695,18 +686,11 @@ def sincronizar_drive():
             
             # Check if this is a non-ODN ticket (ONLINE, contacto, etc.)
             if es_ticket_no_odn(detalles, status_ont, status_caja):
-                # Delete any existing tickets under this account that have no technician or materials
+                # Delete any existing tickets under this account that are themselves non-ODN
                 existing_tickets = Averia.query.filter_by(cuenta=cuenta).all()
                 for av in existing_tickets:
-                    tiene_materiales = (
-                        (av.material_cable_m or 0) > 0 or
-                        (av.material_conectores or 0) > 0 or
-                        (av.material_rosetas or 0) > 0 or
-                        (av.material_mangas or 0) > 0 or
-                        (av.material_acopladores or 0) > 0 or
-                        (av.materiales_json and av.materiales_json != "{}")
-                    )
-                    if not av.tecnico_id and not tiene_materiales:
+                    status_for_check = av.estado if av.estado == "ONLINE" else ""
+                    if es_ticket_no_odn(av.detalles, status_for_check, av.status_caja, av.material_comentarios):
                         db.session.delete(av)
                 continue # Skip importing/updating this row
                 
