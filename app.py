@@ -2637,8 +2637,29 @@ def exportar_averias():
         
     reparadas = [av for av in averias if av.estado == "REPARADO" and av.fecha_resolucion]
     
-    # Pre-cache materials dict to avoid parsing JSON millions of times in loops
-    mats_cache_global = {av.id: av.materiales_dict for av in averias}
+    # Re-structure materials into a lookup dict for extremely fast O(1) lookup
+    mats_lookup_global = {}
+    for av in averias:
+        mats_dict = av.materiales_dict
+        by_key = {}
+        by_code = collections.defaultdict(int)
+        for k, c in mats_dict.items():
+            if c is None:
+                continue
+            try:
+                qty = int(c)
+            except ValueError:
+                qty = 0
+            by_key[k] = qty
+            if "|" in k:
+                parts = k.split("|", 1)
+                code = parts[0]
+                if code and code != "Sin Código":
+                    by_code[code] += qty
+        mats_lookup_global[av.id] = {
+            'by_key': by_key,
+            'by_code': by_code
+        }
     
     # Group reparadas by month (YYYY-MM)
     reparadas_por_mes = collections.defaultdict(list)
@@ -2680,18 +2701,14 @@ def exportar_averias():
     left_align = Alignment(horizontal="left", vertical="center")
     right_align = Alignment(horizontal="right", vertical="center")
     
-    def get_material_quantity(mats_dict, material_obj):
+    def get_material_quantity(lookup, material_obj):
         key = f"{material_obj['codigo']}|{material_obj['nombre']}"
-        cant = mats_dict.get(key)
+        cant = lookup['by_key'].get(key)
         if cant is not None:
             return cant
-        if material_obj['codigo'] and material_obj['codigo'] != "Sin Código":
-            matching_cants = [c for k, c in mats_dict.items() if k.startswith(material_obj['codigo'] + "|")]
-            if len(matching_cants) > 0:
-                try:
-                    return sum(int(c) for c in matching_cants if c is not None)
-                except Exception:
-                    pass
+        code = material_obj['codigo']
+        if code and code != "Sin Código":
+            return lookup['by_code'].get(code, 0)
         return 0
 
     sin_reporte_raw = request.args.get("sin_reporte_raw") == "true"
@@ -2723,9 +2740,9 @@ def exportar_averias():
         
         for av in reparadas_scope:
             mes_str = av.fecha_resolucion.strftime("%Y-%m")
-            mats_dict = mats_cache_global[av.id]
+            lookup = mats_lookup_global[av.id]
             for m in MATERIALES_MASTER:
-                cant = get_material_quantity(mats_dict, m)
+                cant = get_material_quantity(lookup, m)
                 if cant > 0:
                     material_consumption[(m["nombre"], mes_str)] += cant
             if av.tipificacion:
@@ -2887,9 +2904,9 @@ def exportar_averias():
                 av.cuentas_asociadas or ""
             ]
             
-            mats_dict = mats_cache_global[av.id]
+            lookup = mats_lookup_global[av.id]
             for m in MATERIALES_MASTER:
-                cant = get_material_quantity(mats_dict, m)
+                cant = get_material_quantity(lookup, m)
                 row_data.append(cant if cant > 0 else "")
                 
             row_data.append(av.material_comentarios or "")
@@ -2921,10 +2938,14 @@ def exportar_averias():
         br_sheet = workbook.create_sheet(title=br)
         populate_summary_tables(br_sheet, f"DASHBOARD DE CONSUMO E INCIDENCIAS - Sede: {br}", br)
 
-    # Global column auto-fit (optimized utilizing values_only iter_rows hash mapping)
+    # Global column auto-fit (optimized utilizing values_only iter_rows hash mapping, capped at 100 rows to prevent timeouts on large datasets)
     for ws in workbook.worksheets:
         col_widths = {}
+        row_count = 0
         for row in ws.iter_rows(values_only=True):
+            row_count += 1
+            if row_count > 100:
+                break
             for col_idx, val in enumerate(row, 1):
                 val_str = str(val or "")
                 if val_str.startswith("="):
