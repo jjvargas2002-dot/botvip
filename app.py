@@ -2437,8 +2437,6 @@ def exportar_avance_diario():
         total_acopladores += av.material_acopladores or 0
         
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Avance Diario"
     
     # Styles
     purple_fill = PatternFill("solid", fgColor="5B21B6") # Deep purple header
@@ -2454,112 +2452,47 @@ def exportar_avance_diario():
     left_align = Alignment(horizontal="left", vertical="center")
     right_align = Alignment(horizontal="right", vertical="center")
     
-    # Title Block
-    ws.merge_cells("A1:G1")
-    if view_arg == "sumario":
-        ws["A1"] = "AVANCE DIARIO - SUMARIO DE CAJAS REPARADAS"
-    else:
-        ws["A1"] = "AVANCE DIARIO - REPORTES DE AVERÍAS RESUELTAS"
-    ws["A1"].font = Font(size=14, bold=True, color="5B21B6")
-    ws["A1"].alignment = left_align
-    ws.row_dimensions[1].height = 30
-    
-    ws["A2"] = f"Fecha de reporte: {date_arg}"
-    ws["A2"].font = bold_font
-    ws["A3"] = f"Sede consultada: {target_branch if target_branch != 'ALL' else 'TODAS LAS SEDES'}"
-    ws["A3"].font = bold_font
-    ws["A4"] = f"Generado el: {obtener_hora_peru().strftime('%Y-%m-%d %H:%M')}"
-    ws["A4"].font = italic_font
-    
-    # Summary Block
-    ws["A6"] = "RESUMEN DE CONSUMO"
-    ws["A6"].font = cyan_font
-    ws["A7"] = "Métrica"
-    ws["B7"] = "Valor"
-    ws["A7"].font = bold_font
-    ws["B7"].font = bold_font
-    ws["A7"].fill = light_purple_fill
-    ws["B7"].fill = light_purple_fill
-    
-    summary_metrics = [
-        ("Averías Resueltas", len(matching_averias), "ud"),
-        ("Cable Drop", total_cable, "m"),
-        ("FAC", total_conectores, "ud"),
-        ("Waterproof", total_rosetas, "ud"),
-        ("Mufas", total_mangas, "ud"),
-        ("Preconectorizado", total_acopladores, "ud")
-    ]
-    
-    for idx, (label, val, unit) in enumerate(summary_metrics, 8):
-        ws[f"A{idx}"] = label
-        ws[f"B{idx}"] = f"{val} {unit}"
-        ws[f"A{idx}"].alignment = left_align
-        ws[f"B{idx}"].alignment = right_align
+    def write_header_and_summary(ws, sheet_title):
+        # Title Block
+        ws.merge_cells("A1:G1")
+        ws["A1"] = sheet_title
+        ws["A1"].font = Font(size=14, bold=True, color="5B21B6")
+        ws["A1"].alignment = left_align
+        ws.row_dimensions[1].height = 30
         
-    start_row = 16
-    
-    if view_arg == "sumario":
-        # Group by Branch (Sede)
-        branch_agg = {}
-        for av in matching_averias:
-            branch = av.branch
-            if branch not in branch_agg:
-                branch_agg[branch] = {
-                    "branch": branch,
-                    "sites": set(),
-                    "cajas": set(),
-                    "clientes": 0
-                }
-            if av.site:
-                branch_agg[branch]["sites"].add(av.site)
-            if av.caja:
-                branch_agg[branch]["cajas"].add(av.caja)
-            branch_agg[branch]["clientes"] += 1
-            
-        sumario_cajas = []
-        for b, data in branch_agg.items():
-            sorted_sites = sorted(list(data["sites"]))
-            sumario_cajas.append({
-                "branch": b,
-                "sites_str": ", ".join(sorted_sites) if sorted_sites else "N/A",
-                "cajas_count": len(data["cajas"]),
-                "clientes_count": data["clientes"]
-            })
-        sumario_cajas.sort(key=lambda x: x["branch"])
+        ws["A2"] = f"Fecha de reporte: {date_arg}"
+        ws["A2"].font = bold_font
+        ws["A3"] = f"Sede consultada: {target_branch if target_branch != 'ALL' else 'TODAS LAS SEDES'}"
+        ws["A3"].font = bold_font
+        ws["A4"] = f"Generado el: {obtener_hora_peru().strftime('%Y-%m-%d %H:%M')}"
+        ws["A4"].font = italic_font
         
-        ws[f"A{start_row - 1}"] = "SUMARIO DE CAJAS Y CLIENTES POR SEDE"
-        ws[f"A{start_row - 1}"].font = cyan_font
+        # Summary Block
+        ws["A6"] = "RESUMEN DE CONSUMO"
+        ws["A6"].font = cyan_font
+        ws["A7"] = "Métrica"
+        ws["B7"] = "Valor"
+        ws["A7"].font = bold_font
+        ws["B7"].font = bold_font
+        ws["A7"].fill = light_purple_fill
+        ws["B7"].fill = light_purple_fill
         
-        headers = [
-            "Sede", "Sites Reparados", "Cantidad de Cajas", "Cantidad de Clientes Afectados"
+        summary_metrics = [
+            ("Averías Resueltas", len(matching_averias), "ud"),
+            ("Cable Drop", total_cable, "m"),
+            ("FAC", total_conectores, "ud"),
+            ("Waterproof", total_rosetas, "ud"),
+            ("Mufas", total_mangas, "ud"),
+            ("Preconectorizado", total_acopladores, "ud")
         ]
         
-        for col_idx, h in enumerate(headers, 1):
-            cell = ws.cell(row=start_row, column=col_idx, value=h)
-            cell.fill = purple_fill
-            cell.font = purple_font
-            cell.alignment = center_align
-            
-        ws.row_dimensions[start_row].height = 28
-        
-        row_idx = start_row + 1
-        for item in sumario_cajas:
-            row_values = [
-                item["branch"],
-                item["sites_str"],
-                item["cajas_count"],
-                item["clientes_count"]
-            ]
-            for col_idx, val in enumerate(row_values, 1):
-                cell = ws.cell(row=row_idx, column=col_idx, value=val)
-                cell.font = Font(size=10)
-                if col_idx in [1, 3, 4]:
-                    cell.alignment = center_align
-                else:
-                    cell.alignment = left_align
-            row_idx += 1
-    else:
-        # Detail Table Block (default DATA view)
+        for idx, (label, val, unit) in enumerate(summary_metrics, 8):
+            ws[f"A{idx}"] = label
+            ws[f"B{idx}"] = f"{val} {unit}"
+            ws[f"A{idx}"].alignment = left_align
+            ws[f"B{idx}"].alignment = right_align
+
+    def write_details_table(ws, start_row):
         ws[f"A{start_row - 1}"] = "DETALLE DE AVERÍAS"
         ws[f"A{start_row - 1}"].font = cyan_font
         
@@ -2613,16 +2546,96 @@ def exportar_avance_diario():
                 else:
                     cell.alignment = left_align
             row_idx += 1
+
+    if view_arg == "sumario":
+        # Sheet 1: Sumario
+        ws_sumario = wb.active
+        ws_sumario.title = "Sumario"
+        write_header_and_summary(ws_sumario, "AVANCE DIARIO - SUMARIO DE CAJAS REPARADAS")
+        
+        # Group by Branch (Sede)
+        branch_agg = {}
+        for av in matching_averias:
+            branch = av.branch
+            if branch not in branch_agg:
+                branch_agg[branch] = {
+                    "branch": branch,
+                    "sites": set(),
+                    "cajas": set(),
+                    "clientes": 0
+                }
+            if av.site:
+                branch_agg[branch]["sites"].add(av.site)
+            if av.caja:
+                branch_agg[branch]["cajas"].add(av.caja)
+            branch_agg[branch]["clientes"] += 1
             
-    # Auto fit column width
-    for col in ws.columns:
-        max_len = 0
-        for cell in col:
-            val_str = str(cell.value or '')
-            if len(val_str) > max_len:
-                max_len = len(val_str)
-        col_letter = get_column_letter(col[0].column)
-        ws.column_dimensions[col_letter].width = max(max_len + 3, 11)
+        sumario_cajas = []
+        for b, data in branch_agg.items():
+            sorted_sites = sorted(list(data["sites"]))
+            sumario_cajas.append({
+                "branch": b,
+                "sites_str": ", ".join(sorted_sites) if sorted_sites else "N/A",
+                "cajas_count": len(data["cajas"]),
+                "clientes_count": data["clientes"]
+            })
+        sumario_cajas.sort(key=lambda x: x["branch"])
+        
+        start_row = 16
+        ws_sumario[f"A{start_row - 1}"] = "SUMARIO DE CAJAS Y CLIENTES POR SEDE"
+        ws_sumario[f"A{start_row - 1}"].font = cyan_font
+        
+        headers = [
+            "Sede", "Sites Reparados", "Cantidad de Cajas", "Cantidad de Clientes Afectados"
+        ]
+        
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws_sumario.cell(row=start_row, column=col_idx, value=h)
+            cell.fill = purple_fill
+            cell.font = purple_font
+            cell.alignment = center_align
+            
+        ws_sumario.row_dimensions[start_row].height = 28
+        
+        row_idx = start_row + 1
+        for item in sumario_cajas:
+            row_values = [
+                item["branch"],
+                item["sites_str"],
+                item["cajas_count"],
+                item["clientes_count"]
+            ]
+            for col_idx, val in enumerate(row_values, 1):
+                cell = ws_sumario.cell(row=row_idx, column=col_idx, value=val)
+                cell.font = Font(size=10)
+                if col_idx in [1, 3, 4]:
+                    cell.alignment = center_align
+                else:
+                    cell.alignment = left_align
+            row_idx += 1
+            
+        # Sheet 2: Cuentas Reparadas (Detalle)
+        ws_detalle = wb.create_sheet(title="Cuentas Reparadas")
+        write_header_and_summary(ws_detalle, "AVANCE DIARIO - REPORTES DE AVERÍAS RESUELTAS")
+        write_details_table(ws_detalle, start_row=16)
+        
+    else:
+        # Sheet 1: Detalle Cuentas
+        ws_detalle = wb.active
+        ws_detalle.title = "Cuentas Reparadas"
+        write_header_and_summary(ws_detalle, "AVANCE DIARIO - REPORTES DE AVERÍAS RESUELTAS")
+        write_details_table(ws_detalle, start_row=16)
+            
+    # Auto fit column width for all sheets
+    for sheet in wb.worksheets:
+        for col in sheet.columns:
+            max_len = 0
+            for cell in col:
+                val_str = str(cell.value or '')
+                if len(val_str) > max_len:
+                    max_len = len(val_str)
+            col_letter = get_column_letter(col[0].column)
+            sheet.column_dimensions[col_letter].width = max(max_len + 3, 11)
         
     out = BytesIO()
     wb.save(out)
