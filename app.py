@@ -2716,11 +2716,20 @@ def exportar_averias():
         else:
             reparadas_scope = reparadas
             
-        # Group scope by month
-        reparadas_by_mes_scope = collections.defaultdict(list)
+        # Pre-aggregate monthly material consumption and tipificaciones in a single loop
+        # to avoid executing millions of nested loop query steps.
+        material_consumption = collections.defaultdict(int)
+        tipificacion_counts = collections.defaultdict(int)
+        
         for av in reparadas_scope:
             mes_str = av.fecha_resolucion.strftime("%Y-%m")
-            reparadas_by_mes_scope[mes_str].append(av)
+            mats_dict = mats_cache_global[av.id]
+            for m in MATERIALES_MASTER:
+                cant = get_material_quantity(mats_dict, m)
+                if cant > 0:
+                    material_consumption[(m["nombre"], mes_str)] += cant
+            if av.tipificacion:
+                tipificacion_counts[(av.tipificacion, mes_str)] += 1
             
         # Table 1: Material Consumption
         ws.cell(row=curr_row, column=1, value="RESUMEN DE CONSUMO DE MATERIALES").font = Font(size=11, bold=True, color="0891B2")
@@ -2740,7 +2749,7 @@ def exportar_averias():
             has_consumption = False
             row_values = []
             for mes in months_keys:
-                cant = sum(get_material_quantity(mats_cache_global[av.id], m) for av in reparadas_by_mes_scope[mes])
+                cant = material_consumption[(m["nombre"], mes)]
                 row_values.append(cant)
                 if cant > 0:
                     has_consumption = True
@@ -2748,16 +2757,15 @@ def exportar_averias():
             if not has_consumption:
                 continue
                 
-            ws.cell(row=curr_row, column=1, value=m["nombre"]).alignment = left_align
+            ws.cell(row=curr_row, column=1, value=m["nombre"]) # default left-align is fine
             ws.cell(row=curr_row, column=2, value=m["codigo"]).alignment = center_align
             
             for idx, cant in enumerate(row_values):
-                c_cell = ws.cell(row=curr_row, column=3 + idx, value=cant)
-                c_cell.alignment = right_align
+                # Excel naturally right-aligns numeric values. Writing value directly is fast.
+                ws.cell(row=curr_row, column=3 + idx, value=cant)
                 
             total_col_idx = 3 + len(months_keys)
             total_cell = ws.cell(row=curr_row, column=total_col_idx)
-            total_cell.alignment = right_align
             total_cell.font = bold_font
             total_cell.fill = green_fill
             if months_keys:
@@ -2798,20 +2806,19 @@ def exportar_averias():
         curr_row += 1
         
         for typ in typifications:
-            ws.cell(row=curr_row, column=1, value=typ).alignment = left_align
+            ws.cell(row=curr_row, column=1, value=typ) # default left-align is fine
             
             row_counts = []
             for mes in months_keys:
-                count = sum(1 for av in reparadas_by_mes_scope[mes] if av.tipificacion == typ)
+                count = tipificacion_counts[(typ, mes)]
                 row_counts.append(count)
                 
             for idx, count in enumerate(row_counts):
-                c_cell = ws.cell(row=curr_row, column=2 + idx, value=count)
-                c_cell.alignment = right_align
+                # Excel naturally right-aligns numeric values.
+                ws.cell(row=curr_row, column=2 + idx, value=count)
                 
             total_col_idx = 2 + len(months_keys)
             total_cell = ws.cell(row=curr_row, column=total_col_idx)
-            total_cell.alignment = right_align
             total_cell.font = bold_font
             total_cell.fill = green_fill
             if months_keys:
@@ -2905,7 +2912,8 @@ def exportar_averias():
 
     # 3. INDIVIDUAL BRANCH SHEETS
     if target_branch == "ALL":
-        branches_to_generate = ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"]
+        active_branches = set(av.branch for av in reparadas if av.branch)
+        branches_to_generate = [br for br in ["LI1", "LI2", "LI3", "LI4", "LI7", "ARE", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS", "JUN"] if br in active_branches]
     else:
         branches_to_generate = []
         
@@ -2927,6 +2935,9 @@ def exportar_averias():
         for col_idx, max_len in col_widths.items():
             col_letter = get_column_letter(col_idx)
             ws.column_dimensions[col_letter].width = min(max(max_len + 3, 10), 50)
+
+    import gc
+    gc.collect()
 
     output = BytesIO()
     workbook.save(output)
