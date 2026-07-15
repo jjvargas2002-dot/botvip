@@ -376,6 +376,15 @@ def asegurar_esquema():
             db.session.rollback()
     db.session.commit()
 
+    # Cleanup: Delete all tickets previously marked as "Cerrado automáticamente" to keep database clean
+    try:
+        db.session.execute(text("DELETE FROM averias WHERE material_comentarios LIKE '%Cerrado automáticamente%'"))
+        db.session.commit()
+        print("Auto-closed database cleanup executed successfully.")
+    except Exception as e:
+        print("Error executing database cleanup:", e)
+        db.session.rollback()
+
 
 def crear_operador_defecto():
     try:
@@ -732,9 +741,7 @@ def sincronizar_drive():
         cerrados_ext = [av for av in sheets_pending if av.cuenta not in cuentas_drive]
         
         for av in cerrados_ext:
-            av.estado = "REPARADO"
-            av.fecha_resolucion = obtener_hora_peru()
-            av.material_comentarios = "Cerrado automáticamente al no figurar en la lista del Drive."
+            db.session.delete(av)
         
         db.session.commit()
         total_cerrados = len(cerrados_ext)
@@ -758,7 +765,7 @@ def sincronizar_drive():
         
         threading.Thread(target=sync_bg).start()
             
-        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} cerrados. (La sincronización de cajas y nodos continúa en segundo plano)."
+        return True, f"Sincronización exitosa: {nuevos} creados, {actualizados} actualizados y {total_cerrados} eliminados (ya no figuran en Sheets). (La sincronización de cajas y nodos continúa en segundo plano)."
     except Exception as e:
         db.session.rollback()
         print("Error en sincronización de drive:", e)
