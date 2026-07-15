@@ -2211,7 +2211,8 @@ def avance_diario():
     hoy_str = obtener_hora_peru().strftime("%Y-%m-%d")
     date_arg = request.args.get("date", hoy_str).strip()
     
-    query = Averia.query.filter_by(estado="REPARADO")
+    from sqlalchemy.orm import joinedload
+    query = Averia.query.filter_by(estado="REPARADO").options(joinedload(Averia.tecnico))
     if target_branch != "ALL":
         query = query.filter_by(branch=target_branch)
         
@@ -2315,7 +2316,8 @@ def exportar_avance_diario():
     hoy_str = obtener_hora_peru().strftime("%Y-%m-%d")
     date_arg = request.args.get("date", hoy_str).strip()
     
-    query = Averia.query.filter_by(estado="REPARADO")
+    from sqlalchemy.orm import joinedload
+    query = Averia.query.filter_by(estado="REPARADO").options(joinedload(Averia.tecnico))
     if target_branch != "ALL":
         query = query.filter_by(branch=target_branch)
         
@@ -2579,7 +2581,8 @@ def exportar_averias():
     else:
         target_branch = branch_arg if branch_arg else "ALL"
         
-    query = Averia.query
+    from sqlalchemy.orm import joinedload
+    query = Averia.query.options(joinedload(Averia.tecnico))
     if target_branch != "ALL":
         query = query.filter_by(branch=target_branch)
         
