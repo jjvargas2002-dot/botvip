@@ -2364,15 +2364,23 @@ def avance_diario():
     if view_arg not in ["data", "sumario"]:
         view_arg = "data"
         
-    # Group by Branch (Sede) for the SUMARIO report
-    branch_agg = {}
+    # Group by (Fecha, Sede, Site, Caja) for the SUMARIO report
+    group_agg = {}
     for av in matching_averias:
-        branch = av.branch
-        if branch not in branch_agg:
-            branch_agg[branch] = {
+        if not av.fecha_resolucion:
+            continue
+        fecha_str = av.fecha_resolucion.strftime("%Y-%m-%d")
+        branch = av.branch or "N/A"
+        site = av.site or "N/A"
+        caja = av.caja or "N/A"
+        
+        key = (fecha_str, branch, site, caja)
+        if key not in group_agg:
+            group_agg[key] = {
+                "fecha": fecha_str,
                 "branch": branch,
-                "sites": set(),
-                "cajas": set(),
+                "site": site,
+                "caja": caja,
                 "clientes": 0,
                 "cable": 0.0,
                 "conectores": 0,
@@ -2380,23 +2388,16 @@ def avance_diario():
                 "mangas": 0,
                 "acopladores": 0
             }
-        if av.site:
-            branch_agg[branch]["sites"].add(av.site)
-        if av.caja:
-            branch_agg[branch]["cajas"].add(av.caja)
-        branch_agg[branch]["clientes"] += 1
         
-        branch_agg[branch]["cable"] += av.material_cable_m or 0.0
-        branch_agg[branch]["conectores"] += av.material_conectores or 0
-        branch_agg[branch]["rosetas"] += av.material_rosetas or 0
-        branch_agg[branch]["mangas"] += av.material_mangas or 0
-        branch_agg[branch]["acopladores"] += av.material_acopladores or 0
+        group_agg[key]["clientes"] += 1
+        group_agg[key]["cable"] += av.material_cable_m or 0.0
+        group_agg[key]["conectores"] += av.material_conectores or 0
+        group_agg[key]["rosetas"] += av.material_rosetas or 0
+        group_agg[key]["mangas"] += av.material_mangas or 0
+        group_agg[key]["acopladores"] += av.material_acopladores or 0
         
     sumario_cajas = []
-    for b, data in branch_agg.items():
-        sorted_sites = sorted(list(data["sites"]))
-        sorted_cajas = sorted(list(data["cajas"]))
-        
+    for key, data in group_agg.items():
         # Build materials list
         mats_list = []
         if data["cable"] > 0:
@@ -2410,15 +2411,28 @@ def avance_diario():
         if data["acopladores"] > 0:
             mats_list.append(f"Preconectorizado: {data['acopladores']}ud")
             
+        # Parse date for display
+        try:
+            date_obj = datetime.strptime(data["fecha"], "%Y-%m-%d")
+            fecha_disp = date_obj.strftime("%d/%m/%Y")
+        except Exception:
+            fecha_disp = data["fecha"]
+            
         sumario_cajas.append({
-            "branch": b,
-            "sites_str": ", ".join(sorted_sites) if sorted_sites else "N/A",
-            "cajas_str": ", ".join(sorted_cajas) if sorted_cajas else "N/A",
-            "cajas_count": len(data["cajas"]),
+            "fecha": data["fecha"],
+            "fecha_df": fecha_disp,
+            "branch": data["branch"],
+            "site": data["site"],
+            "caja": data["caja"],
             "clientes_count": data["clientes"],
-            "materiales_list": mats_list
+            "materiales_list": mats_list,
+            "materiales_str": ", ".join(mats_list) if mats_list else "Sin consumo"
         })
-    sumario_cajas.sort(key=lambda x: x["branch"])
+        
+    # Sort first by branch, site, caja ascending (stable sort)
+    sumario_cajas.sort(key=lambda x: (x["branch"], x["site"], x["caja"]))
+    # Then sort by date descending
+    sumario_cajas.sort(key=lambda x: x["fecha"], reverse=True)
     
     return render_template(
         "avance_diario.html",
@@ -2623,15 +2637,23 @@ def exportar_avance_diario():
         ws_sumario.title = "Sumario"
         write_header_and_summary(ws_sumario, "AVANCE DIARIO - SUMARIO DE CAJAS REPARADAS")
         
-        # Group by Branch (Sede)
-        branch_agg = {}
+        # Group by (Fecha, Sede, Site, Caja)
+        group_agg = {}
         for av in matching_averias:
-            branch = av.branch
-            if branch not in branch_agg:
-                branch_agg[branch] = {
+            if not av.fecha_resolucion:
+                continue
+            fecha_str = av.fecha_resolucion.strftime("%Y-%m-%d")
+            branch = av.branch or "N/A"
+            site = av.site or "N/A"
+            caja = av.caja or "N/A"
+            
+            key = (fecha_str, branch, site, caja)
+            if key not in group_agg:
+                group_agg[key] = {
+                    "fecha": fecha_str,
                     "branch": branch,
-                    "sites": set(),
-                    "cajas": set(),
+                    "site": site,
+                    "caja": caja,
                     "clientes": 0,
                     "cable": 0.0,
                     "conectores": 0,
@@ -2639,23 +2661,16 @@ def exportar_avance_diario():
                     "mangas": 0,
                     "acopladores": 0
                 }
-            if av.site:
-                branch_agg[branch]["sites"].add(av.site)
-            if av.caja:
-                branch_agg[branch]["cajas"].add(av.caja)
-            branch_agg[branch]["clientes"] += 1
             
-            branch_agg[branch]["cable"] += av.material_cable_m or 0.0
-            branch_agg[branch]["conectores"] += av.material_conectores or 0
-            branch_agg[branch]["rosetas"] += av.material_rosetas or 0
-            branch_agg[branch]["mangas"] += av.material_mangas or 0
-            branch_agg[branch]["acopladores"] += av.material_acopladores or 0
+            group_agg[key]["clientes"] += 1
+            group_agg[key]["cable"] += av.material_cable_m or 0.0
+            group_agg[key]["conectores"] += av.material_conectores or 0
+            group_agg[key]["rosetas"] += av.material_rosetas or 0
+            group_agg[key]["mangas"] += av.material_mangas or 0
+            group_agg[key]["acopladores"] += av.material_acopladores or 0
             
         sumario_cajas = []
-        for b, data in branch_agg.items():
-            sorted_sites = sorted(list(data["sites"]))
-            sorted_cajas = sorted(list(data["cajas"]))
-            
+        for key, data in group_agg.items():
             # Build materials list
             mats_list = []
             if data["cable"] > 0:
@@ -2670,21 +2685,25 @@ def exportar_avance_diario():
                 mats_list.append(f"Preconectorizado: {data['acopladores']}ud")
                 
             sumario_cajas.append({
-                "branch": b,
-                "sites_str": ", ".join(sorted_sites) if sorted_sites else "N/A",
-                "cajas_str": ", ".join(sorted_cajas) if sorted_cajas else "N/A",
-                "cajas_count": len(data["cajas"]),
+                "fecha": data["fecha"],
+                "branch": data["branch"],
+                "site": data["site"],
+                "caja": data["caja"],
                 "clientes_count": data["clientes"],
                 "materiales_str": ", ".join(mats_list) if mats_list else "Sin consumo"
             })
-        sumario_cajas.sort(key=lambda x: x["branch"])
+            
+        # Sort first by branch, site, caja ascending
+        sumario_cajas.sort(key=lambda x: (x["branch"], x["site"], x["caja"]))
+        # Then sort by date descending
+        sumario_cajas.sort(key=lambda x: x["fecha"], reverse=True)
         
         start_row = 16
         ws_sumario[f"A{start_row - 1}"] = "SUMARIO DE CAJAS Y CLIENTES POR SEDE"
         ws_sumario[f"A{start_row - 1}"].font = cyan_font
         
         headers = [
-            "Sede", "Sites Reparados", "Cajas Reparadas", "Cantidad de Cajas", "Clientes con Servicio", "Materiales Consumidos"
+            "Fecha", "Sede", "Site", "Caja Reparada", "Clientes con Servicio", "Materiales Consumidos"
         ]
         
         for col_idx, h in enumerate(headers, 1):
@@ -2697,18 +2716,24 @@ def exportar_avance_diario():
         
         row_idx = start_row + 1
         for item in sumario_cajas:
+            try:
+                date_obj = datetime.strptime(item["fecha"], "%Y-%m-%d")
+                fecha_excel = date_obj.strftime("%d/%m/%Y")
+            except Exception:
+                fecha_excel = item["fecha"]
+                
             row_values = [
+                fecha_excel,
                 item["branch"],
-                item["sites_str"],
-                item["cajas_str"],
-                item["cajas_count"],
+                item["site"],
+                item["caja"],
                 item["clientes_count"],
                 item["materiales_str"]
             ]
             for col_idx, val in enumerate(row_values, 1):
                 cell = ws_sumario.cell(row=row_idx, column=col_idx, value=val)
                 cell.font = Font(size=10)
-                if col_idx in [1, 4, 5]:
+                if col_idx in [1, 2, 5]:
                     cell.alignment = center_align
                 else:
                     cell.alignment = left_align

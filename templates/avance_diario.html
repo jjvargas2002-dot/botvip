@@ -279,10 +279,10 @@
         <table class="table table-hover align-middle mb-0" id="sumarioTable">
             <thead class="table-light">
                 <tr>
-                    <th scope="col" class="ps-4">Sede</th>
-                    <th scope="col">Sites Reparados</th>
-                    <th scope="col">Cajas Reparadas</th>
-                    <th scope="col" class="text-center">Cantidad de Cajas</th>
+                    <th scope="col" class="ps-4">Fecha</th>
+                    <th scope="col">Sede</th>
+                    <th scope="col">Site</th>
+                    <th scope="col">Caja Reparada</th>
                     <th scope="col" class="text-center">Clientes con Servicio</th>
                     <th scope="col" class="pe-4 text-end">Materiales Consumidos</th>
                 </tr>
@@ -290,18 +290,18 @@
             <tbody>
                 {% for item in sumario_cajas %}
                 <tr class="sumario-row" 
-                    data-search="{{ item.branch }} {{ item.sites_str }} {{ item.cajas_str }}">
-                    <td class="ps-4">
+                    data-search="{{ item.fecha_df }} {{ item.branch }} {{ item.site }} {{ item.caja }}">
+                    <td class="ps-4 text-slate-600 small fw-medium">
+                        {{ item.fecha_df }}
+                    </td>
+                    <td>
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ item.branch }}</span>
                     </td>
                     <td>
-                        <span class="text-slate-700 fw-medium">{{ item.sites_str }}</span>
+                        <span class="text-slate-700 fw-medium">{{ item.site }}</span>
                     </td>
                     <td>
-                        <span class="text-slate-700 small">{{ item.cajas_str }}</span>
-                    </td>
-                    <td class="text-center">
-                        <span class="badge bg-light text-dark border px-2.5 py-1 fw-semibold">{{ item.cajas_count }} cajas</span>
+                        <span class="badge bg-light text-dark border px-2 py-1">{{ item.caja }}</span>
                     </td>
                     <td class="text-center fw-bold text-slate-800">
                         {{ item.clientes_count }} cuentas
