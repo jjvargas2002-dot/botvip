@@ -21,7 +21,7 @@
                 <i class="bi bi-grid-3x3-gap-fill me-1"></i> SUMARIO
             </button>
         </div>
-        <a id="btnExportarExcel" href="{{ url_for('exportar_avance_diario') }}?date={{ selected_date }}&branch={{ selected_branch }}&view=data" class="btn btn-success d-inline-flex align-items-center gap-1.5 py-2 px-3 shadow-sm" style="height: 38px; border-radius: 0.5rem;">
+        <a id="btnExportarExcel" href="{{ url_for('exportar_avance_diario') }}?start_date={{ selected_start_date }}&end_date={{ selected_end_date }}&branch={{ selected_branch }}&view=data" class="btn btn-success d-inline-flex align-items-center gap-1.5 py-2 px-3 shadow-sm" style="height: 38px; border-radius: 0.5rem;">
             <i class="bi bi-file-earmark-excel-fill"></i> Exportar Excel
         </a>
     </div>
@@ -31,18 +31,27 @@
 <div class="card-premium mb-4">
     <div class="card-body p-3">
         <div class="row g-3 align-items-end">
-            <!-- Date selection -->
-            <div class="col-md-3 col-12">
-                <label class="form-label small fw-semibold text-secondary">Seleccionar Fecha</label>
+            <!-- Date selection (Start Date) -->
+            <div class="col-md-2 col-6">
+                <label class="form-label small fw-semibold text-secondary">Desde</label>
                 <div class="input-group">
-                    <span class="input-group-text bg-light"><i class="bi bi-calendar-event text-muted"></i></span>
-                    <input type="date" id="dateFilter" class="form-control form-control-custom" value="{{ selected_date }}">
+                    <span class="input-group-text bg-light p-1.5"><i class="bi bi-calendar-date text-muted" style="font-size: 0.85rem;"></i></span>
+                    <input type="date" id="startDateFilter" class="form-control form-control-custom px-2" value="{{ selected_start_date }}">
+                </div>
+            </div>
+
+            <!-- Date selection (End Date) -->
+            <div class="col-md-2 col-6">
+                <label class="form-label small fw-semibold text-secondary">Hasta</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light p-1.5"><i class="bi bi-calendar-date-fill text-muted" style="font-size: 0.85rem;"></i></span>
+                    <input type="date" id="endDateFilter" class="form-control form-control-custom px-2" value="{{ selected_end_date }}">
                 </div>
             </div>
 
             <!-- Branch selection (Only for Admin, NOC or ALL accounts) -->
             {% if can_filter_branch %}
-            <div class="col-md-3 col-12">
+            <div class="col-md-2 col-12">
                 <label class="form-label small fw-semibold text-secondary">Filtrar Sede (NOC/FBB)</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light"><i class="bi bi-geo-alt text-muted"></i></span>
@@ -272,37 +281,51 @@
                 <tr>
                     <th scope="col" class="ps-4">Sede</th>
                     <th scope="col">Sites Reparados</th>
+                    <th scope="col">Cajas Reparadas</th>
                     <th scope="col" class="text-center">Cantidad de Cajas</th>
-                    <th scope="col" class="pe-4 text-end">Cantidad de Clientes Afectados</th>
+                    <th scope="col" class="text-center">Clientes con Servicio</th>
+                    <th scope="col" class="pe-4 text-end">Materiales Consumidos</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in sumario_cajas %}
                 <tr class="sumario-row" 
-                    data-search="{{ item.branch }} {{ item.sites_str }}">
+                    data-search="{{ item.branch }} {{ item.sites_str }} {{ item.cajas_str }}">
                     <td class="ps-4">
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ item.branch }}</span>
                     </td>
                     <td>
                         <span class="text-slate-700 fw-medium">{{ item.sites_str }}</span>
                     </td>
+                    <td>
+                        <span class="text-slate-700 small">{{ item.cajas_str }}</span>
+                    </td>
                     <td class="text-center">
                         <span class="badge bg-light text-dark border px-2.5 py-1 fw-semibold">{{ item.cajas_count }} cajas</span>
                     </td>
-                    <td class="pe-4 text-end fw-bold text-slate-800">
+                    <td class="text-center fw-bold text-slate-800">
                         {{ item.clientes_count }} cuentas
+                    </td>
+                    <td class="pe-4 text-end">
+                        <div class="d-flex flex-wrap gap-1 justify-content-end">
+                            {% for mat in item.materiales_list %}
+                            <span class="badge bg-secondary-subtle text-secondary border" style="font-size: 0.7rem;">{{ mat }}</span>
+                            {% else %}
+                            <span class="text-muted small">Sin consumo</span>
+                            {% endfor %}
+                        </div>
                     </td>
                 </tr>
                 {% else %}
                 <tr id="emptySumarioRow">
-                    <td colspan="4" class="text-center py-5 text-muted">
+                    <td colspan="6" class="text-center py-5 text-muted">
                         <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
                         No se registraron datos en el sumario para los criterios seleccionados.
                     </td>
                 </tr>
                 {% endfor %}
                 <tr id="noResultsSumarioRow" style="display: none;">
-                    <td colspan="4" class="text-center py-5 text-muted">
+                    <td colspan="6" class="text-center py-5 text-muted">
                         <i class="bi bi-search fs-1 d-block mb-2"></i>
                         No se encontraron resultados que coincidan con la búsqueda.
                     </td>
@@ -403,20 +426,26 @@
     }
 
     document.addEventListener("DOMContentLoaded", function() {
-        const dateFilter = document.getElementById("dateFilter");
+        const startDateFilter = document.getElementById("startDateFilter");
+        const endDateFilter = document.getElementById("endDateFilter");
         const branchFilter = document.getElementById("branchFilter");
         const searchInput = document.getElementById("searchInput");
         const btnSearch = document.getElementById("btnSearch");
 
         function performQuery() {
-            const dateVal = dateFilter.value;
+            const startVal = startDateFilter.value;
+            const endVal = endDateFilter.value;
             const branchVal = branchFilter.value;
-            window.location.href = `/avance-diario?date=${dateVal}&branch=${branchVal}&view=${currentView}`;
+            window.location.href = `/avance-diario?start_date=${startVal}&end_date=${endVal}&branch=${branchVal}&view=${currentView}`;
         }
 
         btnSearch.addEventListener("click", performQuery);
 
-        dateFilter.addEventListener("keypress", function(e) {
+        startDateFilter.addEventListener("keypress", function(e) {
+            if (e.key === "Enter") performQuery();
+        });
+
+        endDateFilter.addEventListener("keypress", function(e) {
             if (e.key === "Enter") performQuery();
         });
 

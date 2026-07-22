@@ -2301,8 +2301,26 @@ def avance_diario():
         target_branch = user_branch
         
     hoy_str = obtener_hora_peru().strftime("%Y-%m-%d")
-    date_arg = request.args.get("date", hoy_str).strip()
-    
+    date_arg = request.args.get("date")
+    if date_arg:
+        start_date_arg = date_arg.strip()
+        end_date_arg = date_arg.strip()
+    else:
+        start_date_arg = request.args.get("start_date", hoy_str).strip()
+        end_date_arg = request.args.get("end_date", hoy_str).strip()
+        
+    from datetime import datetime
+    try:
+        start_dt = datetime.strptime(start_date_arg, "%Y-%m-%d").date()
+    except Exception:
+        start_dt = obtener_hora_peru().date()
+        start_date_arg = hoy_str
+    try:
+        end_dt = datetime.strptime(end_date_arg, "%Y-%m-%d").date()
+    except Exception:
+        end_dt = obtener_hora_peru().date()
+        end_date_arg = hoy_str
+        
     from sqlalchemy.orm import joinedload
     query = Averia.query.filter_by(estado="REPARADO").options(joinedload(Averia.tecnico))
     if target_branch != "ALL":
@@ -2312,8 +2330,10 @@ def avance_diario():
     
     matching_averias = []
     for av in all_resolved:
-        if av.fecha_resolucion and av.fecha_resolucion.strftime("%Y-%m-%d") == date_arg:
-            matching_averias.append(av)
+        if av.fecha_resolucion:
+            av_date = av.fecha_resolucion.date()
+            if start_dt <= av_date <= end_dt:
+                matching_averias.append(av)
             
     # Calculate stats
     total_cable = 0
@@ -2353,7 +2373,12 @@ def avance_diario():
                 "branch": branch,
                 "sites": set(),
                 "cajas": set(),
-                "clientes": 0
+                "clientes": 0,
+                "cable": 0.0,
+                "conectores": 0,
+                "rosetas": 0,
+                "mangas": 0,
+                "acopladores": 0
             }
         if av.site:
             branch_agg[branch]["sites"].add(av.site)
@@ -2361,14 +2386,37 @@ def avance_diario():
             branch_agg[branch]["cajas"].add(av.caja)
         branch_agg[branch]["clientes"] += 1
         
+        branch_agg[branch]["cable"] += av.material_cable_m or 0.0
+        branch_agg[branch]["conectores"] += av.material_conectores or 0
+        branch_agg[branch]["rosetas"] += av.material_rosetas or 0
+        branch_agg[branch]["mangas"] += av.material_mangas or 0
+        branch_agg[branch]["acopladores"] += av.material_acopladores or 0
+        
     sumario_cajas = []
     for b, data in branch_agg.items():
         sorted_sites = sorted(list(data["sites"]))
+        sorted_cajas = sorted(list(data["cajas"]))
+        
+        # Build materials list
+        mats_list = []
+        if data["cable"] > 0:
+            mats_list.append(f"Cable: {data['cable']}m")
+        if data["conectores"] > 0:
+            mats_list.append(f"FAC: {data['conectores']}ud")
+        if data["rosetas"] > 0:
+            mats_list.append(f"Waterproof: {data['rosetas']}ud")
+        if data["mangas"] > 0:
+            mats_list.append(f"Mufas: {data['mangas']}ud")
+        if data["acopladores"] > 0:
+            mats_list.append(f"Preconectorizado: {data['acopladores']}ud")
+            
         sumario_cajas.append({
             "branch": b,
             "sites_str": ", ".join(sorted_sites) if sorted_sites else "N/A",
+            "cajas_str": ", ".join(sorted_cajas) if sorted_cajas else "N/A",
             "cajas_count": len(data["cajas"]),
-            "clientes_count": data["clientes"]
+            "clientes_count": data["clientes"],
+            "materiales_list": mats_list
         })
     sumario_cajas.sort(key=lambda x: x["branch"])
     
@@ -2377,12 +2425,14 @@ def avance_diario():
         averias=matching_averias,
         sumario_cajas=sumario_cajas,
         stats=stats,
-        selected_date=date_arg,
+        selected_start_date=start_date_arg,
+        selected_end_date=end_date_arg,
         selected_branch=target_branch,
         can_filter_branch=can_filter_branch,
         sedes=sedes,
         selected_view=view_arg
     )
+
 
 
 @app.route("/avance-diario/exportar", methods=["GET"])
@@ -2406,8 +2456,26 @@ def exportar_avance_diario():
         target_branch = user_branch
         
     hoy_str = obtener_hora_peru().strftime("%Y-%m-%d")
-    date_arg = request.args.get("date", hoy_str).strip()
-    
+    date_arg = request.args.get("date")
+    if date_arg:
+        start_date_arg = date_arg.strip()
+        end_date_arg = date_arg.strip()
+    else:
+        start_date_arg = request.args.get("start_date", hoy_str).strip()
+        end_date_arg = request.args.get("end_date", hoy_str).strip()
+        
+    from datetime import datetime
+    try:
+        start_dt = datetime.strptime(start_date_arg, "%Y-%m-%d").date()
+    except Exception:
+        start_dt = obtener_hora_peru().date()
+        start_date_arg = hoy_str
+    try:
+        end_dt = datetime.strptime(end_date_arg, "%Y-%m-%d").date()
+    except Exception:
+        end_dt = obtener_hora_peru().date()
+        end_date_arg = hoy_str
+        
     from sqlalchemy.orm import joinedload
     query = Averia.query.filter_by(estado="REPARADO").options(joinedload(Averia.tecnico))
     if target_branch != "ALL":
@@ -2417,8 +2485,10 @@ def exportar_avance_diario():
     
     matching_averias = []
     for av in all_resolved:
-        if av.fecha_resolucion and av.fecha_resolucion.strftime("%Y-%m-%d") == date_arg:
-            matching_averias.append(av)
+        if av.fecha_resolucion:
+            av_date = av.fecha_resolucion.date()
+            if start_dt <= av_date <= end_dt:
+                matching_averias.append(av)
             
     view_arg = request.args.get("view", "data").strip().lower()
     
@@ -2460,7 +2530,7 @@ def exportar_avance_diario():
         ws["A1"].alignment = left_align
         ws.row_dimensions[1].height = 30
         
-        ws["A2"] = f"Fecha de reporte: {date_arg}"
+        ws["A2"] = f"Rango de reporte: {start_date_arg} al {end_date_arg}"
         ws["A2"].font = bold_font
         ws["A3"] = f"Sede consultada: {target_branch if target_branch != 'ALL' else 'TODAS LAS SEDES'}"
         ws["A3"].font = bold_font
@@ -2562,7 +2632,12 @@ def exportar_avance_diario():
                     "branch": branch,
                     "sites": set(),
                     "cajas": set(),
-                    "clientes": 0
+                    "clientes": 0,
+                    "cable": 0.0,
+                    "conectores": 0,
+                    "rosetas": 0,
+                    "mangas": 0,
+                    "acopladores": 0
                 }
             if av.site:
                 branch_agg[branch]["sites"].add(av.site)
@@ -2570,14 +2645,37 @@ def exportar_avance_diario():
                 branch_agg[branch]["cajas"].add(av.caja)
             branch_agg[branch]["clientes"] += 1
             
+            branch_agg[branch]["cable"] += av.material_cable_m or 0.0
+            branch_agg[branch]["conectores"] += av.material_conectores or 0
+            branch_agg[branch]["rosetas"] += av.material_rosetas or 0
+            branch_agg[branch]["mangas"] += av.material_mangas or 0
+            branch_agg[branch]["acopladores"] += av.material_acopladores or 0
+            
         sumario_cajas = []
         for b, data in branch_agg.items():
             sorted_sites = sorted(list(data["sites"]))
+            sorted_cajas = sorted(list(data["cajas"]))
+            
+            # Build materials list
+            mats_list = []
+            if data["cable"] > 0:
+                mats_list.append(f"Cable: {data['cable']}m")
+            if data["conectores"] > 0:
+                mats_list.append(f"FAC: {data['conectores']}ud")
+            if data["rosetas"] > 0:
+                mats_list.append(f"Waterproof: {data['rosetas']}ud")
+            if data["mangas"] > 0:
+                mats_list.append(f"Mufas: {data['mangas']}ud")
+            if data["acopladores"] > 0:
+                mats_list.append(f"Preconectorizado: {data['acopladores']}ud")
+                
             sumario_cajas.append({
                 "branch": b,
                 "sites_str": ", ".join(sorted_sites) if sorted_sites else "N/A",
+                "cajas_str": ", ".join(sorted_cajas) if sorted_cajas else "N/A",
                 "cajas_count": len(data["cajas"]),
-                "clientes_count": data["clientes"]
+                "clientes_count": data["clientes"],
+                "materiales_str": ", ".join(mats_list) if mats_list else "Sin consumo"
             })
         sumario_cajas.sort(key=lambda x: x["branch"])
         
@@ -2586,7 +2684,7 @@ def exportar_avance_diario():
         ws_sumario[f"A{start_row - 1}"].font = cyan_font
         
         headers = [
-            "Sede", "Sites Reparados", "Cantidad de Cajas", "Cantidad de Clientes Afectados"
+            "Sede", "Sites Reparados", "Cajas Reparadas", "Cantidad de Cajas", "Clientes con Servicio", "Materiales Consumidos"
         ]
         
         for col_idx, h in enumerate(headers, 1):
@@ -2602,13 +2700,15 @@ def exportar_avance_diario():
             row_values = [
                 item["branch"],
                 item["sites_str"],
+                item["cajas_str"],
                 item["cajas_count"],
-                item["clientes_count"]
+                item["clientes_count"],
+                item["materiales_str"]
             ]
             for col_idx, val in enumerate(row_values, 1):
                 cell = ws_sumario.cell(row=row_idx, column=col_idx, value=val)
                 cell.font = Font(size=10)
-                if col_idx in [1, 3, 4]:
+                if col_idx in [1, 4, 5]:
                     cell.alignment = center_align
                 else:
                     cell.alignment = left_align
@@ -2641,7 +2741,7 @@ def exportar_avance_diario():
     wb.save(out)
     out.seek(0)
     
-    filename = f"avance_diario_{view_arg}_{target_branch}_{date_arg}.xlsx"
+    filename = f"avance_diario_{view_arg}_{target_branch}_{start_date_arg}_to_{end_date_arg}.xlsx"
     return send_file(
         out,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
