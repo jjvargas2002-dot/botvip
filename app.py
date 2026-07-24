@@ -2584,7 +2584,7 @@ def exportar_avance_diario():
             "Sede", "Cuenta / Cliente", "Tipo", "Caja", "SITE", 
             "WO", "Detalles / Comentarios", "Técnico Resuelve", "DNI Técnico",
             "Cable Drop (m)", "FAC (ud)", "Waterproof (ud)", "Mufas (ud)", "Preconectorizado (ud)",
-            "Hora Resolución"
+            "Fecha/Hora Resolución"
         ]
         
         for col_idx, h in enumerate(headers, 1):
@@ -2600,7 +2600,7 @@ def exportar_avance_diario():
             tipo = "Agrupado" if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios else "Principal"
             tech_name = av.tecnico.nombre if av.tecnico else "No asignado"
             tech_dni = av.tecnico.dni if av.tecnico else ""
-            hora_resol = av.fecha_resolucion.strftime('%I:%M %p') if av.fecha_resolucion else ""
+            hora_resol = av.fecha_resolucion.strftime('%Y-%m-%d %I:%M %p') if av.fecha_resolucion else ""
             
             row_values = [
                 av.branch,
