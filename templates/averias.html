@@ -168,7 +168,7 @@
                     <th scope="col">SITE</th>
                     <th scope="col">WO / Detalles</th>
                     <th scope="col">Estado</th>
-                    <th scope="col">Materiales Consumidos</th>
+                    <th scope="col" style="min-width: 250px; max-width: 320px;">Materiales Consumidos</th>
                     <th scope="col">Acciones</th>
                     <th scope="col">Fecha Creación</th>
                     <th scope="col" class="pe-4">Fecha Resolución</th>
@@ -244,17 +244,17 @@
                         </span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td style="min-width: 250px; max-width: 320px;">
                         {% if av.estado == 'REPARADO' %}
-                        <div class="d-flex flex-wrap gap-1.5 align-items-center" style="max-width: 280px;">
+                        <div class="d-flex flex-column gap-1">
                             {% set count_mats = namespace(value=0) %}
                             {% for key, cant in av.materiales_dict.items() %}
                                 {% set parts = key.split('|') %}
                                 {% set nombre = parts[1] %}
                                 {% if cant > 0 %}
-                                    <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 rounded" style="font-size: 0.725rem;" title="{{ nombre }}">
+                                    <div class="badge bg-secondary-subtle text-secondary border px-2 py-1.5 text-start text-wrap lh-base fw-normal d-block" style="font-size: 0.725rem; white-space: normal; word-break: break-word;">
                                         {{ nombre }}: <span class="text-dark fw-bold">{{ cant }}</span>
-                                    </span>
+                                    </div>
                                     {% set count_mats.value = count_mats.value + 1 %}
                                 {% endif %}
                             {% endfor %}
