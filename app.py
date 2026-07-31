@@ -372,10 +372,10 @@ def asegurar_esquema():
     for consulta in columnas:
         try:
             db.session.execute(text(consulta))
+            db.session.commit()
         except Exception as e:
             print(f"Error ejecutando consulta de esquema {consulta}: {e}")
             db.session.rollback()
-    db.session.commit()
 
     # Cleanup: Delete only non-ODN tickets (e.g. status ONLINE, contact problem) that have no technician or materials
     try:
