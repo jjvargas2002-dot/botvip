@@ -14,34 +14,32 @@
  * 1. Abrir el spreadsheet -> Extensiones -> Apps Script.
  * 2. Pegar este archivo (reemplazando el contenido de Code.gs, o como
  *    archivo nuevo).
- * 3. En el editor, seleccionar la función "setup" en el desplegable de
- *    funciones y ejecutarla una vez (Run). Autoriza los permisos que pida.
- *    Esto guarda el secreto compartido en las Propiedades del Script.
- * 4. Implementar -> Nueva implementación -> Tipo: Aplicación web.
+ * 3. Implementar -> Gestionar implementaciones (o Nueva implementación) ->
+ *    Tipo: Aplicación web.
  *    - Ejecutar como: Yo (tu cuenta).
  *    - Quién tiene acceso: Cualquier usuario.
- * 5. Copiar la URL de la app web y colocarla en BotBitel/.env como
- *    STATUS_CAJAS_WEBHOOK_URL. El secreto ya está en .env como
- *    STATUS_CAJAS_WEBHOOK_SECRET (debe coincidir con el que pongas abajo
- *    en setup()).
+ * 4. Copiar la URL de la app web y colocarla en BotBitel/.env como
+ *    STATUS_CAJAS_WEBHOOK_URL. Debe coincidir con WEBHOOK_SECRET de abajo.
+ *
+ * Nota: el secreto se guarda como constante en el código (no en
+ * PropertiesService) porque leer/escribir Propiedades del Script desde un
+ * despliegue de Aplicación Web público falla con
+ * "PERMISSION_DENIED al leer desde el almacenamiento" en algunos proyectos
+ * tras cambiar el acceso del despliegue. El código fuente no es público,
+ * solo la URL del endpoint, así que sigue siendo seguro.
  */
 
 var SHEET_GID = 773109892; // gid de la pestaña "STATUS DE CAJAS" en la URL del sheet
 var HEADER_ROW = 2;        // fila 2 tiene los encabezados; los datos empiezan en la fila 3
 var COL_CUENTA = 3;        // columna C
 var COL_STATUS = 7;        // columna G
-
-function setup() {
-  // Reemplaza el valor por el mismo secreto configurado en STATUS_CAJAS_WEBHOOK_SECRET (.env)
-  PropertiesService.getScriptProperties().setProperty('WEBHOOK_SECRET', 'naXl72P0xGs_RhQeeGDkNDtQZsuQGK55VngKJ0ATkys');
-}
+var WEBHOOK_SECRET = 'naXl72P0xGs_RhQeeGDkNDtQZsuQGK55VngKJ0ATkys'; // debe coincidir con STATUS_CAJAS_WEBHOOK_SECRET (.env)
 
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
-    var expectedSecret = PropertiesService.getScriptProperties().getProperty('WEBHOOK_SECRET');
 
-    if (!expectedSecret || body.secret !== expectedSecret) {
+    if (!WEBHOOK_SECRET || body.secret !== WEBHOOK_SECRET) {
       return jsonResponse({ ok: false, error: 'unauthorized' });
     }
 
