@@ -1560,7 +1560,20 @@ def agrupar_clientes_averia(id):
             
         caja_compuesta = "-".join(caja_parts)
         averia.caja = caja_compuesta
-        
+
+        # Si se llega a agrupar sin haber resuelto antes el ticket principal
+        # (botón "Agrupar" directo desde la tabla), márcalo como reparado también:
+        # estar en esta pantalla confirmando clientes agrupados implica que la caja
+        # ya fue reparada.
+        principal_recien_resuelta = averia.estado != "REPARADO"
+        if principal_recien_resuelta:
+            averia.estado = "REPARADO"
+            averia.fecha_resolucion = obtener_hora_peru()
+            averia.tecnico_id = session.get("operador_id")
+            averia.resolucion_fuente = "APP"
+            if not averia.material_comentarios:
+                averia.material_comentarios = "Reparado desde el portal"
+
         selected_accounts = request.form.getlist("selected_clientes")
         new_set = set(selected_accounts)
         
@@ -1620,6 +1633,8 @@ def agrupar_clientes_averia(id):
         
         try:
             db.session.commit()
+            if principal_recien_resuelta:
+                notificar_status_cajas_async(averia.cuenta)
             for cuenta_agrupada in to_add:
                 notificar_status_cajas_async(cuenta_agrupada)
             flash("Asociación de clientes y caja guardada con éxito.", "success")
