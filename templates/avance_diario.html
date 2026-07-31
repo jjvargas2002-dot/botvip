@@ -182,13 +182,17 @@
                     <td>
                         <div class="d-flex align-items-center gap-1">
                             <div class="fw-semibold text-dark">{{ av.cuenta }}</div>
-                            {% if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios %}
+                            {% if av.tipo_reparacion == "AGRUPADO" %}
                             <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;">
                                 Agrupado
                             </span>
-                            {% else %}
+                            {% elif av.tipo_reparacion == "PRINCIPAL_APP" %}
                             <span class="badge bg-info-subtle text-info border border-info-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;">
-                                Principal
+                                Principal: Fuente app
+                            </span>
+                            {% elif av.tipo_reparacion == "PRINCIPAL_SHEET" %}
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;">
+                                Principal: Fuente sheet
                             </span>
                             {% endif %}
                         </div>

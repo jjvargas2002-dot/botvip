@@ -79,9 +79,35 @@ class Averia(db.Model):
     materiales_json = db.Column(db.Text)
     tipificacion = db.Column(db.String(100), nullable=True)
     cuentas_asociadas = db.Column(db.Text, nullable=True)
+    resolucion_fuente = db.Column(db.String(10), nullable=True)  # APP / SHEET
 
     # Relación
     tecnico = db.relationship("Operador", backref="averias_resueltas", foreign_keys=[tecnico_id])
+
+    @property
+    def tipo_reparacion(self):
+        """Clasifica la reparación en AGRUPADO / PRINCIPAL_APP / PRINCIPAL_SHEET."""
+        if self.estado != "REPARADO":
+            return ""
+        if self.material_comentarios and "Agrupado en la avería principal" in self.material_comentarios:
+            return "AGRUPADO"
+        if self.resolucion_fuente == "APP":
+            return "PRINCIPAL_APP"
+        if self.resolucion_fuente == "SHEET":
+            return "PRINCIPAL_SHEET"
+        # Registros antiguos sin resolucion_fuente: inferir por el comentario
+        comentario = (self.material_comentarios or "").lower()
+        if "marcado como resuelto en el drive" in comentario or "cerrado automáticamente" in comentario:
+            return "PRINCIPAL_SHEET"
+        return "PRINCIPAL_APP"
+
+    @property
+    def tipo_reparacion_label(self):
+        return {
+            "AGRUPADO": "Agrupado",
+            "PRINCIPAL_APP": "Principal: Fuente app",
+            "PRINCIPAL_SHEET": "Principal: Fuente sheet",
+        }.get(self.tipo_reparacion, "")
 
     @property
     def materiales_dict(self):

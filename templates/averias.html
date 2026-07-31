@@ -77,7 +77,8 @@
                     <option value="">Todos los Estados</option>
                     <option value="PENDIENTE">Pendiente</option>
                     <option value="REPARADO">Reparado (Todos)</option>
-                    <option value="REPARADO_PRINCIPAL">Reparado (Principal)</option>
+                    <option value="REPARADO_PRINCIPAL_APP">Reparado (Principal: Fuente app)</option>
+                    <option value="REPARADO_PRINCIPAL_SHEET">Reparado (Principal: Fuente sheet)</option>
                     <option value="REPARADO_AGRUPADO">Reparado (Agrupado)</option>
                 </select>
             </div>
@@ -192,7 +193,8 @@
                     data-comentarios="{{ av.material_comentarios or '' }}"
                     data-caja="{{ av.caja or '' }}"
                     data-cuenta="{{ av.cuenta or '' }}"
-                    data-tipificacion="{{ av.tipificacion or '' }}">
+                    data-tipificacion="{{ av.tipificacion or '' }}"
+                    data-tipo="{{ av.tipo_reparacion }}">
                     
                     <td class="ps-4">
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">{{ av.branch }}</span>
@@ -200,16 +202,18 @@
                     <td>
                         <div class="d-flex align-items-center gap-1">
                             <div class="fw-semibold text-dark">{{ av.cuenta }}</div>
-                            {% if av.estado == "REPARADO" %}
-                                {% if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios %}
-                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Agrupado a una avería principal">
-                                    Agrupado
-                                </span>
-                                {% else %}
-                                <span class="badge bg-info-subtle text-info border border-info-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Cliente Principal o Resuelto solo">
-                                    Principal
-                                </span>
-                                {% endif %}
+                            {% if av.tipo_reparacion == "AGRUPADO" %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Agrupado a una avería principal">
+                                Agrupado
+                            </span>
+                            {% elif av.tipo_reparacion == "PRINCIPAL_APP" %}
+                            <span class="badge bg-info-subtle text-info border border-info-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Resuelto desde la app/página web">
+                                Principal: Fuente app
+                            </span>
+                            {% elif av.tipo_reparacion == "PRINCIPAL_SHEET" %}
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-1.5 py-0.5 rounded-2" style="font-size: 0.65rem;" title="Detectado como reparado desde el sheet de origen">
+                                Principal: Fuente sheet
+                            </span>
                             {% endif %}
                         </div>
                         <small class="text-muted d-block" style="font-size: 0.725rem;">Origen: {{ av.origen }}</small>
@@ -660,12 +664,12 @@
                     matchesStatus = (rowStatus === "PENDIENTE");
                 } else if (status === "REPARADO") {
                     matchesStatus = (rowStatus === "REPARADO");
-                } else if (status === "REPARADO_PRINCIPAL") {
-                    const rowComentarios = row.getAttribute("data-comentarios") || "";
-                    matchesStatus = (rowStatus === "REPARADO" && !rowComentarios.includes("Agrupado en la avería principal"));
+                } else if (status === "REPARADO_PRINCIPAL_APP") {
+                    matchesStatus = (row.getAttribute("data-tipo") === "PRINCIPAL_APP");
+                } else if (status === "REPARADO_PRINCIPAL_SHEET") {
+                    matchesStatus = (row.getAttribute("data-tipo") === "PRINCIPAL_SHEET");
                 } else if (status === "REPARADO_AGRUPADO") {
-                    const rowComentarios = row.getAttribute("data-comentarios") || "";
-                    matchesStatus = (rowStatus === "REPARADO" && rowComentarios.includes("Agrupado en la avería principal"));
+                    matchesStatus = (row.getAttribute("data-tipo") === "AGRUPADO");
                 }
                 
                 const matchesOrigin = origin === "" || rowOrigin === origin;

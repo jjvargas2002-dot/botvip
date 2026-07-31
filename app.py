@@ -348,6 +348,7 @@ def asegurar_esquema():
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS materiales_json TEXT",
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS tipificacion VARCHAR(100)",
         "ALTER TABLE averias ADD COLUMN IF NOT EXISTS cuentas_asociadas TEXT",
+        "ALTER TABLE averias ADD COLUMN IF NOT EXISTS resolucion_fuente VARCHAR(10)",
         """
         CREATE TABLE IF NOT EXISTS stock_branch (
             id SERIAL PRIMARY KEY,
@@ -600,6 +601,25 @@ def es_ticket_no_odn(detalles, status_ont, status_caja, material_comentarios=Non
     return False
 
 
+def notificar_status_cajas(cuenta):
+    """Registra en el sheet 'STATUS DE CAJAS' (columna C: cuenta, columna G: Reparado)
+    que una cuenta fue reparada desde la app/página web. Solo debe llamarse tras una
+    resolución hecha por un operador (nunca desde la sincronización automática del Drive)."""
+    url = app.config.get("STATUS_CAJAS_WEBHOOK_URL")
+    secret = app.config.get("STATUS_CAJAS_WEBHOOK_SECRET")
+    if not url or not cuenta:
+        return
+    try:
+        requests.post(url, json={"secret": secret, "cuenta": cuenta}, timeout=15)
+    except Exception as e:
+        print(f"Error notificando STATUS DE CAJAS para cuenta {cuenta}: {e}")
+
+
+def notificar_status_cajas_async(cuenta):
+    import threading
+    threading.Thread(target=notificar_status_cajas, args=(cuenta,), daemon=True).start()
+
+
 def sincronizar_drive():
     url = "https://docs.google.com/spreadsheets/d/1eaNxCpm8JF1JcZS3_ldwMRINGYFaW6RsQQWybvRi_P8/export?format=csv&gid=1775459558"
     try:
@@ -737,6 +757,7 @@ def sincronizar_drive():
                         averia.estado = "REPARADO"
                         averia.fecha_resolucion = obtener_hora_peru()
                         averia.material_comentarios = f"Marcado como resuelto en el Drive (Estado: {status_ont or status_caja})"
+                        averia.resolucion_fuente = "SHEET"
                         # Copiar materiales si existían anteriormente
                         buscar_y_copiar_materiales_previos(cuenta, averia, averias_por_cuenta)
                     else:
@@ -799,6 +820,7 @@ def sincronizar_drive():
                     estado="REPARADO" if es_resuelto_drive else "PENDIENTE",
                     fecha_resolucion=obtener_hora_peru() if es_resuelto_drive else None,
                     material_comentarios=f"Marcado como resuelto en el Drive al importar" if es_resuelto_drive else None,
+                    resolucion_fuente="SHEET" if es_resuelto_drive else None,
                     status_caja=status_caja if status_caja else status_ont,
                     contrata=contrata,
                     periodo_pendiente=periodo_pendiente,
@@ -827,6 +849,7 @@ def sincronizar_drive():
             av.estado = "REPARADO"
             av.fecha_resolucion = obtener_hora_peru()
             av.material_comentarios = "Cerrado automáticamente al no figurar en la lista del Drive."
+            av.resolucion_fuente = "SHEET"
         
         db.session.commit()
         total_cerrados = len(cerrados_ext)
@@ -1517,6 +1540,7 @@ def resolver_averia(id):
         averia.materiales_json = materiales_json_str
         averia.material_comentarios = comentarios or "Reparado desde el portal"
         averia.tipificacion = request.form.get("tipificacion", "").strip()
+        averia.resolucion_fuente = "APP"
         
         # Calcular valores compatibles para las 5 columnas básicas
         cable_m = 0
@@ -1550,6 +1574,7 @@ def resolver_averia(id):
         averia.material_acopladores = acopladores
         
         db.session.commit()
+        notificar_status_cajas_async(averia.cuenta)
         flash(f"Avería de cuenta {averia.cuenta} resuelta y materiales registrados.", "success")
         if averia.branch in ["ARE", "JUN", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS"]:
             return redirect(url_for("dashboard"))
@@ -1665,7 +1690,8 @@ def agrupar_clientes_averia(id):
                 av_g.material_mangas = 0
                 av_g.material_acopladores = 0
                 av_g.materiales_json = "{}"
-                
+                av_g.resolucion_fuente = "APP"
+
         # For removed ones, revert back to PENDING
         if to_remove:
             averias_to_remove = Averia.query.filter(
@@ -1679,16 +1705,19 @@ def agrupar_clientes_averia(id):
                 av_g.tecnico_id = None
                 av_g.material_comentarios = None
                 av_g.tipificacion = None
+                av_g.resolucion_fuente = None
                 
         averia.cuentas_asociadas = ", ".join(selected_accounts) if selected_accounts else None
         
         try:
             db.session.commit()
+            for cuenta_agrupada in to_add:
+                notificar_status_cajas_async(cuenta_agrupada)
             flash("Asociación de clientes y caja guardada con éxito.", "success")
         except Exception as e:
             db.session.rollback()
             flash(f"Error al guardar agrupación: {str(e)}", "danger")
-            
+
         return redirect(url_for("dashboard"))
         
     # GET: query accounts on the same site
@@ -2597,7 +2626,7 @@ def exportar_avance_diario():
         
         row_idx = start_row + 1
         for av in matching_averias:
-            tipo = "Agrupado" if av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios else "Principal"
+            tipo = av.tipo_reparacion_label or "Principal"
             tech_name = av.tecnico.nombre if av.tecnico else "No asignado"
             tech_dni = av.tecnico.dni if av.tecnico else ""
             hora_resol = av.fecha_resolucion.strftime('%Y-%m-%d %I:%M %p') if av.fecha_resolucion else ""
@@ -2843,9 +2872,13 @@ def exportar_averias():
         elif status_arg == "REPARADO":
             averias = [av for av in averias if av.estado == "REPARADO"]
         elif status_arg == "REPARADO_PRINCIPAL":
-            averias = [av for av in averias if av.estado == "REPARADO" and not (av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios)]
+            averias = [av for av in averias if av.estado == "REPARADO" and av.tipo_reparacion != "AGRUPADO"]
+        elif status_arg == "REPARADO_PRINCIPAL_APP":
+            averias = [av for av in averias if av.tipo_reparacion == "PRINCIPAL_APP"]
+        elif status_arg == "REPARADO_PRINCIPAL_SHEET":
+            averias = [av for av in averias if av.tipo_reparacion == "PRINCIPAL_SHEET"]
         elif status_arg == "REPARADO_AGRUPADO":
-            averias = [av for av in averias if av.estado == "REPARADO" and av.material_comentarios and "Agrupado en la avería principal" in av.material_comentarios]
+            averias = [av for av in averias if av.tipo_reparacion == "AGRUPADO"]
             
     # Filter by search query (q)
     if q_arg:
