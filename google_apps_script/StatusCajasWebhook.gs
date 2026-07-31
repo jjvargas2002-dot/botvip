@@ -36,6 +36,7 @@ var COL_STATUS = 7;        // columna G
 var WEBHOOK_SECRET = 'naXl72P0xGs_RhQeeGDkNDtQZsuQGK55VngKJ0ATkys'; // debe coincidir con STATUS_CAJAS_WEBHOOK_SECRET (.env)
 
 function doPost(e) {
+  var lock = LockService.getScriptLock();
   try {
     var body = JSON.parse(e.postData.contents);
 
@@ -53,9 +54,18 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: 'sheet con ese gid no encontrado' });
     }
 
-    var targetRow = findNextEmptyRow(sheet);
-    sheet.getRange(targetRow, COL_CUENTA).setValue(cuenta);
-    sheet.getRange(targetRow, COL_STATUS).setValue('Reparado');
+    // Varias cuentas de un mismo grupo se notifican casi al mismo tiempo desde
+    // la app. Sin este lock, dos llamadas concurrentes pueden calcular la misma
+    // "siguiente fila vacía" y una sobrescribe a la otra.
+    lock.waitLock(30000);
+    try {
+      var targetRow = findNextEmptyRow(sheet);
+      sheet.getRange(targetRow, COL_CUENTA).setValue(cuenta);
+      sheet.getRange(targetRow, COL_STATUS).setValue('Reparado');
+      SpreadsheetApp.flush();
+    } finally {
+      lock.releaseLock();
+    }
 
     return jsonResponse({ ok: true, row: targetRow, cuenta: cuenta });
   } catch (err) {
