@@ -144,6 +144,9 @@
                                 <span class="badge bg-success-subtle text-success border px-2 py-0.5 ms-1">Reparado</span>
                                 {% else %}
                                 <span class="badge bg-warning-subtle text-warning border px-2 py-0.5 ms-1">Pendiente</span>
+                                {% if c.dias_pendientes is not none %}
+                                <span class="badge bg-light text-dark border px-2 py-0.5 ms-1">{{ "%.1f"|format(c.dias_pendientes) }} días</span>
+                                {% endif %}
                                 {% endif %}
                             </div>
                         </div>

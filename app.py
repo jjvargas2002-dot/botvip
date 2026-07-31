@@ -363,6 +363,7 @@ def asegurar_esquema():
         )
         """,
         "ALTER TABLE stock_branch DROP CONSTRAINT IF EXISTS uq_branch_material",
+        "ALTER TABLE stock_branch DROP CONSTRAINT IF EXISTS uq_branch_material_nombre",
         "ALTER TABLE stock_branch DROP CONSTRAINT IF EXISTS stock_branch_branch_material_codigo_key",
         "ALTER TABLE stock_branch ADD CONSTRAINT uq_branch_material_nombre UNIQUE (branch, material_nombre)",
         "ALTER TABLE averias DROP CONSTRAINT IF EXISTS averias_cuenta_key",
@@ -1738,24 +1739,20 @@ def agrupar_clientes_averia(id):
     for row in cuentas_query:
         if row.cuenta and row.cuenta not in vistas:
             is_associated = row.cuenta in associated_list
-            
-            # Check if this repaired account is already grouped to another main ticket
-            is_already_grouped = False
-            if row.estado == "REPARADO" and not is_associated:
-                if row.cuentas_asociadas:
-                    # It is a main ticket of another group
-                    is_already_grouped = True
-                elif row.material_comentarios and "agrupado" in row.material_comentarios.lower() and "principal" in row.material_comentarios.lower():
-                    if f"({averia.cuenta})" not in row.material_comentarios and f"cuenta {averia.cuenta}" not in row.material_comentarios.lower() and f"id {averia.id}" not in row.material_comentarios.lower():
-                        # It belongs to another group
-                        is_already_grouped = True
-            
-            # 30 days pending window check (30 days more or 30 days less than the main ticket)
-            dias_diff = abs((row.dias_pendientes or 0.0) - (averia.dias_pendientes or 0.0))
-            matches_days_window = dias_diff <= 30
-            
-            # Show if already associated, or if it meets the days window, is not grouped to another ticket and is PENDING/REPARADO
-            if is_associated or (matches_days_window and not is_already_grouped and (row.estado == "PENDIENTE" or row.estado == "REPARADO")):
+
+            mostrar = False
+            if row.estado == "PENDIENTE":
+                # Todos los pendientes del site se muestran; el operador decide con el
+                # dato de días pendientes si corresponden a esta misma reparación.
+                mostrar = True
+            elif row.estado == "REPARADO":
+                # Solo se muestran los reparados detectados por el sheet de origen.
+                # Los reparados desde la app (o agrupados a un principal de la app) ya
+                # pertenecen a otra reparación hecha por un técnico y no deben reaparecer.
+                es_principal_de_otro_grupo = bool(row.cuentas_asociadas) and not is_associated
+                mostrar = row.tipo_reparacion == "PRINCIPAL_SHEET" and not es_principal_de_otro_grupo
+
+            if is_associated or mostrar:
                 vistas.add(row.cuenta)
                 cl = clientes_dict.get(row.cuenta)
                 clientes_del_site.append({
@@ -1765,7 +1762,8 @@ def agrupar_clientes_averia(id):
                     "id": row.id,
                     "nombre": cl.nombre if cl else "Cliente de Sheet",
                     "seleccionado": is_associated,
-                    "detalles": row.detalles or ""
+                    "detalles": row.detalles or "",
+                    "dias_pendientes": row.dias_pendientes
                 })
             
     # Format materials list for principal ticket
