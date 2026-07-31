@@ -1512,6 +1512,111 @@ def resolver_averia(id):
 
 
 
+@app.route("/averias/seleccionar-principal/<int:id>", methods=["GET", "POST"])
+@login_requerido
+def seleccionar_principal_averia(id):
+    if session.get("operador_rol") == "noc":
+        flash("No tienes permisos para realizar esta acción.", "danger")
+        return redirect(url_for("dashboard"))
+
+    averia = db.session.get(Averia, id)
+    if not averia:
+        flash("La avería no existe.", "danger")
+        return redirect(url_for("dashboard"))
+
+    if averia.branch in ["ARE", "JUN", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS"]:
+        flash("La agrupación de averías no está permitida para esta sede.", "warning")
+        return redirect(url_for("dashboard"))
+
+    if averia.estado == "REPARADO":
+        # Ya está resuelta: puede actuar como principal ella misma, no necesita elegir una.
+        return redirect(url_for("agrupar_clientes_averia", id=averia.id))
+
+    site_clean = (averia.site or "").strip().upper()
+
+    if request.method == "POST":
+        principal_id = request.form.get("principal_id", "").strip()
+        principal = db.session.get(Averia, int(principal_id)) if principal_id.isdigit() else None
+        if not principal or principal.estado != "REPARADO" or (principal.site or "").strip().upper() != site_clean:
+            flash("Debes seleccionar una avería principal válida.", "warning")
+            return redirect(url_for("seleccionar_principal_averia", id=id))
+
+        try:
+            averia.estado = "REPARADO"
+            averia.fecha_resolucion = obtener_hora_peru()
+            averia.tecnico_id = session.get("operador_id")
+            princ_comm = f" - {principal.material_comentarios}" if principal.material_comentarios else ""
+            averia.material_comentarios = f"Agrupado en la avería principal ({principal.cuenta}){princ_comm}"
+            if not principal.tipificacion and averia.tipificacion:
+                principal.tipificacion = averia.tipificacion
+            if principal.tipificacion:
+                averia.tipificacion = principal.tipificacion
+            averia.material_cable_m = 0
+            averia.material_conectores = 0
+            averia.material_rosetas = 0
+            averia.material_mangas = 0
+            averia.material_acopladores = 0
+            averia.materiales_json = "{}"
+            averia.resolucion_fuente = "APP"
+
+            asociadas = [c.strip() for c in (principal.cuentas_asociadas or "").split(",") if c.strip()]
+            if averia.cuenta not in asociadas:
+                asociadas.append(averia.cuenta)
+            principal.cuentas_asociadas = ", ".join(asociadas)
+
+            db.session.commit()
+            if elegible_status_cajas(averia):
+                notificar_status_cajas_async(averia.cuenta)
+            flash(f"Cuenta {averia.cuenta} agrupada bajo la avería principal {principal.cuenta}.", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error al agrupar: {str(e)}", "danger")
+
+        return redirect(url_for("dashboard"))
+
+    # GET: listar averías ya resueltas (principales) en el mismo site, últimos 30 días
+    from sqlalchemy import func
+    candidatos = Averia.query.filter(
+        func.upper(func.trim(Averia.site)) == site_clean,
+        Averia.estado == "REPARADO",
+        Averia.id != averia.id
+    ).order_by(Averia.fecha_resolucion.desc()).all()
+
+    clientes_dict = {c.codigo_cliente: c for c in Cliente.query.all()}
+    now = datetime.now()
+    principales = []
+    for p in candidatos:
+        if p.tipo_reparacion not in ("PRINCIPAL_APP", "PRINCIPAL_SHEET"):
+            continue
+        if p.fecha_resolucion:
+            ref_date = p.fecha_resolucion.replace(tzinfo=None) if p.fecha_resolucion.tzinfo else p.fecha_resolucion
+            if (now - ref_date).days > 30:
+                continue
+        cl = clientes_dict.get(p.cuenta)
+        materiales = []
+        for key, val in p.materiales_dict.items():
+            if val and val > 0:
+                parts = key.split("|")
+                name = parts[1] if len(parts) > 1 else parts[0]
+                materiales.append(f"{val} {name}")
+        principales.append({
+            "id": p.id,
+            "cuenta": p.cuenta,
+            "nombre": cl.nombre if cl else "Cliente de Sheet",
+            "fecha_resolucion": p.fecha_resolucion.strftime("%Y-%m-%d %H:%M") if p.fecha_resolucion else "",
+            "materiales": materiales,
+            "caja": p.caja or "",
+            "dias_pendientes": p.dias_pendientes or 0
+        })
+
+    return render_template(
+        "seleccionar_principal.html",
+        averia=averia,
+        site=site_clean,
+        principales=principales
+    )
+
+
 @app.route("/averias/agrupar/<int:id>", methods=["GET", "POST"])
 @login_requerido
 def agrupar_clientes_averia(id):

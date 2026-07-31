@@ -344,9 +344,15 @@
                                         </button>
                                         {% endif %}
                                         {% if av.branch not in ["ARE", "JUN", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS"] %}
+                                        {% if av.estado == 'REPARADO' %}
                                         <a href="{{ url_for('agrupar_clientes_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1" title="Agrupar otros clientes de este site">
                                             <i class="bi bi-diagram-3"></i> Agrupar
                                         </a>
+                                        {% else %}
+                                        <a href="{{ url_for('seleccionar_principal_averia', id=av.id) }}" class="btn btn-sm btn-outline-info py-1" title="Agrupar este cliente bajo una avería principal ya resuelta">
+                                            <i class="bi bi-diagram-3"></i> Agrupar
+                                        </a>
+                                        {% endif %}
                                         {% endif %}
                                         {% if session.get('operador_rol') == 'admin' and (session.get('operador_nombre', '').upper() == 'FBB' or session.get('operador_dni', '').upper() == 'FBB') %}
                                         {% if av.estado == 'REPARADO' %}
