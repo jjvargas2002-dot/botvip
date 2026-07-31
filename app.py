@@ -520,23 +520,39 @@ def buscar_y_copiar_materiales_previos(cuenta, target_averia, averias_por_cuenta
     return False
 
 
-def notificar_status_cajas(cuenta):
-    """Registra en el sheet 'STATUS DE CAJAS' (columna C: cuenta, columna G: Reparado)
-    que una cuenta fue reparada desde la app/página web. Solo debe llamarse tras una
-    resolución hecha por un operador (nunca desde la sincronización automática del Drive)."""
+BRANCHES_STATUS_CAJAS = {"LI1", "LI2", "LI3", "LI4", "LI7"}
+
+
+def elegible_status_cajas(averia):
+    """El sheet 'STATUS DE CAJAS' solo cubre sedes de Lima (LI1/LI2/LI3/LI4/LI7)
+    y solo averías reales importadas del Drive, nunca las creadas manualmente
+    en la app (esas no tienen un ticket equivalente en el Excel de origen)."""
+    if not averia:
+        return False
+    if averia.origen == "MANUAL":
+        return False
+    return (averia.branch or "").strip().upper() in BRANCHES_STATUS_CAJAS
+
+
+def notificar_status_cajas(cuenta, action="add"):
+    """Agrega o quita una cuenta del sheet 'STATUS DE CAJAS' (columna C: cuenta,
+    columna G: Reparado). Solo debe llamarse para acciones hechas por un operador
+    desde la app (nunca desde la sincronización automática del Drive):
+    action="add" cuando se resuelve/agrupa, action="remove" cuando se desagrupa
+    o se reabre una avería."""
     url = app.config.get("STATUS_CAJAS_WEBHOOK_URL")
     secret = app.config.get("STATUS_CAJAS_WEBHOOK_SECRET")
     if not url or not cuenta:
         return
     try:
-        requests.post(url, json={"secret": secret, "cuenta": cuenta}, timeout=15)
+        requests.post(url, json={"secret": secret, "cuenta": cuenta, "action": action}, timeout=15)
     except Exception as e:
-        print(f"Error notificando STATUS DE CAJAS para cuenta {cuenta}: {e}")
+        print(f"Error notificando STATUS DE CAJAS ({action}) para cuenta {cuenta}: {e}")
 
 
-def notificar_status_cajas_async(cuenta):
+def notificar_status_cajas_async(cuenta, action="add"):
     import threading
-    threading.Thread(target=notificar_status_cajas, args=(cuenta,), daemon=True).start()
+    threading.Thread(target=notificar_status_cajas, args=(cuenta, action), daemon=True).start()
 
 
 def sincronizar_drive():
@@ -1483,7 +1499,8 @@ def resolver_averia(id):
         averia.material_acopladores = acopladores
         
         db.session.commit()
-        notificar_status_cajas_async(averia.cuenta)
+        if elegible_status_cajas(averia):
+            notificar_status_cajas_async(averia.cuenta)
         flash(f"Avería de cuenta {averia.cuenta} resuelta y materiales registrados.", "success")
         if averia.branch in ["ARE", "JUN", "PIU", "SAN", "CAJ", "LAL", "HUN", "CUS"]:
             return redirect(url_for("dashboard"))
@@ -1588,7 +1605,10 @@ def agrupar_clientes_averia(id):
         
         from sqlalchemy import func
         site_clean = site.strip().upper() if site else ""
-        
+
+        cuentas_add_notificar = []
+        cuentas_remove_notificar = []
+
         # For new ones, mark as REPARADO
         if to_add:
             averias_to_add = Averia.query.filter(
@@ -1613,6 +1633,8 @@ def agrupar_clientes_averia(id):
                 av_g.material_acopladores = 0
                 av_g.materiales_json = "{}"
                 av_g.resolucion_fuente = "APP"
+                if elegible_status_cajas(av_g):
+                    cuentas_add_notificar.append(av_g.cuenta)
 
         # For removed ones, revert back to PENDING
         if to_remove:
@@ -1622,21 +1644,25 @@ def agrupar_clientes_averia(id):
                 Averia.id != averia.id
             ).all()
             for av_g in averias_to_remove:
+                if elegible_status_cajas(av_g):
+                    cuentas_remove_notificar.append(av_g.cuenta)
                 av_g.estado = "PENDIENTE"
                 av_g.fecha_resolucion = None
                 av_g.tecnico_id = None
                 av_g.material_comentarios = None
                 av_g.tipificacion = None
                 av_g.resolucion_fuente = None
-                
+
         averia.cuentas_asociadas = ", ".join(selected_accounts) if selected_accounts else None
-        
+
         try:
             db.session.commit()
-            if principal_recien_resuelta:
+            if principal_recien_resuelta and elegible_status_cajas(averia):
                 notificar_status_cajas_async(averia.cuenta)
-            for cuenta_agrupada in to_add:
+            for cuenta_agrupada in cuentas_add_notificar:
                 notificar_status_cajas_async(cuenta_agrupada)
+            for cuenta_desagrupada in cuentas_remove_notificar:
+                notificar_status_cajas_async(cuenta_desagrupada, action="remove")
             flash("Asociación de clientes y caja guardada con éxito.", "success")
         except Exception as e:
             db.session.rollback()
@@ -1763,6 +1789,9 @@ def deshacer_resolucion_averia(id):
             print("Error devolviendo stock al deshacer resolucion:", e)
             
     try:
+        cuenta = averia.cuenta
+        debe_notificar_remocion = elegible_status_cajas(averia)
+
         averia.estado = "PENDIENTE"
         averia.fecha_resolucion = None
         averia.material_cable_m = 0
@@ -1773,8 +1802,11 @@ def deshacer_resolucion_averia(id):
         averia.materiales_json = "{}"
         averia.tipificacion = None
         averia.material_comentarios = None
-        
+        averia.resolucion_fuente = None
+
         db.session.commit()
+        if debe_notificar_remocion:
+            notificar_status_cajas_async(cuenta, action="remove")
         flash(f"Resolución de avería ID {id} deshecha correctamente. El ticket vuelve a estar PENDIENTE y se reintegró el stock.", "success")
     except Exception as e:
         db.session.rollback()

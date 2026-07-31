@@ -1,14 +1,20 @@
 /**
  * Webhook para el spreadsheet "STATUS DE CAJAS PENDIENTES".
  * Recibe POST desde BotVip (app.py -> notificar_status_cajas) cada vez que un
- * operador resuelve una avería (principal o cliente agrupado) desde la
- * página web / app. Escribe la cuenta en la siguiente fila vacía de la
- * columna C y "Reparado" en la columna G de esa misma fila, en la pestaña
- * identificada por SHEET_GID.
+ * operador resuelve/agrupa (action="add") o desagrupa/reabre (action="remove")
+ * una avería (principal o cliente agrupado) desde la página web / app.
+ * - action="add": escribe la cuenta en la siguiente fila vacía de la columna
+ *   C y "Reparado" en la columna G de esa misma fila.
+ * - action="remove": busca la cuenta en la columna C y limpia esa fila
+ *   (columnas C y G) en todas las coincidencias.
+ * Todo esto en la pestaña identificada por SHEET_GID.
  *
  * NO se llama nunca desde la sincronización automática con el Drive/Excel
  * origen (cuando una cuenta desaparece o el propio Excel ya la marca como
- * resuelta) - eso se maneja aparte en la app como "Fuente sheet".
+ * resuelta) - eso se maneja aparte en la app como "Fuente sheet". Tampoco se
+ * llama para averías creadas manualmente en la app (origen="MANUAL") ni para
+ * sedes fuera de Lima (solo LI1/LI2/LI3/LI4/LI7) - eso lo filtra app.py
+ * antes de llamar a este webhook.
  *
  * Instalación:
  * 1. Abrir el spreadsheet -> Extensiones -> Apps Script.
@@ -49,6 +55,8 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: 'cuenta requerida' });
     }
 
+    var action = (body.action || 'add').toString();
+
     var sheet = getSheetByGid(SHEET_GID);
     if (!sheet) {
       return jsonResponse({ ok: false, error: 'sheet con ese gid no encontrado' });
@@ -59,18 +67,40 @@ function doPost(e) {
     // "siguiente fila vacía" y una sobrescribe a la otra.
     lock.waitLock(30000);
     try {
+      if (action === 'remove') {
+        var removedRows = removeCuenta(sheet, cuenta);
+        SpreadsheetApp.flush();
+        return jsonResponse({ ok: true, removed: removedRows, cuenta: cuenta });
+      }
+
       var targetRow = findNextEmptyRow(sheet);
       sheet.getRange(targetRow, COL_CUENTA).setValue(cuenta);
       sheet.getRange(targetRow, COL_STATUS).setValue('Reparado');
       SpreadsheetApp.flush();
+      return jsonResponse({ ok: true, row: targetRow, cuenta: cuenta });
     } finally {
       lock.releaseLock();
     }
-
-    return jsonResponse({ ok: true, row: targetRow, cuenta: cuenta });
   } catch (err) {
     return jsonResponse({ ok: false, error: err.toString() });
   }
+}
+
+function removeCuenta(sheet, cuenta) {
+  var lastRow = sheet.getLastRow();
+  var removedRows = [];
+  if (lastRow >= HEADER_ROW + 1) {
+    var values = sheet.getRange(HEADER_ROW + 1, COL_CUENTA, lastRow - HEADER_ROW, 1).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if ((values[i][0] || '').toString().trim() === cuenta) {
+        var row = HEADER_ROW + 1 + i;
+        sheet.getRange(row, COL_CUENTA).setValue('');
+        sheet.getRange(row, COL_STATUS).setValue('');
+        removedRows.push(row);
+      }
+    }
+  }
+  return removedRows;
 }
 
 function getSheetByGid(gid) {
