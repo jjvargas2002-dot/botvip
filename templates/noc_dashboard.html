@@ -293,7 +293,17 @@
                                 </td>
                                 <td>
                                     <div class="fw-semibold">{{ av.cuenta }}</div>
-                                    <small class="text-muted">WO: {{ av.codigo_wo or 'N/A' }}</small>
+                                    {% if av.wos_detalle and av.wos_detalle|length > 1 %}
+                                    <div class="d-flex flex-column gap-0.5 mt-0.5">
+                                        {% for w in av.wos_detalle %}
+                                        <small class="text-muted font-monospace d-block" style="font-size: 0.7rem;">
+                                            WO: {{ w.codigo }} {% if w.fecha_str %}<span class="text-secondary">({{ w.fecha_str }})</span>{% endif %}
+                                        </small>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <small class="text-muted">WO: {{ av.codigo_wo or 'N/A' }}{% if av.wos_detalle and av.wos_detalle[0] and av.wos_detalle[0].fecha_str %} ({{ av.wos_detalle[0].fecha_str }}){% endif %}</small>
+                                    {% endif %}
                                 </td>
                                 <td>{{ av.tecnico.nombre if av.tecnico else '-' }}</td>
                                 <td>

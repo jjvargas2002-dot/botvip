@@ -210,7 +210,29 @@
                         <span class="badge bg-secondary-subtle text-secondary border px-2 py-1"><i class="bi bi-diagram-3 me-1"></i>{{ av.site or 'N/A' }}</span>
                     </td>
                     <td>
-                        <div class="fw-medium text-slate-800">{{ av.codigo_wo if av.codigo_wo and av.codigo_wo != 'N/A' else '' }}</div>
+                        {% if av.codigo_wo and av.codigo_wo != 'N/A' and av.codigo_wo != 'Sin WO' and av.codigo_wo.strip() != '' %}
+                            {% if av.wos_detalle and av.wos_detalle|length > 1 %}
+                            <div class="d-flex flex-column gap-1 mb-1">
+                                {% for w in av.wos_detalle %}
+                                <div class="d-flex align-items-center justify-content-between gap-1 bg-light rounded px-1.5 py-0.5 border" style="font-size: 0.75rem;">
+                                    <span class="font-monospace fw-semibold text-slate-800">{{ w.codigo }}</span>
+                                    {% if w.fecha_str %}
+                                    <span class="badge bg-white text-secondary border px-1 py-0.5 shadow-sm" style="font-size: 0.68rem;" title="Fecha WO: {{ w.fecha_str }}">
+                                        <i class="bi bi-calendar-event me-1 text-primary"></i>{{ w.fecha_str }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="fw-medium text-slate-800 font-monospace" style="font-size: 0.82rem;">{{ av.codigo_wo }}</div>
+                            {% if av.wos_detalle and av.wos_detalle[0] and av.wos_detalle[0].fecha_str %}
+                            <small class="text-muted d-block" style="font-size: 0.72rem;">
+                                <i class="bi bi-calendar-event me-1 text-primary"></i>{{ av.wos_detalle[0].fecha_str }}
+                            </small>
+                            {% endif %}
+                            {% endif %}
+                        {% endif %}
                         <div class="text-wrap text-muted" style="max-width: 250px; font-size: 0.8rem;">{{ av.detalles or 'Sin descripción' }}</div>
                     </td>
                     <td>

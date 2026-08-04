@@ -367,7 +367,8 @@ def asegurar_esquema():
         "ALTER TABLE stock_branch DROP CONSTRAINT IF EXISTS stock_branch_branch_material_codigo_key",
         "ALTER TABLE stock_branch ADD CONSTRAINT uq_branch_material_nombre UNIQUE (branch, material_nombre)",
         "ALTER TABLE averias DROP CONSTRAINT IF EXISTS averias_cuenta_key",
-        "ALTER TABLE averias ALTER COLUMN cuenta DROP NOT NULL"
+        "ALTER TABLE averias ALTER COLUMN cuenta DROP NOT NULL",
+        "ALTER TABLE averias ALTER COLUMN codigo_wo TYPE TEXT"
     ]
 
     for consulta in columnas:
@@ -377,6 +378,29 @@ def asegurar_esquema():
         except Exception as e:
             print(f"Error ejecutando consulta de esquema {consulta}: {e}")
             db.session.rollback()
+
+
+def recalcular_dias_pendientes_averias():
+    """Recalcula dias_pendientes para averías pendientes basándose en la WO más antigua."""
+    try:
+        from datetime import date
+        hoy = obtener_hora_peru().date()
+        pendientes = Averia.query.filter_by(estado="PENDIENTE").all()
+        actualizados = 0
+        for av in pendientes:
+            detalles = av.wos_detalle
+            if detalles:
+                max_dias = max([d["dias"] for d in detalles if d["dias"] is not None] or [0])
+                if av.dias_pendientes is None or av.dias_pendientes < max_dias or av.dias_pendientes == 0.0:
+                    if max_dias > 0:
+                        av.dias_pendientes = float(max_dias)
+                        actualizados += 1
+        if actualizados > 0:
+            db.session.commit()
+            print(f"Recalculados días pendientes de {actualizados} averías pendientes según la WO más antigua.")
+    except Exception as e:
+        print(f"Error recalculando días pendientes: {e}")
+        db.session.rollback()
 
 
 def crear_operador_defecto():
@@ -626,10 +650,33 @@ def sincronizar_drive():
             detalles = row[indices.get("DETALLES")].strip() if "DETALLES" in indices else ""
             
             dias_str = row[indices.get("DIAS PENDIENTES")].strip() if "DIAS PENDIENTES" in indices else ""
-            try:
-                dias_pendientes = float(dias_str) if dias_str else 0.0
-            except ValueError:
+            dias_list = []
+            if dias_str:
+                import re
+                for part in re.split(r'[\r\n,;]+', dias_str):
+                    part = part.strip()
+                    if part:
+                        try:
+                            dias_list.append(float(part))
+                        except ValueError:
+                            pass
+            if dias_list:
+                dias_pendientes = max(dias_list)
+            else:
                 dias_pendientes = 0.0
+                if codigo_wo:
+                    import re
+                    from datetime import date
+                    dates_found = []
+                    for match in re.finditer(r'(?:^|[^0-9])(20\d{2})(\d{2})(\d{2})(?:[^0-9]|$)', codigo_wo):
+                        try:
+                            y, m, d = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                            dates_found.append(date(y, m, d))
+                        except Exception:
+                            pass
+                    if dates_found:
+                        oldest_dt = min(dates_found)
+                        dias_pendientes = max(0.0, float((obtener_hora_peru().date() - oldest_dt).days))
                 
             status_ont = row[indices.get("ESTADO")].strip() if "ESTADO" in indices else ""
             status_caja = row[indices.get("STATUS DE LA CAJA")].strip() if "STATUS DE LA CAJA" in indices else ""
@@ -1313,6 +1360,7 @@ def dashboard():
             "site": av.site or "N/A",
             "caja": av.caja or "N/A",
             "dias": av.dias_pendientes or 0,
+            "wos": [{"codigo": w["codigo"], "fecha_str": w["fecha_str"], "dias": w["dias"]} for w in av.wos_detalle],
             "estado": av.estado,
             "lat": lat,
             "lng": lng,
@@ -3745,6 +3793,7 @@ with app.app_context():
         migrar_recuperar_materiales_perdidos()
         migrar_nombres_vano_span()
         migrar_nombres_grillete_clevis()
+        recalcular_dias_pendientes_averias()
         # Verify if static/sites.json exists, otherwise fetch it
         import os
         sites_path = os.path.join(app.root_path, "static", "sites.json")

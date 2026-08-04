@@ -132,6 +132,72 @@ class Averia(db.Model):
             res["294790|Preconectorizado"] = self.material_acopladores
         return res
 
+    @property
+    def wos_detalle(self):
+        """
+        Parsea los códigos de WO (uno o múltiples separados por saltos de línea, comas o espacios).
+        Extrae la fecha de creación de cada código (formato YYYYMMDD ej: 20260707 -> 07/07/2026)
+        y calcula los días transcurridos para cada WO.
+        Retorna la lista ordenada desde la WO más antigua a la más reciente.
+        """
+        import re
+        from datetime import datetime, date
+        
+        if not self.codigo_wo or self.codigo_wo.strip() in ["", "N/A", "Sin WO", "None"]:
+            return []
+            
+        raw_parts = [p.strip() for p in re.split(r'[\r\n,;]+', self.codigo_wo) if p.strip()]
+        if not raw_parts:
+            return []
+            
+        # Determinar fecha base para cálculo de días
+        try:
+            from app import obtener_hora_peru
+            hoy = obtener_hora_peru().date()
+        except Exception:
+            hoy = datetime.now().date()
+            
+        items = []
+        for code in raw_parts:
+            # Buscar fecha YYYYMMDD en el código de WO (ej. WO_SPM_20260707_170732631)
+            match = re.search(r'(?:^|[^0-9])(20\d{2})(\d{2})(\d{2})(?:[^0-9]|$)', code)
+            fecha_dt = None
+            fecha_str = ""
+            dias = 0
+            
+            if match:
+                try:
+                    y, m, d = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                    fecha_dt = date(y, m, d)
+                    fecha_str = f"{d:02d}/{m:02d}/{y}"
+                    dias = max(0, (hoy - fecha_dt).days)
+                except Exception:
+                    pass
+                    
+            if not fecha_dt and self.fecha_creacion:
+                fecha_dt = self.fecha_creacion.date()
+                fecha_str = fecha_dt.strftime("%d/%m/%Y")
+                dias = max(0, (hoy - fecha_dt).days)
+                
+            items.append({
+                "codigo": code,
+                "fecha_str": fecha_str,
+                "fecha_dt": fecha_dt,
+                "dias": dias
+            })
+            
+        # Ordenar de la WO más antigua a la más reciente (fecha más temprana primero)
+        items.sort(key=lambda x: (x["fecha_dt"] if x["fecha_dt"] else date.max, -x["dias"]))
+        return items
+
+    @property
+    def codigo_wo_ordenado(self):
+        """Retorna los códigos de WO ordenados de la más antigua a la más reciente."""
+        detalles = self.wos_detalle
+        if not detalles:
+            return self.codigo_wo or ""
+        return "\n".join([d["codigo"] for d in detalles])
+
 
 class StockBranch(db.Model):
     __tablename__ = "stock_branch"

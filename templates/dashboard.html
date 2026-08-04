@@ -274,15 +274,42 @@
                             </td>
                             <td>
                                 {% if av.codigo_wo and av.codigo_wo != 'N/A' and av.codigo_wo != 'Sin WO' and av.codigo_wo.strip() != '' %}
-                                <div class="fw-medium text-slate-800">{{ av.codigo_wo }}</div>
+                                    {% if av.wos_detalle and av.wos_detalle|length > 1 %}
+                                    <div class="d-flex flex-column gap-1">
+                                        {% for w in av.wos_detalle %}
+                                        <div class="d-flex align-items-center justify-content-between gap-1 bg-light rounded px-1.5 py-0.5 border" style="font-size: 0.75rem;">
+                                            <span class="font-monospace fw-semibold text-slate-800">{{ w.codigo }}</span>
+                                            {% if w.fecha_str %}
+                                            <span class="badge bg-white text-secondary border px-1 py-0.5 shadow-sm" style="font-size: 0.68rem;" title="Fecha WO: {{ w.fecha_str }} (hace {{ w.dias }} días)">
+                                                <i class="bi bi-calendar-event me-1 text-primary"></i>{{ w.fecha_str }}
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <div class="fw-medium text-slate-800 font-monospace" style="font-size: 0.82rem;">{{ av.codigo_wo }}</div>
+                                    {% if av.wos_detalle and av.wos_detalle[0] and av.wos_detalle[0].fecha_str %}
+                                    <small class="text-muted d-block" style="font-size: 0.72rem;">
+                                        <i class="bi bi-calendar-event me-1 text-primary"></i>{{ av.wos_detalle[0].fecha_str }}
+                                    </small>
+                                    {% endif %}
+                                    {% endif %}
                                 {% endif %}
                                 {% if av.contrata and av.contrata != 'Sin contrata' and av.contrata != 'TGI' and av.contrata != 'None' and av.contrata.strip() != '' %}
-                                <small class="text-muted d-block">{{ av.contrata }}</small>
+                                <small class="text-muted d-block mt-0.5">{{ av.contrata }}</small>
                                 {% endif %}
                             </td>
                             <td>
                                 {% if av.estado == 'PENDIENTE' %}
-                                <span class="badge bg-warning text-dark">{{ av.dias_pendientes or 0 }} d</span>
+                                <div class="d-flex flex-column align-items-start">
+                                    <span class="badge bg-warning text-dark px-2 py-1" style="font-size: 0.8rem; font-weight: 600;">
+                                        {{ "%.0f"|format(av.dias_pendientes) if (av.dias_pendientes % 1 == 0) else ("%.1f"|format(av.dias_pendientes)) }} d
+                                    </span>
+                                    {% if av.wos_detalle and av.wos_detalle|length > 1 %}
+                                    <small class="text-muted mt-0.5" style="font-size: 0.68rem; line-height: 1;">(WO más antigua)</small>
+                                    {% endif %}
+                                </div>
                                 {% else %}
                                 <small class="text-muted">{{ av.fecha_resolucion.strftime('%d/%m/%Y') if av.fecha_resolucion else '' }}</small>
                                 {% endif %}
@@ -878,9 +905,23 @@
                     <i class="bi bi-pencil-square"></i> Editar Datos
                </button>`;
 
-        let woRow = (av.codigo_wo && av.codigo_wo !== "N/A" && av.codigo_wo !== "Sin WO" && av.codigo_wo.trim() !== "") 
-            ? `<div style="margin-bottom: 0.25rem;"><strong>WO:</strong> <span class="leaflet-popup-content-value">${av.codigo_wo}</span></div>` 
-            : '';
+        let woRow = '';
+        if (av.wos && av.wos.length > 1) {
+            woRow = `<div style="margin-bottom: 0.35rem;">
+                <strong>WOs (${av.wos.length}):</strong>
+                <div style="margin-top: 0.2rem; display: flex; flex-direction: column; gap: 0.2rem;">
+                    ${av.wos.map(w => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; background: #f8fafc; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                            <span style="font-family: monospace; font-weight: 600; color: #1e293b;">${w.codigo}</span>
+                            ${w.fecha_str ? `<span style="color: #64748b; font-size: 0.68rem; margin-left: 4px;"><i class="bi bi-calendar-event"></i> ${w.fecha_str}</span>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
+        } else if (av.codigo_wo && av.codigo_wo !== "N/A" && av.codigo_wo !== "Sin WO" && av.codigo_wo.trim() !== "") {
+            const fechaSub = (av.wos && av.wos[0] && av.wos[0].fecha_str) ? ` <small style="color: #64748b;">(${av.wos[0].fecha_str})</small>` : '';
+            woRow = `<div style="margin-bottom: 0.25rem;"><strong>WO:</strong> <span class="leaflet-popup-content-value">${av.codigo_wo}</span>${fechaSub}</div>`;
+        }
             
         let contrataRow = (av.contrata && av.contrata !== "Sin contrata" && av.contrata !== "TGI" && av.contrata !== "None" && av.contrata.trim() !== "") 
             ? `<div style="margin-bottom: 0.25rem;"><strong>Contrata:</strong> <span class="leaflet-popup-content-value">${av.contrata}</span></div>` 
