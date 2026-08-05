@@ -1,3 +1,4 @@
+import os
 from functools import wraps
 from io import BytesIO
 import csv
@@ -1065,6 +1066,27 @@ def serve_sw():
     response = app.send_static_file("sw.js")
     response.headers["Service-Worker-Allowed"] = "/"
     return response
+
+
+@app.route("/descargar-apk")
+@app.route("/apk")
+def descargar_apk():
+    posibles_rutas = [
+        os.path.join(app.root_path, "static", "BotVip.apk"),
+        os.path.join(app.root_path, "BotVip.apk"),
+        os.path.join(app.root_path, "android-app", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
+        os.path.join(app.root_path, "android-app", "app", "build", "outputs", "apk", "release", "app-release.apk")
+    ]
+    for ruta in posibles_rutas:
+        if os.path.exists(ruta):
+            return send_file(
+                ruta,
+                as_attachment=True,
+                download_name="BotVip.apk",
+                mimetype="application/vnd.android.package-archive"
+            )
+    flash("El archivo APK de la aplicación no se encuentra disponible actualmente.", "warning")
+    return redirect(url_for("dashboard") if session.get("operador_id") else url_for("login"))
 
 
 @app.route("/api/caja_coordenadas", methods=["GET"])

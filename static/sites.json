@@ -1,0 +1,1658 @@
+[
+  {
+    "branch": "ARE",
+    "site": "ARE0005"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0014"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0022"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0033"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0035"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0036"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0038"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0045"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0046"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0048"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0049"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0050"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0070"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0072"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0074"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0079"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0080"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0081"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0082"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0103"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0107"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0108"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0113"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0114"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0118"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0121"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0122"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0141"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0145"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0145"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0155"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0163"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0178"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0180"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0181"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0183"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0184"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0189"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0192"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0194"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0195"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0197"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0199"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0238"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0246"
+  },
+  {
+    "branch": "ARE",
+    "site": "ARE0107"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ0003"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ0004"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ0007"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ0015"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ0018"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ0141"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ0176"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ8104"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0010"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0014"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0015"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0015"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0020"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0023"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0023"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0028"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0031"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0032"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0032"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0033"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0034"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0035"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0035"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0036"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0037"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0082"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0092"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0096"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0120"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0120"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0123"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0123"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0130"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0130"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0135"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0262"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0266"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0288"
+  },
+  {
+    "branch": "CUS",
+    "site": "CUS0427"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0009"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0010"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0011"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0075"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0076"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0077"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0079"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0080"
+  },
+  {
+    "branch": "HUN",
+    "site": "HUN0082"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0003"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0009"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0011"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0012"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0013"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0015"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0017"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0019"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0111"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0141"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0142"
+  },
+  {
+    "branch": "JUN",
+    "site": "JUN0181"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0005"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0010"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0014"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0017"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0020"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0023"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0027"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0036"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0036"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0037"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0042"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0043"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0044"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0045"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0046"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0047"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0049"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0055"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0058"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0060"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0062"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0063"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0064"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0066"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0068"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0070"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0071"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0073"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0078"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0079"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0106"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0132"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0133"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0136"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0182"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0183"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0194"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0215"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0224"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0226"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0232"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0282"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0049"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0066"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0068"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0069"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0071"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0072"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0073"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0075"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0076"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0077"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0079"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0081"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0084"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0139"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0148"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0163"
+  },
+  {
+    "branch": "LI1",
+    "site": "CAL0183"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0038"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0042"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0066"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0073"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0094"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0559"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0594"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0597"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0738"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0807"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0809"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0828"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0891"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0920"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0947"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0956"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1024"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1029"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1035"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1044"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1048"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1049"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1098"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1115"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1119"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1126"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1129"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1131"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1134"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1135"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1140"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1143"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1145"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1147"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1147"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1155"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1156"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1183"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1185"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1193"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1194"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1307"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1354"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1374"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1378"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1383"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1485"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1486"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1669"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1754"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1799"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1021"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1292"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1051"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0021"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1013"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0973"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0598"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1076"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0995"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1100"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1042"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0021"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC1372"
+  },
+  {
+    "branch": "LI1",
+    "site": "LIC0816"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0035"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0036"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0056"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0069"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0077"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0083"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0093"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0109"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0116"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0182"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0194"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0200"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0203"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0215"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0257"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0287"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0309"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0433"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0443"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0483"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0488"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0532"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0558"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0585"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0586"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0627"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0670"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0679"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0743"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0749"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0942"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0949"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0974"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1053"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1186"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1187"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1188"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1249"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1330"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1347"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1350"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1350"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1390"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1394"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1395"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1396"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1396"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1398"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1418"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0565"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0698"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0698"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC1295"
+  },
+  {
+    "branch": "LI2",
+    "site": "LIC0749"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0101"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0101"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0905"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0226"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0248"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0249"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0275"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0294"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0329"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0332"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0377"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0389"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0432"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0444"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0444"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0377"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0486"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0564"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0564"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0617"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0676"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0676"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0881"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0905"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0909"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC1501"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC1547"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0649"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0687"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC1404"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0111"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0140"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0782"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0835"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0661"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0805"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0486"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0006"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0010"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0018"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0019"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0022"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0026"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0027"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0029"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0031"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0032"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0034"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0046"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0047"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0055"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0056"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0060"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0060"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0062"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0111"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0121"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0058"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0066"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0102"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0118"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0222"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0264"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0292"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0571"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0572"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0609"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0756"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0783"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0836"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0935"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0988"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1011"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1027"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1031"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1031"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1306"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1308"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1314"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1357"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1380"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1382"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1386"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC1387"
+  },
+  {
+    "branch": "LI4",
+    "site": "LIC0940"
+  },
+  {
+    "branch": "LI4",
+    "site": "CAL0001"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC0060"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC0724"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC0724"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC0847"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC0980"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC1062"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC1121"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC1181"
+  },
+  {
+    "branch": "LI7",
+    "site": "LIC1201"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0001"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0004"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0006"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0011"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0012"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0014"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0017"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0022"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0024"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0108"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0172"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0177"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0188"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0188"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0233"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0235"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0276"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0284"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0298"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0312"
+  },
+  {
+    "branch": "SAN",
+    "site": "SAN0001"
+  },
+  {
+    "branch": "SAN",
+    "site": "SAN0056"
+  },
+  {
+    "branch": "SAN",
+    "site": "SAN0184"
+  },
+  {
+    "branch": "SAN",
+    "site": "SAN0005"
+  },
+  {
+    "branch": "SAN",
+    "site": "SAN0090"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0181"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0007"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0027"
+  },
+  {
+    "branch": "LAL",
+    "site": "LAL0170"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0008"
+  },
+  {
+    "branch": "PIU",
+    "site": "PIU0026"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0587"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0587"
+  },
+  {
+    "branch": "LI3",
+    "site": "LIC0587"
+  },
+  {
+    "branch": "CAJ",
+    "site": "CAJ0259"
+  }
+]

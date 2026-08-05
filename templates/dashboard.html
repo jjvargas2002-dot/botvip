@@ -35,7 +35,10 @@
         <h2 class="h3 fw-bold mb-1">Mapa y Control de Averías</h2>
         <p class="text-muted mb-0">Visualiza puntos de avería en tiempo real y gestiona las reparaciones de campo de tu sede.</p>
     </div>
-    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+    <div class="col-md-4 text-md-end mt-3 mt-md-0 d-flex flex-wrap align-items-center justify-content-md-end gap-2">
+        <a href="{{ url_for('descargar_apk') }}" class="btn btn-outline-success">
+            <i class="bi bi-android2 me-1.5"></i> Descargar APK
+        </a>
         {% if session.get('operador_branch') in ['LI1', 'LI2', 'LI3', 'LI4', 'LI7', 'ALL'] or session.get('operador_rol') == 'admin' %}
         <a href="{{ url_for('sync_sheets') }}" class="btn btn-premium-primary">
             <i class="bi bi-arrow-repeat me-1.5"></i> Sincronizar Google Sheets

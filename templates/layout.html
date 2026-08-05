@@ -351,6 +351,11 @@
                         </a>
                     </li>
                     {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link-custom" href="{{ url_for('descargar_apk') }}" title="Descargar instalador APK para Android">
+                            <i class="bi bi-android2 text-success"></i> <span class="d-lg-inline">Descargar APK</span>
+                        </a>
+                    </li>
                 </ul>
                 <div class="d-flex align-items-center gap-3">
                     <div class="user-badge">
@@ -362,6 +367,11 @@
                             Opciones
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow">
+                            <li>
+                                <a class="dropdown-item text-success fw-semibold" href="{{ url_for('descargar_apk') }}">
+                                    <i class="bi bi-android2 me-2"></i> Descargar App Móvil (APK)
+                                </a>
+                            </li>
                             <li>
                                 <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
                                     <i class="bi bi-key-fill me-2 text-muted"></i> Cambiar contraseña
@@ -411,8 +421,13 @@
 
     <!-- Footer -->
     <footer class="bg-white border-top py-3 text-center text-muted mt-auto">
-        <div class="container">
+        <div class="container d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2">
             <small>&copy; 2026 BotVip - Todos los derechos reservados. Diseñado para soporte de FTTH.</small>
+            <div>
+                <a href="{{ url_for('descargar_apk') }}" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1 text-decoration-none fw-semibold shadow-sm">
+                    <i class="bi bi-android2 me-1"></i> Descargar App Android (.APK)
+                </a>
+            </div>
         </div>
     </footer>
 
